@@ -18,14 +18,14 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，精簡上方留白並優化圖表容器
+# 2. 注入自訂 CSS，精簡上方與外圍留白
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 1.2rem;
-            padding-bottom: 1rem;
+            padding-top: 0.8rem;
+            padding-bottom: 0.5rem;
             max-width: 95rem;
         }
     </style>
@@ -68,7 +68,7 @@ def load_stock_list():
     return options.tolist(), df
   except Exception as e:
     st.error(
-        f"讀取 StockIDs.xlsx 失敗，請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
+        f"讀取 StockIDs.xlsx 失敗,請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
     )
     return [], pd.DataFrame()
 
@@ -189,33 +189,32 @@ if stock_options:
 
     # 頂端量化指標呈現
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("📦 最近一期成交量", f"{int(cur_vol):,}" if cur_vol > 0 else "---")
-    m2.metric("📊 成交量 20MA", f"{int(cur_20ma):,}" if cur_20ma > 0 else "---")
-    vol_status = f"🔥 {v_ratio:.2f} 倍 (強勢)" if v_ratio >= 1.6 else f"💤 {v_ratio:.2f} 倍 (平緩)"
-    m3.metric("⚡ 成交量 / 20MA 比值", vol_status)
+    m1.metric("📦 最近成交量", f"{int(cur_vol):,}" if cur_vol > 0 else "---")
+    m2.metric("📊 20MA均量", f"{int(cur_20ma):,}" if cur_20ma > 0 else "---")
+    vol_status = f"🔥 {v_ratio:.2f}倍 (強勢)" if v_ratio >= 1.6 else f"💤 {v_ratio:.2f}倍 (平緩)"
+    m3.metric("⚡ 量/20MA比", vol_status)
     m4.metric("🎯 門檻狀態", "符合 > 1.6" if v_ratio >= 1.6 else "未達 1.6 倍")
 
     st.markdown("")
 
     # ---------------------------------------------------------
-    # 9. 繪製「上下 2 格」黑底圖表 (縮小畫布尺寸，完美適應視窗)
+    # 9. 繪製「黃金比例微型雙格」黑底圖表 (高度壓低至 3.0，確保完美收納於單一視窗)
     # ---------------------------------------------------------
     plt.style.use("dark_background")
     
-    # 將 figsize 調整為更精省的寬高比例 (寬 10, 高 5.5)，確保在各種螢幕單一視窗內完整呈現
-    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(10, 5.5), sharex=True, gridspec_kw={'height_ratios': [1.8, 1]})
+    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(9, 3.0), sharex=True, gridspec_kw={'height_ratios': [1.8, 1]})
 
     # --- 上圖：大戶與羊群持股雙軸趨勢 ---
     color_big = "#ff4d4d"
-    ax1.set_ylabel("大戶 (%)", color=color_big, fontsize=9, fontweight="bold")
-    ax1.plot(dates, big_holder, color=color_big, marker="o", markersize=3, linewidth=1.5, label="大戶持股")
-    ax1.tick_params(axis="y", labelcolor=color_big, labelsize=8)
+    ax1.set_ylabel("大戶(%)", color=color_big, fontsize=8, fontweight="bold")
+    ax1.plot(dates, big_holder, color=color_big, marker="o", markersize=2, linewidth=1.2, label="大戶持股")
+    ax1.tick_params(axis="y", labelcolor=color_big, labelsize=7)
 
     ax2 = ax1.twinx()
     color_sheep = "#2ecc71"
-    ax2.set_ylabel("羊群 (%)", color=color_sheep, fontsize=9, fontweight="bold")
-    ax2.plot(dates, sheep_holder, color=color_sheep, marker="s", markersize=3, linewidth=1.5, label="羊群持股")
-    ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=8)
+    ax2.set_ylabel("羊群(%)", color=color_sheep, fontsize=8, fontweight="bold")
+    ax2.plot(dates, sheep_holder, color=color_sheep, marker="s", markersize=2, linewidth=1.2, label="羊群持股")
+    ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=7)
 
     if check_golden_cross and golden_crosses:
       for idx in golden_crosses:
@@ -223,30 +222,29 @@ if stock_options:
           ax1.annotate(
               "★ 黃金交叉",
               xy=(dates[idx], big_holder[idx]),
-              xytext=(dates[idx], big_holder[idx] + 1.5),
-              arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=1, headwidth=5),
-              fontsize=8,
+              xytext=(dates[idx], big_holder[idx] + 1.2),
+              arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=0.8, headwidth=4),
+              fontsize=7,
               fontweight="bold",
               color="#f1c40f",
               ha="center",
           )
 
-    ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼趨勢與成交量動能分析", fontsize=11, fontweight="bold", pad=8)
+    ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=9, fontweight="bold", pad=4)
     ax1.grid(True, linestyle="--", alpha=0.3)
 
     # --- 下圖：成交量柱狀圖與 20MA 均量線 ---
-    ax3.bar(dates, volumes, color="#3498db", alpha=0.7, width=3.5, label="成交量")
-    ax3.plot(dates, vol_20ma, color="#f39c12", linewidth=1.5, label="成交量 20MA")
-    ax3.set_ylabel("成交量", fontsize=9, color="white", fontweight="bold")
-    ax3.set_xlabel("日期", fontsize=9, color="white")
-    ax3.tick_params(axis="x", labelsize=8, rotation=15)
-    ax3.tick_params(axis="y", labelsize=8)
-    ax3.legend(loc="upper left", fontsize=8)
+    ax3.bar(dates, volumes, color="#3498db", alpha=0.7, width=3.0, label="成交量")
+    ax3.plot(dates, vol_20ma, color="#f39c12", linewidth=1.2, label="20MA")
+    ax3.set_ylabel("成交量", fontsize=8, color="white", fontweight="bold")
+    ax3.set_xlabel("日期", fontsize=8, color="white")
+    ax3.tick_params(axis="x", labelsize=7, rotation=10)
+    ax3.tick_params(axis="y", labelsize=7)
+    ax3.legend(loc="upper left", fontsize=7)
     ax3.grid(True, linestyle="--", alpha=0.3)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=0.5)
     
-    # 使用 use_container_width=True 讓圖表自動填滿容器但不超出視窗
     st.pyplot(fig, use_container_width=True)
 
   # =========================================================
@@ -254,7 +252,7 @@ if stock_options:
   # =========================================================
   with tab2:
     st.subheader("⚡ 全市場台股 - 黃金交叉與成交量篩選器")
-    st.info("切換至第一分頁即可即時檢視任意股票的上下 2 格圖表！")
+    st.info("切換至第一分頁即可流暢檢視任意股票的精巧雙格圖表！")
 
 else:
   st.warning("請先將 StockIDs.xlsx 上傳至 GitHub 專案根目錄中。")
