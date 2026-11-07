@@ -78,7 +78,7 @@ stock_options, stock_df = load_stock_list()
 
 
 # ---------------------------------------------------------
-# 5. 核心運算函數（完全防禦型設計，絕不報錯）
+# 5. 核心運算函數（完全防禦型設計）
 # ---------------------------------------------------------
 def calculate_golden_cross_custom(stock_id, periods=60, min_diff=0.0):
   try:
@@ -90,11 +90,9 @@ def calculate_golden_cross_custom(stock_id, periods=60, min_diff=0.0):
   periods = max(10, int(periods))
   dates = pd.date_range(end=datetime.today(), periods=periods, freq="W")
 
-  # 產生基礎數據
   big_holder = 38.0 + np.cumsum(np.random.randn(periods) * 0.4)
   sheep_holder = 42.0 + np.cumsum(np.random.randn(periods) * 0.3)
 
-  # 絕對安全的黃金交叉模擬邏輯
   tail_n = min(5, periods)
   if seed_val % 3 == 0:
     for i in range(tail_n):
@@ -102,7 +100,6 @@ def calculate_golden_cross_custom(stock_id, periods=60, min_diff=0.0):
       sheep_val = sheep_holder[idx]
       big_holder[idx] = sheep_val + 1.0 + (i * 0.5) + min_diff
 
-  # 計算黃金交叉點
   golden_crosses = []
   for i in range(1, len(dates)):
     if (
@@ -115,7 +112,13 @@ def calculate_golden_cross_custom(stock_id, periods=60, min_diff=0.0):
 
 
 # ---------------------------------------------------------
-# 6. 網頁介面佈局（多分頁設計）
+# 6. 使用 Session State 記住使用者點選的股票（實現跨分頁連動）
+# ---------------------------------------------------------
+if "target_stock" not in st.session_state:
+  st.session_state.target_stock = stock_options[0] if stock_options else ""
+
+# ---------------------------------------------------------
+# 7. 網頁介面佈局（多分頁設計）
 # ---------------------------------------------------------
 st.title("📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)")
 
@@ -131,9 +134,17 @@ if stock_options:
     col1, col2, col3 = st.columns([2, 3, 2])
 
     with col1:
+      # 讓下拉選單與 st.session_state 雙向綁定
       selected_stock = st.selectbox(
-          "選擇或搜尋股票代號與名稱", stock_options, index=0, key="tab1_select"
+          "選擇或搜尋股票代號與名稱",
+          stock_options,
+          index=stock_options.index(st.session_state.target_stock)
+          if st.session_state.target_stock in stock_options
+          else 0,
+          key="tab1_select",
       )
+      # 更新 session state
+      st.session_state.target_stock = selected_stock
 
     stock_id = selected_stock.split()[0]
     stock_name = (
@@ -212,7 +223,7 @@ if stock_options:
     st.pyplot(fig)
 
   # =========================================================
-  # 分頁二：全市場黃金交叉智慧篩選器
+  # 分頁二：全市場黃金交叉智慧篩選器 (含連動跳轉)
   # =========================================================
   with tab2:
     st.subheader("⚡ 全市場 1952 檔台股 - 黃金交叉智慧篩選器")
@@ -239,6 +250,9 @@ if stock_options:
           "🚀 開始執行全市場篩選", type="primary", use_container_width=True
       )
 
+    if "screened_results" not in st.session_state:
+      st.session_state.screened_results = []
+
     if run_btn:
       with st.spinner("正在掃描 1952 檔台股籌碼，請稍候..."):
         matched_results = []
@@ -251,23 +265,52 @@ if stock_options:
           )
           if is_ok:
             matched_results.append({
-                "股票代號": s_id,
-                "股票名稱": s_name,
+                "代碼": s_id,
+                "名稱": s_name,
                 "篩選標示": "🔥 成立 (大戶突破)",
                 "交叉次數": len(gc_list),
             })
+        st.session_state.screened_results = matched_results
 
-        df_res = pd.DataFrame(matched_results)
+    if st.session_state.screened_results:
+      df_res = pd.DataFrame(st.session_state.screened_results)
+      st.success(
+          f"🎉 篩選完成！總共檢索到 **{len(df_res)}** 檔符合條件的股票。"
+      )
 
-      if not df_res.empty:
+      # 建立快速點擊檢視的下拉選單（從篩選結果中挑選）
+      st.markdown("---")
+      st.markdown("### 🔍 快速檢視篩選結果股票")
+
+      # 組合成選項列表
+      filtered_options = (
+          df_res["代碼"].astype(str) + " " + df_res["名稱"].astype(str)
+      ).tolist()
+
+      col_a, col_b = st.columns([3, 1])
+      with col_a:
+        selected_from_screen = st.selectbox(
+            "從符合清單中選擇要查看的股票", filtered_options
+        )
+      with col_b:
+        st.markdown("<br>", unsafe_allow_html=True)
+        jump_btn = st.button("📈 前往檢視圖表", use_container_width=True)
+
+      if jump_btn and selected_from_screen:
+        # 將目標股票存入 session state，並切換過去
+        st.session_state.target_stock = selected_from_screen
         st.success(
-            f"🎉 篩選完成！總共檢索到 **{len(df_res)}** 檔符合條件的股票。"
+            f"已切換至 `{selected_from_screen}`！請點擊上方分頁 **「📈"
+            " 單股籌碼圖表檢視」** 查看。"
         )
-        st.dataframe(df_res, use_container_width=True, hide_index=True)
-      else:
-        st.warning(
-            "在此參數條件下，未檢索到符合的股票，請嘗試放寬篩選門檻。"
-        )
+
+      # 同時顯示完整表格
+      st.dataframe(df_res, use_container_width=True, hide_index=True)
+
+    elif run_btn:
+      st.warning(
+          "在此參數條件下，未檢索到符合的股票，請嘗試放寬篩選門檻。"
+      )
     else:
       st.info(
           "💡 提示：調整上方參數後，請點擊 **「🚀 開始執行全市場篩選」**"
