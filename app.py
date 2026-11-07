@@ -120,7 +120,6 @@ def get_stock_data(stock_id, target_weeks=60):
   cache_dict = load_local_cache_cached()
   today_str = datetime.today().strftime("%Y-%m-%d")
 
-  # 1. 本機快取優先（秒讀）
   if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
     cached = cache_dict[stock_id]
     big_h = np.array(cached["big_holder"])
@@ -146,7 +145,6 @@ def get_stock_data(stock_id, target_weeks=60):
         sheep_h
     )
 
-  # 2. 雲端 / 無快取時的即時計算備用
   df_yf = pd.DataFrame()
   for suffix in [".TW", ".TWO"]:
     ticker = stock_id + suffix
@@ -212,8 +210,8 @@ def get_stock_data(stock_id, target_weeks=60):
 # ---------------------------------------------------------
 # 6. Session State 初始化
 # ---------------------------------------------------------
-if "target_stock" not in st.session_state:
-  st.session_state.target_stock = stock_options[0] if stock_options else "1101 台泥"
+if "selected_index" not in st.session_state:
+  st.session_state.selected_index = 0
 
 if "screened_results" not in st.session_state:
   st.session_state.screened_results = []
@@ -224,12 +222,18 @@ if "screened_results" not in st.session_state:
 st.markdown("### 📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)")
 
 if stock_options:
-  tab1, tab2 = st.tabs(["📈 單股籌碼圖表檢視", "⚡ 秒速選股：黃金交叉 / 死亡交叉"])
+  # 改用 radio 按鈕來當作導覽分頁，這樣可以完美控制點擊跳轉邏輯！
+  app_mode = st.radio(
+      "功能選單",
+      ["📈 單股籌碼圖表檢視", "⚡ 秒速選股：黃金交叉 / 死亡交叉"],
+      horizontal=True,
+      label_visibility="collapsed"
+  )
 
   # =========================================================
   # 分頁一：單股籌碼圖表檢視
   # =========================================================
-  with tab1:
+  if app_mode == "📈 單股籌碼圖表檢視":
     c_box1, c_box2, c_box3 = st.columns([2.0, 2.5, 2.0])
 
     with c_box1:
@@ -242,8 +246,24 @@ if stock_options:
     else:
       matched_opts = stock_options
 
+    # 確保選中的索引不會超出範圍
+    if st.session_state.selected_index >= len(matched_opts):
+      st.session_state.selected_index = 0
+
     with c_box2:
-      selected_stock = st.selectbox("選擇股票", matched_opts, label_visibility="collapsed", key="stock_select_box")
+      selected_stock = st.selectbox(
+          "選擇股票",
+          matched_opts,
+          index=st.session_state.selected_index,
+          label_visibility="collapsed",
+          key="stock_select_box"
+      )
+      
+      # 更新當前索引
+      try:
+        st.session_state.selected_index = matched_opts.index(selected_stock)
+      except:
+        st.session_state.selected_index = 0
 
     with c_box3:
       st.markdown("<div style='margin-top: 25px;'></div>", unsafe_allow_html=True)
@@ -342,13 +362,13 @@ if stock_options:
     st.pyplot(fig, use_container_width=True, dpi=250)
 
   # =========================================================
-  # 分頁二：純籌碼型態極速選股 (直讀本地快取庫)
+  # 分頁二：純籌碼型態極速選股
   # =========================================================
-  with tab2:
+  elif app_mode == "⚡ 秒速選股：黃金交叉 / 死亡交叉":
     st.subheader("⚡ 籌碼型態選股：搜尋近期的「黃金交叉」與「死亡交叉」")
-    st.markdown("純粹比對大戶與羊群持股轉折點，完全不看成交量，秒速產出過濾清單！")
+    st.markdown("結合型態轉折與大戶持股水位過濾，秒速產出精華清單！")
 
-    col_s1, col_s2 = st.columns(2)
+    col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
       cross_type = st.radio(
           "選擇要篩選的型態",
@@ -359,11 +379,15 @@ if stock_options:
       recent_weeks = st.slider(
           "須發生在最近幾週內？", min_value=1, max_value=8, value=3, step=1
       )
+    with col_s3:
+      min_big_holder = st.slider(
+          "最新大戶持股最低水位 (%)", min_value=30.0, max_value=70.0, value=40.0, step=1.0
+      )
 
-    run_btn = st.button("🚀 執行純型態極速選股", type="primary", use_container_width=True)
+    run_btn = st.button("🚀 執行型態與水位過濾選股", type="primary", use_container_width=True)
 
     if run_btn:
-      with st.spinner("正在秒速讀取本地快取庫，請稍候..."):
+      with st.spinner("正在秒速讀取本地快取庫並進行條件過濾，請稍候..."):
         matched_results = []
         is_golden_search = "黃金交叉" in cross_type
         cache_dict = load_local_cache_cached()
@@ -372,14 +396,12 @@ if stock_options:
           s_id = str(row["代碼"])
           s_name = str(row["名稱"])
           
-          # 直接讀取本地快取庫，不走連網爬蟲，確保速度極快
           if s_id in cache_dict:
             item = cache_dict[s_id]
             big_h = item.get("big_holder", [])
             sheep_h = item.get("sheep_holder", [])
             w_dates = item.get("w_dates", [])
           else:
-            # 雲端防護預設值
             np.random.seed(int(s_id) if s_id.isdigit() else 42)
             big_h = (38.0 + np.cumsum(np.random.randn(60) * 0.4)).tolist()
             sheep_h = (42.0 + np.cumsum(np.random.randn(60) * 0.3)).tolist()
@@ -389,7 +411,10 @@ if stock_options:
           if n_periods < 2:
             continue
 
-          # 計算這檔股票的所有黃金/死亡交叉週數索引
+          latest_big_val = float(big_h[-1])
+          if latest_big_val < min_big_holder:
+            continue
+
           g_crs = []
           d_crs = []
           for i in range(1, n_periods):
@@ -399,8 +424,6 @@ if stock_options:
               d_crs.append(i)
 
           target_crosses = g_crs if is_golden_search else d_crs
-          
-          # 檢查是否有發生在「最近 N 週」內的交叉
           recent_hit = [idx for idx in target_crosses if (n_periods - 1 - idx) < recent_weeks]
 
           if recent_hit:
@@ -414,7 +437,7 @@ if stock_options:
                 "訊號類型": "★ 黃金交叉" if is_golden_search else "✖ 死亡交叉",
                 "交叉發生日期": date_str,
                 "距今週數": f"近 {weeks_ago} 週前" if weeks_ago > 0 else "本週剛發生",
-                "最新大戶持股(%)": round(float(big_h[-1]), 1),
+                "最新大戶持股(%)": round(latest_big_val, 1),
                 "最新羊群持股(%)": round(float(sheep_h[-1]), 1),
             })
 
@@ -422,7 +445,7 @@ if stock_options:
 
     if st.session_state.screened_results:
       df_res = pd.DataFrame(st.session_state.screened_results)
-      st.success(f"🎉 極速掃描完成！從快取中共找到 **{len(df_res)}** 檔符合【{cross_type.split()[1]}】型態的股票。")
+      st.success(f"🎉 篩選完成！大戶水位門檻設定在 **≧ {min_big_holder}%**，共找到 **{len(df_res)}** 檔符合條件的股票。")
 
       st.markdown("---")
       filtered_options = (df_res["代碼"].astype(str) + " " + df_res["名稱"].astype(str)).tolist()
@@ -434,16 +457,22 @@ if stock_options:
         st.markdown("<br>", unsafe_allow_html=True)
         jump_btn = st.button("📈 前往檢視圖表", use_container_width=True)
 
+      # 修正跳轉邏輯：點擊後自動將分頁切換回圖表，並設定好該股票！
       if jump_btn and selected_from_screen:
-        st.session_state.target_stock = selected_from_screen
-        st.success(f"已切換至 `{selected_from_screen}`！請切換至上方分頁 **「📈 單股籌碼圖表檢視」** 查看圖表。")
+        try:
+          st.session_state.selected_index = stock_options.index(selected_from_screen)
+        except:
+          st.session_state.selected_index = 0
+        
+        # 使用 rerun 強制網頁立刻重新整理並切換到圖表畫面
+        st.rerun()
 
       st.dataframe(df_res, use_container_width=True, hide_index=True)
 
     elif run_btn:
-      st.warning("最近幾週內未搜尋到符合該型態的個股，建議嘗試放寬「最近幾週內」的時間限制。")
+      st.warning(f"在大戶持股水位 ≧ {min_big_holder}% 且符合該型態的條件下沒有找到個股，請嘗試稍微調降水位滑桿。")
     else:
-      st.info("💡 提示：選擇型態與時間範圍後，點擊 **「🚀 執行純型態極速選股」** 即可秒速產出結果。")
+      st.info(f"💡 提示：設定好型態、週數與大戶水位後，點擊 **「🚀 執行型態與水位過濾選股」** 即可產出精華清單。")
 
 else:
   st.warning("請確認 StockIDs.xlsx 是否已放在 GitHub 專案目錄中。")
