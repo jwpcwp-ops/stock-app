@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，精簡頂部留白與搜尋框
+# 2. 注入自訂 CSS，精簡頂部留白與元件
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -27,10 +27,6 @@ st.markdown(
             padding-top: 1.8rem;
             padding-bottom: 0.4rem;
             max-width: 95rem;
-        }
-        /* 讓輸入搜尋框精緻不佔版面 */
-        div[data-baseweb="select"] {
-            max-width: 260px;
         }
         /* 縮小版「目前選擇」文字樣式 */
         .selected-stock-text {
@@ -115,7 +111,6 @@ def fetch_real_weekly_volume_and_metrics(stock_id, target_weeks=60):
   for suffix in [".TW", ".TWO"]:
     ticker = stock_id + suffix
     try:
-      # 抓取足夠長度的日線資料以涵蓋目標週數
       df_yf = yf.download(ticker, period="2y", progress=False)
       if not df_yf.empty and "Volume" in df_yf.columns:
         if isinstance(df_yf.columns, pd.MultiIndex):
@@ -128,7 +123,6 @@ def fetch_real_weekly_volume_and_metrics(stock_id, target_weeks=60):
         cur_20ma = float(vol_20ma_daily.iloc[-1]) if len(vol_20ma_daily) > 0 else 0
         ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
 
-        # 轉換為週成交量，並強制取最後 target_weeks 筆與籌碼對齊
         df_weekly = df_yf.resample("W").agg({"Volume": "sum"}).dropna()
         df_weekly = df_weekly.tail(target_weeks)
         
@@ -139,7 +133,6 @@ def fetch_real_weekly_volume_and_metrics(stock_id, target_weeks=60):
     except Exception:
       continue
   
-  # 若 yfinance 失敗的備用模擬對齊數據
   fallback_dates = pd.date_range(end=datetime.today(), periods=target_weeks, freq="W")
   fallback_vols = np.random.randint(5000, 50000, size=target_weeks)
   return 1.0, 10000.0, 8000.0, fallback_dates, fallback_vols
@@ -204,14 +197,15 @@ if stock_options:
     col1, col2, col3 = st.columns([2.2, 2.2, 2])
 
     with col1:
-      selected_stock = st.selectbox(
-          "輸入代碼或名稱",
-          stock_options,
-          index=stock_options.index(st.session_state.target_stock)
-          if st.session_state.target_stock in stock_options
-          else 0,
-          key="tab1_select",
-      )
+      # 改用精準的文字輸入框，完全杜絕多重字元誤串
+      search_input = st.text_input("輸入代碼或名稱", value="1101", key="stock_search_input")
+      
+      # 根據輸入的關鍵字過濾股票清單
+      matched_opts = [opt for opt in stock_options if search_input.lower() in opt.lower()]
+      if not matched_opts:
+        matched_opts = stock_options  # 如果找不到則預設顯示全部
+        
+      selected_stock = st.selectbox("選擇匹配股票", matched_opts, label_visibility="collapsed")
       st.session_state.target_stock = selected_stock
 
     stock_id = selected_stock.split()[0]
@@ -230,7 +224,6 @@ if stock_options:
       st.markdown("<div style='margin-top: 4px;'></div>", unsafe_allow_html=True)
       check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
-    # 取得完美對齊的 60 週成交量與數據
     v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_weekly_volume_and_metrics(stock_id, target_weeks=60)
 
     # 橫式精巧指標列
@@ -269,7 +262,6 @@ if stock_options:
 
     st.markdown("")
 
-    # 確保籌碼資料與成交量週數（w_dates）一模一樣長度，實現完美伸縮對齊
     dates_plot, big_holder, sheep_holder, golden_crosses = calculate_matched_chip_data(stock_id, w_dates)
     
     vol_series = pd.Series(w_vols)
@@ -336,7 +328,7 @@ if stock_options:
     )
     ax1.grid(True, linestyle="--", alpha=0.3)
 
-    # --- 下圖：成交量柱狀圖與 20MA 均量線 (與上圖週數完美同步) ---
+    # --- 下圖：成交量柱狀圖與 20MA 均量線 ---
     ax3.bar(
         dates_plot,
         vol_series.values,
@@ -394,7 +386,6 @@ if stock_options:
           s_id = str(row["代碼"])
           s_name = str(row["名稱"])
 
-          # 呼叫篩選函數
           try:
             _, _, _, _, gc_list, v_val, b_val = fetch_real_weekly_volume_and_metrics(s_id, target_weeks=custom_periods)
             is_ok = (v_val >= custom_vol_thresh)
