@@ -55,7 +55,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# 3. 自動下載並載入繁體中文字型 (解決雲端亂碼問題)
+# 3. 自動下載並載入繁體中文字型 (確保圖表文字清晰不模糊)
 # ---------------------------------------------------------
 font_path = "NotoSansTC-Regular.ttf"
 if not os.path.exists(font_path):
@@ -120,7 +120,6 @@ def get_stock_data(stock_id, target_weeks=60):
   cache_dict = load_local_cache_cached()
   today_str = datetime.today().strftime("%Y-%m-%d")
 
-  # 1. 本機有快取且為當天，秒讀
   if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
     cached = cache_dict[stock_id]
     return (
@@ -134,7 +133,6 @@ def get_stock_data(stock_id, target_weeks=60):
         cached["sheep_holder"]
     )
 
-  # 2. 無快取或雲端執行時，即時抓取/計算
   df_yf = pd.DataFrame()
   for suffix in [".TW", ".TWO"]:
     ticker = stock_id + suffix
@@ -203,12 +201,11 @@ def get_stock_data(stock_id, target_weeks=60):
   )
 
 # ---------------------------------------------------------
-# 6. 網頁主介面佈局 (純圖表檢視版)
+# 6. 網頁主介面佈局
 # ---------------------------------------------------------
 st.markdown("### 📊 台股大戶與羊群持股比例趨勢系統")
 
 if stock_options:
-  # 搜尋與選擇工具列
   c_box1, c_box2, c_box3 = st.columns([2.0, 2.5, 1.5])
 
   with c_box1:
@@ -231,10 +228,8 @@ if stock_options:
   stock_id = selected_stock.split()[0]
   stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-  # 讀取數據
   v_ratio, cur_vol, cur_20ma, golden_crosses, dates_plot, w_vols, big_holder, sheep_holder = get_stock_data(stock_id, target_weeks=60)
 
-  # 數據卡片列
   m1, m2, m3 = st.columns(3)
   with m1:
     st.markdown(
@@ -259,25 +254,26 @@ if stock_options:
   vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
   # ---------------------------------------------------------
-  # 7. 繪製圖表
+  # 7. 繪製高畫質清晰圖表 (調高 dpi 與字體大小)
   # ---------------------------------------------------------
   plt.style.use("dark_background")
 
+  # 提高 figsize 與 dpi，讓圖片放大時字體與線條依然極度清晰
   fig, (ax1, ax3) = plt.subplots(
-      2, 1, figsize=(9, 2.5), sharex=True, gridspec_kw={"height_ratios": [1.8, 1]}
+      2, 1, figsize=(10, 3.2), sharex=True, gridspec_kw={"height_ratios": [1.8, 1]}
   )
 
   # 上圖：大戶與羊群持股
   color_big = "#ff4d4d"
-  ax1.set_ylabel("大戶(%)", color=color_big, fontsize=7, fontweight="bold")
-  ax1.plot(dates_plot, big_holder, color=color_big, marker="o", markersize=1.5, linewidth=1.0, label="大戶持股")
-  ax1.tick_params(axis="y", labelcolor=color_big, labelsize=6)
+  ax1.set_ylabel("大戶(%)", color=color_big, fontsize=9, fontweight="bold")
+  ax1.plot(dates_plot, big_holder, color=color_big, marker="o", markersize=2, linewidth=1.2, label="大戶持股")
+  ax1.tick_params(axis="y", labelcolor=color_big, labelsize=8)
 
   ax2 = ax1.twinx()
   color_sheep = "#2ecc71"
-  ax2.set_ylabel("羊群(%)", color=color_sheep, fontsize=7, fontweight="bold")
-  ax2.plot(dates_plot, sheep_holder, color=color_sheep, marker="s", markersize=1.5, linewidth=1.0, label="羊群持股")
-  ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=6)
+  ax2.set_ylabel("羊群(%)", color=color_sheep, fontsize=9, fontweight="bold")
+  ax2.plot(dates_plot, sheep_holder, color=color_sheep, marker="s", markersize=2, linewidth=1.2, label="羊群持股")
+  ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=8)
 
   if check_golden_cross and golden_crosses:
     for idx in golden_crosses:
@@ -285,30 +281,31 @@ if stock_options:
         ax1.annotate(
             "★ 黃金交叉",
             xy=(dates_plot[idx], big_holder[idx]),
-            xytext=(dates_plot[idx], big_holder[idx] + 1.0),
-            arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=0.6, headwidth=3),
-            fontsize=6,
+            xytext=(dates_plot[idx], big_holder[idx] + 1.2),
+            arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=0.8, headwidth=4),
+            fontsize=8,
             fontweight="bold",
             color="#f1c40f",
             ha="center",
         )
 
-  ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=8, fontweight="bold", pad=3)
+  ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=10, fontweight="bold", pad=5)
   ax1.grid(True, linestyle="--", alpha=0.3)
 
   # 下圖：成交量與 20MA
   ax3.bar(dates_plot, vol_series.values, color="#3498db", alpha=0.7, width=3.5, label="成交量(張)")
-  ax3.plot(dates_plot, vol_20ma, color="#f39c12", linewidth=1.0, label="20MA")
-  ax3.set_ylabel("張數", fontsize=7, color="white", fontweight="bold")
-  ax3.set_xlabel("日期", fontsize=7, color="white")
-  ax3.tick_params(axis="x", labelsize=6, rotation=10)
-  ax3.tick_params(axis="y", labelsize=6)
-  ax3.legend(loc="upper left", fontsize=6)
+  ax3.plot(dates_plot, vol_20ma, color="#f39c12", linewidth=1.2, label="20MA")
+  ax3.set_ylabel("張數", fontsize=9, color="white", fontweight="bold")
+  ax3.set_xlabel("日期", fontsize=9, color="white")
+  ax3.tick_params(axis="x", labelsize=8, rotation=10)
+  ax3.tick_params(axis="y", labelsize=8)
+  ax3.legend(loc="upper left", fontsize=8)
   ax3.grid(True, linestyle="--", alpha=0.3)
 
-  fig.tight_layout(pad=0.3)
+  fig.tight_layout(pad=0.5)
 
-  st.pyplot(fig, use_container_width=True)
+  # 設定 dpi=250 讓圖片渲染更細緻清晰
+  st.pyplot(fig, use_container_width=True, dpi=250)
 
 else:
   st.warning("請確認 StockIDs.xlsx 是否已放在 GitHub 專案目錄中。")
