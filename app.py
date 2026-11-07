@@ -258,13 +258,13 @@ if stock_options:
 
     st.markdown("")
 
-    _, big_holder, sheep_holder, golden_crosses, _, _ = calculate_advanced_filter(
+    # 修正變數接收對應，避免 ValueError
+    _, dates_plot, big_holder, sheep_holder, golden_crosses, _, _ = calculate_advanced_filter(
         stock_id, periods=60, w_dates=w_dates
     )
     
-    vol_series = pd.Series(w_vols if w_vols is not None else np.random.randint(1000, 50000, size=len(w_dates) if w_dates is not None else 60))
+    vol_series = pd.Series(w_vols if w_vols is not None else np.random.randint(1000, 50000, size=len(dates_plot)))
     vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
-    dates_plot = w_dates if w_dates is not None else pd.date_range(end=datetime.today(), periods=60, freq="W")
 
     # ---------------------------------------------------------
     # 9. 繪製微型化雙格圖表 (高度壓低至 2.4)
