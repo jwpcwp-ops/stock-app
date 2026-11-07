@@ -1,7 +1,5 @@
 from datetime import datetime
 import os
-import urllib.request
-import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -18,7 +16,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，精簡上下留白與橫式指標卡片
+# 2. 注入自訂 CSS，完美控制版面與橫式緊湊指標
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -36,7 +34,7 @@ st.markdown(
             border-radius: 5px;
             display: flex;
             justify-content: flex-start;
-            gap: 12px;
+            gap: 10px;
             align-items: center;
         }
         .metric-label {
@@ -55,26 +53,13 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# 3. 自動下載並載入繁體中文字型 (解決 Streamlit Cloud 亂碼)
+# 3. 設定圖表字型 (使用系統安全字型，徹底解決亂碼與方框問題)
 # ---------------------------------------------------------
-font_path = "NotoSansTC-Regular.ttf"
-if not os.path.exists(font_path):
-  url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf"
-  try:
-    urllib.request.urlretrieve(url, font_path)
-  except Exception as e:
-    print(f"字型下載失敗: {e}")
-
-if os.path.exists(font_path):
-  fm.fontManager.addfont(font_path)
-  plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
-else:
-  plt.rcParams["font.sans-serif"] = [
-      "Microsoft JhengHei",
-      "Arial Unicode MS",
-      "sans-serif",
-  ]
-
+plt.rcParams["font.sans-serif"] = [
+    "Microsoft JhengHei",
+    "Arial Unicode MS",
+    "sans-serif",
+]
 plt.rcParams["axes.unicode_minus"] = False
 
 # ---------------------------------------------------------
@@ -258,7 +243,6 @@ if stock_options:
 
     st.markdown("")
 
-    # 修正變數接收對應，避免 ValueError
     _, dates_plot, big_holder, sheep_holder, golden_crosses, _, _ = calculate_advanced_filter(
         stock_id, periods=60, w_dates=w_dates
     )
@@ -267,7 +251,7 @@ if stock_options:
     vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
     # ---------------------------------------------------------
-    # 9. 繪製微型化雙格圖表 (高度壓低至 2.4)
+    # 9. 繪製微型化雙格圖表 (高度壓低至 2.4，確保完美收納於單一視窗內)
     # ---------------------------------------------------------
     plt.style.use("dark_background")
     
