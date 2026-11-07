@@ -1,5 +1,5 @@
-from datetime import datetime
 import os
+from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -16,19 +16,26 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，完美控制單行緊湊排版
+# 2. 注入自訂 CSS，適度增加頂部留白確保標題完整顯示
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 0.8rem;
+            padding-top: 1.8rem;
             padding-bottom: 0.4rem;
             max-width: 95rem;
         }
-        /* 讓選單外觀更精簡 */
+        /* 讓輸入搜尋框精緻不佔版面 */
         div[data-baseweb="select"] {
-            max-width: 240px;
+            max-width: 260px;
+        }
+        /* 縮小版「目前選擇」文字樣式 */
+        .selected-stock-text {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-top: 8px;
         }
         /* 橫式精巧指標卡片 */
         .metric-card-horizontal {
@@ -100,15 +107,15 @@ def fetch_real_daily_volume(stock_id):
         df_yf = df_yf.dropna(subset=["Volume"])
         vol = df_yf["Volume"] / 1000  # 轉換為「張」
         vol_20ma = vol.rolling(20).mean()
-        
+
         cur_vol = float(vol.iloc[-1]) if len(vol) > 0 else 0
         cur_20ma = float(vol_20ma.iloc[-1]) if len(vol_20ma) > 0 else 0
         ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
-        
+
         df_weekly = df_yf.resample("W").agg({"Volume": "sum"}).dropna().tail(60)
         w_dates = df_weekly.index
         w_vols = df_weekly["Volume"].values / 1000
-        
+
         return ratio, cur_vol, cur_20ma, w_dates, w_vols
     except Exception:
       continue
@@ -134,8 +141,12 @@ def calculate_advanced_filter(
 
   np.random.seed(seed_val)
   periods = max(10, int(periods))
-  
-  dates = w_dates if w_dates is not None and len(w_dates) > 0 else pd.date_range(end=datetime.today(), periods=periods, freq="W")
+
+  dates = (
+      w_dates
+      if w_dates is not None and len(w_dates) > 0
+      else pd.date_range(end=datetime.today(), periods=periods, freq="W")
+  )
 
   big_holder = 38.0 + np.cumsum(np.random.randn(len(dates)) * 0.4)
   sheep_holder = 42.0 + np.cumsum(np.random.randn(len(dates)) * 0.3)
@@ -206,7 +217,6 @@ if stock_options:
   # 分頁一：單股籌碼圖表檢視
   # =========================================================
   with tab1:
-    # 將控制元件全數改為同一行水平並排 (選單、目前選擇、勾選框)
     col1, col2, col3 = st.columns([2.2, 2.2, 2])
 
     with col1:
@@ -226,54 +236,108 @@ if stock_options:
     )
 
     with col2:
-      st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-      st.markdown(f"**目前選擇：`{stock_id}` {stock_name}**")
+      st.markdown(
+          f'<div class="selected-stock-text">目前選擇：`{stock_id}`'
+          f" {stock_name}</div>",
+          unsafe_allow_html=True,
+      )
 
     with col3:
-      st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+      st.markdown("<div style='margin-top: 4px;'></div>", unsafe_allow_html=True)
       check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
-    v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_daily_volume(stock_id)
+    v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_daily_volume(
+        stock_id
+    )
 
     # 橫式精巧指標列
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">📦 今日成交量:</span><span class="metric-val">{int(cur_vol):,} 張</span></div>', unsafe_allow_html=True)
+      st.markdown(
+          f'<div class="metric-card-horizontal"><span'
+          f' class="metric-label">📦 今日成交量:</span><span'
+          f' class="metric-val">{int(cur_vol):,} 張</span></div>',
+          unsafe_allow_html=True,
+      )
     with m2:
-      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">📊 20MA均量:</span><span class="metric-val">{int(cur_20ma):,} 張</span></div>', unsafe_allow_html=True)
+      st.markdown(
+          f'<div class="metric-card-horizontal"><span'
+          f' class="metric-label">📊 20MA均量:</span><span'
+          f' class="metric-val">{int(cur_20ma):,} 張</span></div>',
+          unsafe_allow_html=True,
+      )
     with m3:
       status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
-      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">⚡ 量/20MA比:</span><span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span></div>', unsafe_allow_html=True)
+      st.markdown(
+          f'<div class="metric-card-horizontal"><span'
+          f' class="metric-label">⚡ 量/20MA比:</span><span class="metric-val"'
+          f' style="color: {status_color};">{v_ratio:.2f}'
+          " 倍</span></div>",
+          unsafe_allow_html=True,
+      )
     with m4:
       gate_text = "✅ 符合 > 1.6" if v_ratio >= 1.6 else "❌ 未達 1.6"
-      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">🎯 門檻狀態:</span><span class="metric-val">{gate_text}</span></div>', unsafe_allow_html=True)
+      st.markdown(
+          f'<div class="metric-card-horizontal"><span'
+          f' class="metric-label">🎯 門檻狀態:</span><span'
+          f' class="metric-val">{gate_text}</span></div>',
+          unsafe_allow_html=True,
+      )
 
     st.markdown("")
 
-    _, dates_plot, big_holder, sheep_holder, golden_crosses, _, _ = calculate_advanced_filter(
-        stock_id, periods=60, w_dates=w_dates
+    (
+        _,
+        dates_plot,
+        big_holder,
+        sheep_holder,
+        golden_crosses,
+        _,
+        _,
+    ) = calculate_advanced_filter(stock_id, periods=60, w_dates=w_dates)
+
+    vol_series = pd.Series(
+        w_vols
+        if w_vols is not None
+        else np.random.randint(1000, 50000, size=len(dates_plot))
     )
-    
-    vol_series = pd.Series(w_vols if w_vols is not None else np.random.randint(1000, 50000, size=len(dates_plot)))
     vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
     # ---------------------------------------------------------
     # 9. 繪製微型化雙格圖表 (高度壓低至 2.4，確保完美收納於單一視窗內)
     # ---------------------------------------------------------
     plt.style.use("dark_background")
-    
-    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(9, 2.4), sharex=True, gridspec_kw={'height_ratios': [1.8, 1]})
+
+    fig, (ax1, ax3) = plt.subplots(
+        2, 1, figsize=(9, 2.4), sharex=True, gridspec_kw={"height_ratios": [1.8, 1]}
+    )
 
     # --- 上圖：大戶與羊群持股雙軸趨勢 ---
     color_big = "#ff4d4d"
     ax1.set_ylabel("大戶(%)", color=color_big, fontsize=7, fontweight="bold")
-    ax1.plot(dates_plot, big_holder, color=color_big, marker="o", markersize=1.5, linewidth=1.0, label="大戶持股")
+    ax1.plot(
+        dates_plot,
+        big_holder,
+        color=color_big,
+        marker="o",
+        markersize=1.5,
+        linewidth=1.0,
+        label="大戶持股",
+    )
     ax1.tick_params(axis="y", labelcolor=color_big, labelsize=6)
 
     ax2 = ax1.twinx()
     color_sheep = "#2ecc71"
     ax2.set_ylabel("羊群(%)", color=color_sheep, fontsize=7, fontweight="bold")
-    ax2.plot(dates_plot, sheep_holder, color=color_sheep, marker="s", markersize=1.5, linewidth=1.0, label="羊群持股")
+    ax2.plot(
+        dates_plot,
+        sheep_holder,
+        color=color_sheep,
+        marker="s",
+        markersize=1.5,
+        linewidth=1.0,
+        label="羊群持股",
+    )
     ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=6)
 
     if check_golden_cross and golden_crosses:
@@ -283,18 +347,32 @@ if stock_options:
               "★ 黃金交叉",
               xy=(dates_plot[idx], big_holder[idx]),
               xytext=(dates_plot[idx], big_holder[idx] + 1.0),
-              arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=0.6, headwidth=3),
+              arrowprops=dict(
+                  facecolor="#f1c40f", shrink=0.05, width=0.6, headwidth=3
+              ),
               fontsize=6,
               fontweight="bold",
               color="#f1c40f",
               ha="center",
           )
 
-    ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=8, fontweight="bold", pad=3)
+    ax1.set_title(
+        f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視",
+        fontsize=8,
+        fontweight="bold",
+        pad=3,
+    )
     ax1.grid(True, linestyle="--", alpha=0.3)
 
     # --- 下圖：成交量柱狀圖與 20MA 均量線 ---
-    ax3.bar(dates_plot, vol_series.values, color="#3498db", alpha=0.7, width=2.8, label="成交量(張)")
+    ax3.bar(
+        dates_plot,
+        vol_series.values,
+        color="#3498db",
+        alpha=0.7,
+        width=2.8,
+        label="成交量(張)",
+    )
     ax3.plot(dates_plot, vol_20ma, color="#f39c12", linewidth=1.0, label="20MA")
     ax3.set_ylabel("張數", fontsize=7, color="white", fontweight="bold")
     ax3.set_xlabel("日期", fontsize=7, color="white")
@@ -304,7 +382,7 @@ if stock_options:
     ax3.grid(True, linestyle="--", alpha=0.3)
 
     fig.tight_layout(pad=0.3)
-    
+
     st.pyplot(fig, use_container_width=True)
 
   # =========================================================
@@ -316,16 +394,26 @@ if stock_options:
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-      custom_periods = st.slider("回測觀察週數", min_value=20, max_value=104, value=60, step=5)
+      custom_periods = st.slider(
+          "回測觀察週數", min_value=20, max_value=104, value=60, step=5
+      )
     with c2:
-      custom_vol_thresh = st.slider("成交量 20MA 最低倍數", min_value=1.0, max_value=3.0, value=1.6, step=0.1)
+      custom_vol_thresh = st.slider(
+          "成交量 20MA 最低倍數", min_value=1.0, max_value=3.0, value=1.6, step=0.1
+      )
     with c3:
-      recent_limit = st.slider("須在最近幾週內交叉", min_value=1, max_value=8, value=3, step=1)
+      recent_limit = st.slider(
+          "須在最近幾週內交叉", min_value=1, max_value=8, value=3, step=1
+      )
     with c4:
-      min_holder_pct = st.slider("大戶持股最低水位 (%)", min_value=20.0, max_value=70.0, value=40.0, step=5.0)
+      min_holder_pct = st.slider(
+          "大戶持股最低水位 (%)", min_value=20.0, max_value=70.0, value=40.0, step=5.0
+      )
 
     st.markdown("<br>", unsafe_allow_html=True)
-    run_btn = st.button("🚀 執行高門檻精準篩選", type="primary", use_container_width=True)
+    run_btn = st.button(
+        "🚀 執行高門檻精準篩選", type="primary", use_container_width=True
+    )
 
     if run_btn:
       with st.spinner("正在以高標準嚴格掃描 1952 檔台股，請稍候..."):
@@ -355,7 +443,10 @@ if stock_options:
 
     if st.session_state.screened_results:
       df_res = pd.DataFrame(st.session_state.screened_results)
-      st.success(f"🎉 篩選完成！經過嚴格多重過濾後，精準挑選出 **{len(df_res)}** 檔高潛力飆股。")
+      st.success(
+          "🎉 篩選完成！經過嚴格多重過濾後，精準挑選出"
+          f" **{len(df_res)}** 檔高潛力飆股。"
+      )
 
       st.markdown("---")
       st.markdown("### 🔍 快速檢視篩選結果股票")
@@ -366,21 +457,34 @@ if stock_options:
 
       col_a, col_b = st.columns([3, 1])
       with col_a:
-        selected_from_screen = st.selectbox("從精選清單中選擇要查看的股票", filtered_options, key="screen_jump_select")
+        selected_from_screen = st.selectbox(
+            "從精選清單中選擇要查看的股票",
+            filtered_options,
+            key="screen_jump_select",
+        )
       with col_b:
         st.markdown("<br>", unsafe_allow_html=True)
         jump_btn = st.button("📈 前往檢視圖表", use_container_width=True)
 
       if jump_btn and selected_from_screen:
         st.session_state.target_stock = selected_from_screen
-        st.success(f"已切換至 `{selected_from_screen}`！請點擊上方分頁 **「📈 單股籌碼圖表檢視」** 查看。")
+        st.success(
+            "已切換至"
+            f" `{selected_from_screen}`！請點擊上方分頁"
+            " **「📈 單股籌碼圖表檢視」** 查看。"
+        )
 
       st.dataframe(df_res, use_container_width=True, hide_index=True)
 
     elif run_btn:
-      st.warning("在此高門檻條件下篩選結果為空，請嘗試稍微調降成交量倍數或放寬交叉週數限制。")
+      st.warning(
+          "在此高門檻條件下篩選結果為空，請嘗試稍微調降成交量倍數或放寬交叉週數限制。"
+      )
     else:
-      st.info("💡 提示：調整上方多重參數後，請點擊 **「🚀 執行高門檻精準篩選」** 按鈕即可產出精華清單。")
+      st.info(
+          "💡 提示：調整上方多重參數後，請點擊"
+          " **「🚀 執行高門檻精準篩選」** 按鈕即可產出精華清單。"
+      )
 
 else:
   st.warning("請先將 StockIDs.xlsx 上傳至 GitHub 專案根目錄中。")
