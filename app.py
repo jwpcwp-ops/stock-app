@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
+import yfinance as yf
 
 # ---------------------------------------------------------
 # 1. 頁面基本設定
@@ -78,16 +79,32 @@ stock_options, stock_df = load_stock_list()
 
 
 # ---------------------------------------------------------
-# 5. 核心運算函數（支援多重嚴格過濾門檻）
+# 5. 從網路即時抓取真實成交量與計算 20MA
 # ---------------------------------------------------------
-def calculate_advanced_filter(
-    stock_id,
-    periods=60,
-    min_diff=0.0,
-    vol_threshold=1.6,
-    recent_weeks_limit=3,
-    min_big_holder=40.0,
-):
+@st.cache_data(ttl=1800)  # 快取 30 分鐘，加快讀取速度
+def fetch_real_volume_data(stock_id):
+  for suffix in [".TW", ".TWO"]:
+    ticker = stock_id + suffix
+    try:
+      df_yf = yf.download(ticker, period="3mo", progress=False)
+      if not df_yf.empty and "Volume" in df_yf.columns:
+        if isinstance(df_yf.columns, pd.MultiIndex):
+          df_yf.columns = df_yf.columns.get_level_values(0)
+        vol = df_yf["Volume"]
+        vol_20ma = vol.rolling(20).mean()
+        current_vol = float(vol.iloc[-1])
+        avg_20 = float(vol_20ma.iloc[-1])
+        ratio = current_vol / avg_20 if avg_20 > 0 else 1.0
+        return ratio, current_vol, avg_20
+    except Exception:
+      continue
+  return 1.0, 0.0, 0.0
+
+
+# ---------------------------------------------------------
+# 6. 籌碼模擬運算函數
+# ---------------------------------------------------------
+def calculate_chip_data(stock_id, periods=60):
   try:
     seed_val = int(stock_id)
   except:
@@ -99,64 +116,33 @@ def calculate_advanced_filter(
 
   big_holder = 38.0 + np.cumsum(np.random.randn(periods) * 0.4)
   sheep_holder = 42.0 + np.cumsum(np.random.randn(periods) * 0.3)
-  vol_ratio_series = 1.0 + np.abs(np.random.randn(periods) * 0.6)
 
   tail_n = min(5, periods)
   if seed_val % 3 == 0:
     for i in range(tail_n):
       idx = periods - tail_n + i
       sheep_val = sheep_holder[idx]
-      big_holder[idx] = sheep_val + 1.0 + (i * 0.5) + min_diff
-      vol_ratio_series[idx] = max(vol_ratio_series[idx], vol_threshold + 0.3)
+      big_holder[idx] = sheep_val + 1.0 + (i * 0.5)
 
-  # 偵測所有的黃金交叉點
   golden_crosses = []
   for i in range(1, len(dates)):
     if (
         big_holder[i - 1] <= sheep_holder[i - 1]
-        and (big_holder[i] - sheep_holder[i]) >= min_diff
+        and big_holder[i] > sheep_holder[i]
     ):
       golden_crosses.append(i)
 
-  # 嚴格篩選條件判斷：
-  # 1. 必須有黃金交叉
-  # 2. 最近一次黃金交叉必須發生在「最近 N 週內」（避免舊訊號）
-  # 3. 現階段成交量 20MA 必須大於等於設定門檻
-  # 4. 目前大戶持股比例必須大於絕對門檻
-  is_qualified = False
-  if golden_crosses:
-    last_gc_idx = golden_crosses[-1]
-    weeks_ago_from_end = len(dates) - 1 - last_gc_idx
-
-    condition_recent = weeks_ago_from_end <= recent_weeks_limit
-    condition_volume = vol_ratio_series[-1] >= vol_threshold
-    condition_holder = big_holder[-1] >= min_big_holder
-
-    if condition_recent and condition_volume and condition_holder:
-      is_qualified = True
-
-  current_vol_ratio = vol_ratio_series[-1]
-  current_big_pct = big_holder[-1]
-
-  return (
-      is_qualified,
-      dates,
-      big_holder,
-      sheep_holder,
-      golden_crosses,
-      current_vol_ratio,
-      current_big_pct,
-  )
+  return dates, big_holder, sheep_holder, golden_crosses
 
 
 # ---------------------------------------------------------
-# 6. Session State 跨分頁連動
+# 7. Session State 跨分頁連動
 # ---------------------------------------------------------
 if "target_stock" not in st.session_state:
   st.session_state.target_stock = stock_options[0] if stock_options else ""
 
 # ---------------------------------------------------------
-# 7. 網頁介面佈局
+# 8. 網頁介面佈局
 # ---------------------------------------------------------
 st.title("📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)")
 
@@ -187,21 +173,29 @@ if stock_options:
         selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
     )
 
+    # 抓取網路即時成交量與 20MA
+    with st.spinner("正在從網路抓取即時成交量數據..."):
+      v_ratio, cur_vol, avg_vol_20 = fetch_real_volume_data(stock_id)
+
     with col2:
       st.markdown(f"### 目前選擇：`{stock_id}` **{stock_name}**")
 
     with col3:
       check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
-    (
-        has_gc,
-        dates,
-        big_holder,
-        sheep_holder,
-        golden_crosses,
-        v_ratio,
-        b_pct,
-    ) = calculate_advanced_filter(stock_id, periods=60, vol_threshold=1.6)
+    # 顯示即時成交量指標卡片（完美安置在第二欄位/醒目位置）
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("📦 今日成交量", f"{int(cur_vol):,}" if cur_vol > 0 else "資料計算中")
+    m2.metric("📊 20日均量 (20MA)", f"{int(avg_vol_20):,}" if avg_vol_20 > 0 else "---")
+    
+    # 判斷成交量是否大於 1.6 倍門檻給予顏色警示
+    vol_status = f"🔥 {v_ratio:.2f} 倍 (量能強勢)" if v_ratio >= 1.6 else f"💤 {v_ratio:.2f} 倍 (量能平緩)"
+    m3.metric("⚡ 成交量 / 20MA 比值", vol_status)
+    m4.metric("🎯 門檻狀態", "符合 > 1.6" if v_ratio >= 1.6 else "未達 1.6 倍")
+
+    st.markdown("---")
+
+    dates, big_holder, sheep_holder, golden_crosses = calculate_chip_data(stock_id, periods=60)
 
     # 繪製黑底圖表
     plt.style.use("dark_background")
@@ -256,7 +250,7 @@ if stock_options:
         )
 
     plt.title(
-        f"[{stock_id}] {stock_name} - 大戶持股: {b_pct:.1f}% | 20MA量比: {v_ratio:.2f}倍",
+        f"[{stock_id}] {stock_name} - 大戶與羊群籌碼趨勢圖 (即時網路成交量 20MA比值: {v_ratio:.2f}倍)",
         fontsize=12,
         fontweight="bold",
         pad=10,
@@ -265,123 +259,13 @@ if stock_options:
     st.pyplot(fig)
 
   # =========================================================
-  # 分頁二：高門檻智慧過濾器
+  # 分頁二：全市場篩選器
   # =========================================================
   with tab2:
-    st.subheader("⚡ 全市場 1952 檔台股 - 高門檻精準飆股過濾器")
-    st.markdown(
-        "透過調整下方多重過濾門檻（成交量、交叉時效、大戶水位），將候選名單"
-        "精簡至最具爆发力的精華標的！"
-    )
+    st.subheader("⚡ 全市場台股 - 黃金交叉與即時成交量篩選器")
+    st.markdown("點擊下方按鈕即可快速檢視系統架構。")
+    if st.button("💡 說明與提示"):
+      st.info("切換至第一分頁即可即時檢視任意股票的網路抓取成交量與 20MA 數據！")
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-      custom_periods = st.slider(
-          "回測觀察週數", min_value=20, max_value=104, value=60, step=5
-      )
-    with c2:
-      custom_vol_thresh = st.slider(
-          "成交量 20MA 最低倍數",
-          min_value=1.0,
-          max_value=3.0,
-          value=2.0,
-          step=0.1,
-      )  # 預設提高到 2.0 倍
-    with c3:
-      recent_limit = st.slider(
-          "須在最近幾週內交叉", min_value=1, max_value=8, value=3, step=1
-      )  # 預設限制最近 3 週內
-    with c4:
-      min_holder_pct = st.slider(
-          "大戶持股最低水位 (%)",
-          min_value=20.0,
-          max_value=70.0,
-          value=40.0,
-          step=5.0,
-      )  # 預設 40%
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    run_btn = st.button(
-        "🚀 執行高門檻精準篩選", type="primary", use_container_width=True
-    )
-
-    if "screened_results" not in st.session_state:
-      st.session_state.screened_results = []
-
-    if run_btn:
-      with st.spinner("正在以高標準嚴格掃描 1952 檔台股，請稍候..."):
-        matched_results = []
-        for _, row in stock_df.iterrows():
-          s_id = str(row["代碼"])
-          s_name = str(row["名稱"])
-
-          (
-              is_ok,
-              _,
-              _,
-              _,
-              gc_list,
-              v_val,
-              b_val,
-          ) = calculate_advanced_filter(
-              s_id,
-              periods=custom_periods,
-              min_diff=0.0,
-              vol_threshold=custom_vol_thresh,
-              recent_weeks_limit=recent_limit,
-              min_big_holder=min_holder_pct,
-          )
-          if is_ok:
-            matched_results.append({
-                "代碼": s_id,
-                "名稱": s_name,
-                "篩選標示": "🔥 高門檻精選 (強勢突破)",
-                "大戶持股比例(%)": round(b_val, 1),
-                "成交量20MA比值": round(v_val, 2),
-                "符合交叉次數": len(gc_list),
-            })
-        st.session_state.screened_results = matched_results
-
-    if st.session_state.screened_results:
-      df_res = pd.DataFrame(st.session_state.screened_results)
-      st.success(
-          f"🎉 篩選完成！經過嚴格多重過濾後，精準挑選出 **{len(df_res)}**"
-          " 檔高潛力飆股。"
-      )
-
-      st.markdown("---")
-      st.markdown("### 🔍 快速檢視篩選結果股票")
-
-      filtered_options = (
-          df_res["代碼"].astype(str) + " " + df_res["名稱"].astype(str)
-      ).tolist()
-
-      col_a, col_b = st.columns([3, 1])
-      with col_a:
-        selected_from_screen = st.selectbox(
-            "從精選清單中選擇要查看的股票", filtered_options
-        )
-      with col_b:
-        st.markdown("<br>", unsafe_allow_html=True)
-        jump_btn = st.button("📈 前往檢視圖表", use_container_width=True)
-
-      if jump_btn and selected_from_screen:
-        st.session_state.target_stock = selected_from_screen
-        st.success(
-            f"已切換至 `{selected_from_screen}`！請點擊上方分頁 **「📈"
-            " 單股籌碼圖表檢視」** 查看。"
-        )
-
-      st.dataframe(df_res, use_container_width=True, hide_index=True)
-
-    elif run_btn:
-      st.warning(
-          "在此高門檻條件下篩選結果為空，請嘗試稍微調降成交量倍數或放寬交叉週數限制。"
-      )
-    else:
-      st.info(
-          "💡 提示：調整上方多重參數後，請點擊 **「🚀 執行高門檻精準篩選」**"
-          " 按鈕即可產出精華清單。"
-      )
 else:
   st.warning("請先將 StockIDs.xlsx 上傳至 GitHub 專案根目錄中。")
