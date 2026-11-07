@@ -1,5 +1,7 @@
-import os
 from datetime import datetime
+import os
+import urllib.request
+import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -16,7 +18,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，適度增加頂部留白確保標題完整顯示
+# 2. 注入自訂 CSS，精簡頂部留白與搜尋框
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -64,13 +66,26 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# 3. 設定圖表字型 (使用系統安全字型，確保不亂碼)
+# 3. 自動下載並載入繁體中文字型 (徹底解決雲端 Linux 亂碼與方框)
 # ---------------------------------------------------------
-plt.rcParams["font.sans-serif"] = [
-    "Microsoft JhengHei",
-    "Arial Unicode MS",
-    "sans-serif",
-]
+font_path = "NotoSansTC-Regular.ttf"
+if not os.path.exists(font_path):
+  font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf"
+  try:
+    urllib.request.urlretrieve(font_url, font_path)
+  except Exception as e:
+    print(f"字型自動下載失敗: {e}")
+
+if os.path.exists(font_path):
+  fm.fontManager.addfont(font_path)
+  plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
+else:
+  plt.rcParams["font.sans-serif"] = [
+      "Microsoft JhengHei",
+      "Arial Unicode MS",
+      "sans-serif",
+  ]
+
 plt.rcParams["axes.unicode_minus"] = False
 
 # ---------------------------------------------------------
