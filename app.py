@@ -8,17 +8,17 @@ import pandas as pd
 import streamlit as st
 
 # ---------------------------------------------------------
-# 1. 頁面基本設定 (使用 wide 模式)
+# 1. 頁面基本設定
 # ---------------------------------------------------------
 st.set_page_config(page_title="台股羊群籌碼監控系統", layout="wide", initial_sidebar_state="collapsed")
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，把網頁頂部空白往上提，緊湊排版
+# 2. 注入自訂 CSS，精簡上方留白
 # ---------------------------------------------------------
 st.markdown("""
     <style>
         .block-container {
-            padding-top: 1.5rem;   /* 減少上方留白 */
+            padding-top: 1.2rem;
             padding-bottom: 1rem;
             max-width: 95rem;
         }
@@ -66,7 +66,6 @@ stock_options, stock_df = load_stock_list()
 st.title("📊 台股大戶與羊群持股比例趨勢圖 (資料來源:股市小民)")
 
 if stock_options:
-    # 讓選單與資訊更緊湊
     col1, col2 = st.columns([2, 5])
     with col1:
         selected_stock = st.selectbox("選擇或搜尋股票代號與名稱", stock_options, index=0)
@@ -75,34 +74,39 @@ if stock_options:
     stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
     with col2:
-        st.markdown(f"**目前選擇：** `{stock_id}` **{stock_name}**")
+        # 將選定股票的文字放大呈現
+        st.markdown(f"### 目前選擇：`{stock_id}` **{stock_name}**")
 
     # ---------------------------------------------------------
-    # 6. 繪製圖表 (調整高度適中，完整納入視窗)
+    # 6. 繪製「黑底風格」與「放大字體」的雙軸圖表
     # ---------------------------------------------------------
     np.random.seed(int(stock_id) if stock_id.isdigit() else 42)
     dates = pd.date_range(end=datetime.today(), periods=60, freq="W")
     big_holder = 40 + np.cumsum(np.random.randn(60) * 0.3)
     sheep_holder = 30 + np.cumsum(np.random.randn(60) * 0.4)
 
-    # 調整圖表高度為 3.5 吋，避免過大需要捲動
-    fig, ax1 = plt.subplots(figsize=(10, 3.5))
+    # 套用 Matplotlib 內建的專業暗色系佈景主題 (dark_background)
+    plt.style.use('dark_background')
 
-    # 左軸：大戶持股
-    color = "tab:red"
-    ax1.set_xlabel("日期", fontsize=10)
-    ax1.set_ylabel("大戶持股比例 (%)", color=color, fontsize=10)
-    ax1.plot(dates, big_holder, color=color, marker="o", markersize=4, label="大戶持股")
-    ax1.tick_params(axis="y", labelcolor=color)
+    fig, ax1 = plt.subplots(figsize=(10, 3.6))
 
-    # 右軸：羊群持股
+    # 左軸：大戶持股 (亮紅色，放大字體與標籤)
+    color = "#ff4d4d"
+    ax1.set_xlabel("日期", fontsize=11, color="white")
+    ax1.set_ylabel("大戶持股比例 (%)", color=color, fontsize=11, fontweight="bold")
+    ax1.plot(dates, big_holder, color=color, marker="o", markersize=5, linewidth=2, label="大戶持股")
+    ax1.tick_params(axis="y", labelcolor=color, labelsize=10)
+    ax1.tick_params(axis="x", labelsize=10)
+
+    # 右軸：羊群持股 (亮綠色，放大字體與標籤)
     ax2 = ax1.twinx()
-    color = "tab:green"
-    ax2.set_ylabel("羊群持股比例 (%)", color=color, fontsize=10)
-    ax2.plot(dates, sheep_holder, color=color, marker="s", markersize=4, label="羊群持股")
-    ax2.tick_params(axis="y", labelcolor=color)
+    color = "#2ecc71"
+    ax2.set_ylabel("羊群持股比例 (%)", color=color, fontsize=11, fontweight="bold")
+    ax2.plot(dates, sheep_holder, color=color, marker="s", markersize=5, linewidth=2, label="羊群持股")
+    ax2.tick_params(axis="y", labelcolor=color, labelsize=10)
 
-    plt.title(f"[{stock_id}] {stock_name} - 大戶與羊群籌碼雙軸趨勢圖", fontsize=12)
+    # 圖表標題放大
+    plt.title(f"[{stock_id}] {stock_name} - 大戶與羊群籌碼雙軸趨勢圖", fontsize=13, fontweight="bold", pad=10)
     fig.tight_layout()
 
     st.pyplot(fig)
