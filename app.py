@@ -78,7 +78,7 @@ stock_options, stock_df = load_stock_list()
 
 
 # ---------------------------------------------------------
-# 5. 核心運算函數（已加入尺寸安全防護）
+# 5. 核心運算函數（完全防禦型設計，絕不報錯）
 # ---------------------------------------------------------
 def calculate_golden_cross_custom(stock_id, periods=60, min_diff=0.0):
   try:
@@ -87,20 +87,22 @@ def calculate_golden_cross_custom(stock_id, periods=60, min_diff=0.0):
     seed_val = 42
 
   np.random.seed(seed_val)
-  periods = max(10, int(periods))  # 確保至少有 10 週
+  periods = max(10, int(periods))
   dates = pd.date_range(end=datetime.today(), periods=periods, freq="W")
-  big_holder = 38 + np.cumsum(np.random.randn(periods) * 0.4)
-  sheep_holder = 42 + np.cumsum(np.random.randn(periods) * 0.3)
 
-  # 安全地模擬黃金交叉（取最後 5 週或總週數的一半）
+  # 產生基礎數據
+  big_holder = 38.0 + np.cumsum(np.random.randn(periods) * 0.4)
+  sheep_holder = 42.0 + np.cumsum(np.random.randn(periods) * 0.3)
+
+  # 絕對安全的黃金交叉模擬邏輯
   tail_n = min(5, periods)
   if seed_val % 3 == 0:
-    big_holder[-tail_n:] = np.linspace(
-        sheep_holder[-tail_n:] - 2,
-        sheep_holder[-tail_n:] + 3 + min_diff,
-        tail_n,
-    )
+    for i in range(tail_n):
+      idx = periods - tail_n + i
+      sheep_val = sheep_holder[idx]
+      big_holder[idx] = sheep_val + 1.0 + (i * 0.5) + min_diff
 
+  # 計算黃金交叉點
   golden_crosses = []
   for i in range(1, len(dates)):
     if (
