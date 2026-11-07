@@ -18,15 +18,33 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，精簡上方與外圍留白
+# 2. 注入自訂 CSS，大幅縮小留白與指標字體
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 0.8rem;
-            padding-bottom: 0.5rem;
+            padding-top: 0.6rem;
+            padding-bottom: 0.4rem;
             max-width: 95rem;
+        }
+        /* 自訂精巧指標卡片樣式 */
+        .metric-box {
+            background-color: #1e1e1e;
+            border: 1px solid #333333;
+            padding: 6px 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .metric-title {
+            font-size: 11px;
+            color: #aaaaaa;
+            margin-bottom: 2px;
+        }
+        .metric-value {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffffff;
         }
     </style>
 """,
@@ -68,7 +86,7 @@ def load_stock_list():
     return options.tolist(), df
   except Exception as e:
     st.error(
-        f"讀取 StockIDs.xlsx 失敗,請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
+        f"讀取 StockIDs.xlsx 失敗，請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
     )
     return [], pd.DataFrame()
 
@@ -76,41 +94,50 @@ stock_options, stock_df = load_stock_list()
 
 
 # ---------------------------------------------------------
-# 5. 從網路即時抓取真實週成交量資料
+# 5. 從網路即時抓取真實「日成交量」與計算 20MA
 # ---------------------------------------------------------
 @st.cache_data(ttl=1800)
-def fetch_real_weekly_volume(stock_id, periods=60):
+def fetch_real_daily_volume(stock_id):
   for suffix in [".TW", ".TWO"]:
     ticker = stock_id + suffix
     try:
-      df_yf = yf.download(ticker, period="2y", interval="1wk", progress=False)
+      # 抓取日線資料以正確顯示日常成交量張數
+      df_yf = yf.download(ticker, period="6mo", progress=False)
       if not df_yf.empty and "Volume" in df_yf.columns:
         if isinstance(df_yf.columns, pd.MultiIndex):
           df_yf.columns = df_yf.columns.get_level_values(0)
         df_yf = df_yf.dropna(subset=["Volume"])
-        df_recent = df_yf.tail(periods)
-        return df_recent.index, df_recent["Volume"].values
+        vol = df_yf["Volume"] / 1000  # 轉換為「張」 (1張 = 1000股)
+        vol_20ma = vol.rolling(20).mean()
+        
+        cur_vol = float(vol.iloc[-1]) if len(vol) > 0 else 0
+        cur_20ma = float(vol_20ma.iloc[-1]) if len(vol_20ma) > 0 else 0
+        ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
+        
+        # 同時準備繪圖用的最近 60 週或日資料
+        df_weekly = df_yf.resample("W").agg({"Volume": "sum"}).dropna().tail(60)
+        w_dates = df_weekly.index
+        w_vols = df_weekly["Volume"].values / 1000
+        
+        return ratio, cur_vol, cur_20ma, w_dates, w_vols
     except Exception:
       continue
-  return None, None
+  return 1.0, 0.0, 0.0, None, None
 
 
 # ---------------------------------------------------------
 # 6. 籌碼模擬與運算函數
 # ---------------------------------------------------------
-def calculate_chip_data(stock_id, periods=60):
+def calculate_chip_data(stock_id, w_dates=None):
   try:
     seed_val = int(stock_id)
   except:
     seed_val = 42
 
   np.random.seed(seed_val)
-  periods = max(10, int(periods))
+  periods = len(w_dates) if w_dates is not None and len(w_dates) > 0 else 60
   
-  dates, volumes = fetch_real_weekly_volume(stock_id, periods)
-  if dates is None or len(dates) < periods:
-    dates = pd.date_range(end=datetime.today(), periods=periods, freq="W")
-    volumes = np.random.randint(10000, 500000, size=periods)
+  dates = w_dates if w_dates is not None and len(w_dates) > 0 else pd.date_range(end=datetime.today(), periods=periods, freq="W")
 
   big_holder = 38.0 + np.cumsum(np.random.randn(len(dates)) * 0.4)
   sheep_holder = 42.0 + np.cumsum(np.random.randn(len(dates)) * 0.3)
@@ -130,7 +157,7 @@ def calculate_chip_data(stock_id, periods=60):
     ):
       golden_crosses.append(i)
 
-  return dates, big_holder, sheep_holder, volumes, golden_crosses
+  return dates, big_holder, sheep_holder, golden_crosses
 
 
 # ---------------------------------------------------------
@@ -177,32 +204,38 @@ if stock_options:
     with col3:
       check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
-    st.markdown("---")
+    # 取得真實日成交量與週成交量陣列
+    v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_daily_volume(stock_id)
 
-    dates, big_holder, sheep_holder, volumes, golden_crosses = calculate_chip_data(stock_id, periods=60)
-
-    vol_series = pd.Series(volumes)
-    vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
-    cur_vol = float(vol_series.iloc[-1]) if len(vol_series) > 0 else 0
-    cur_20ma = float(vol_20ma[-1]) if len(vol_20ma) > 0 else 0
-    v_ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
-
-    # 頂端量化指標呈現
+    # ---------------------------------------------------------
+    # 使用極致精簡的 HTML/CSS 取代肥大的 st.metric，完全不佔版面
+    # ---------------------------------------------------------
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("📦 最近成交量", f"{int(cur_vol):,}" if cur_vol > 0 else "---")
-    m2.metric("📊 20MA均量", f"{int(cur_20ma):,}" if cur_20ma > 0 else "---")
-    vol_status = f"🔥 {v_ratio:.2f}倍 (強勢)" if v_ratio >= 1.6 else f"💤 {v_ratio:.2f}倍 (平緩)"
-    m3.metric("⚡ 量/20MA比", vol_status)
-    m4.metric("🎯 門檻狀態", "符合 > 1.6" if v_ratio >= 1.6 else "未達 1.6 倍")
+    with m1:
+      st.markdown(f'<div class="metric-box"><div class="metric-title">📦 今日成交量</div><div class="metric-value">{int(cur_vol):,} 張</div></div>', unsafe_allow_html=True)
+    with m2:
+      st.markdown(f'<div class="metric-box"><div class="metric-title">📊 20MA均量</div><div class="metric-value">{int(cur_20ma):,} 張</div></div>', unsafe_allow_html=True)
+    with m3:
+      status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
+      st.markdown(f'<div class="metric-box"><div class="metric-title">⚡ 量/20MA比</div><div class="metric-value" style="color: {status_color};">{v_ratio:.2f} 倍</div></div>', unsafe_allow_html=True)
+    with m4:
+      gate_text = "✅ 符合 > 1.6" if v_ratio >= 1.6 else "❌ 未達 1.6"
+      st.markdown(f'<div class="metric-box"><div class="metric-title">🎯 門檻狀態</div><div class="metric-value">{gate_text}</div></div>', unsafe_allow_html=True)
 
     st.markdown("")
 
+    dates, big_holder, sheep_holder, golden_crosses = calculate_chip_data(stock_id, w_dates)
+    
+    # 計算成交量週均量線 (20MA)
+    vol_series = pd.Series(w_vols if w_vols is not None else np.random.randint(1000, 50000, size=len(dates)))
+    vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
+
     # ---------------------------------------------------------
-    # 9. 繪製「黃金比例微型雙格」黑底圖表 (高度壓低至 3.0，確保完美收納於單一視窗)
+    # 9. 繪製「黃金比例微型雙格」黑底圖表 (高度壓低至 2.8，完美收納於單一視窗)
     # ---------------------------------------------------------
     plt.style.use("dark_background")
     
-    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(9, 3.0), sharex=True, gridspec_kw={'height_ratios': [1.8, 1]})
+    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(9, 2.8), sharex=True, gridspec_kw={'height_ratios': [1.8, 1]})
 
     # --- 上圖：大戶與羊群持股雙軸趨勢 ---
     color_big = "#ff4d4d"
@@ -234,16 +267,16 @@ if stock_options:
     ax1.grid(True, linestyle="--", alpha=0.3)
 
     # --- 下圖：成交量柱狀圖與 20MA 均量線 ---
-    ax3.bar(dates, volumes, color="#3498db", alpha=0.7, width=3.0, label="成交量")
+    ax3.bar(dates, vol_series.values, color="#3498db", alpha=0.7, width=3.0, label="成交量(張)")
     ax3.plot(dates, vol_20ma, color="#f39c12", linewidth=1.2, label="20MA")
-    ax3.set_ylabel("成交量", fontsize=8, color="white", fontweight="bold")
+    ax3.set_ylabel("張數", fontsize=8, color="white", fontweight="bold")
     ax3.set_xlabel("日期", fontsize=8, color="white")
     ax3.tick_params(axis="x", labelsize=7, rotation=10)
     ax3.tick_params(axis="y", labelsize=7)
     ax3.legend(loc="upper left", fontsize=7)
     ax3.grid(True, linestyle="--", alpha=0.3)
 
-    fig.tight_layout(pad=0.5)
+    fig.tight_layout(pad=0.4)
     
     st.pyplot(fig, use_container_width=True)
 
