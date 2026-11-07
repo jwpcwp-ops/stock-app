@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，縮小標題與緊湊化橫式指標卡片
+# 2. 注入自訂 CSS，完美修正標題與橫式指標排版
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -28,21 +28,22 @@ st.markdown(
             padding-bottom: 0.4rem;
             max-width: 95rem;
         }
-        /* 自訂小巧標題，去除預設標題的巨大壓迫感 */
-        .custom-main-title {
-            font-size: 1.35rem;
+        /* 正常顯示且精緻的小標題 */
+        .app-header-title {
+            font-size: 1.25rem;
             font-weight: bold;
             color: #ffffff;
-            margin-bottom: 0.8rem;
+            margin-bottom: 0.6rem;
         }
-        /* 緊湊型橫式精巧指標卡片（左右並排且縮小間距） */
+        /* 緊湊靠左的橫式精巧指標卡片 */
         .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            padding: 6px 10px;
+            padding: 6px 12px;
             border-radius: 5px;
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
+            gap: 12px;
             align-items: center;
         }
         .metric-label {
@@ -176,7 +177,8 @@ if "target_stock" not in st.session_state:
 # ---------------------------------------------------------
 # 8. 網頁介面佈局
 # ---------------------------------------------------------
-st.markdown('<div class="custom-main-title">📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)</div>', unsafe_allow_html=True)
+# 正常顯示的大標題
+st.markdown('<div class="app-header-title">📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)</div>', unsafe_allow_html=True)
 
 if stock_options:
   tab1, tab2 = st.tabs(
@@ -214,19 +216,19 @@ if stock_options:
     v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_daily_volume(stock_id)
 
     # ---------------------------------------------------------
-    # 緊湊型橫式指標列（左右並排且不過度開散）
+    # 緊湊靠左的橫式指標列（數值與標題緊鄰，不再過開）
     # ---------------------------------------------------------
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">📦 今日成交量</span><span class="metric-val">{int(cur_vol):,} 張</span></div>', unsafe_allow_html=True)
+      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">📦 今日成交量:</span><span class="metric-val">{int(cur_vol):,} 張</span></div>', unsafe_allow_html=True)
     with m2:
-      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">📊 20MA均量</span><span class="metric-val">{int(cur_20ma):,} 張</span></div>', unsafe_allow_html=True)
+      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">📊 20MA均量:</span><span class="metric-val">{int(cur_20ma):,} 張</span></div>', unsafe_allow_html=True)
     with m3:
       status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
-      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">⚡ 量/20MA比</span><span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span></div>', unsafe_allow_html=True)
+      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">⚡ 量/20MA比:</span><span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span></div>', unsafe_allow_html=True)
     with m4:
       gate_text = "✅ 符合 > 1.6" if v_ratio >= 1.6 else "❌ 未達 1.6"
-      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">🎯 門檻狀態</span><span class="metric-val">{gate_text}</span></div>', unsafe_allow_html=True)
+      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">🎯 門檻狀態:</span><span class="metric-val">{gate_text}</span></div>', unsafe_allow_html=True)
 
     st.markdown("")
 
