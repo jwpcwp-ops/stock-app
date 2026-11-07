@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，精簡上方留白
+# 2. 注入自訂 CSS，精簡上方留白並優化圖表容器
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -76,20 +76,18 @@ stock_options, stock_df = load_stock_list()
 
 
 # ---------------------------------------------------------
-# 5. 從網路即時抓取真實週成交量資料（對應週頻率籌碼）
+# 5. 從網路即時抓取真實週成交量資料
 # ---------------------------------------------------------
 @st.cache_data(ttl=1800)
 def fetch_real_weekly_volume(stock_id, periods=60):
   for suffix in [".TW", ".TWO"]:
     ticker = stock_id + suffix
     try:
-      # 抓取週線資料以對應集保戶週頻率
       df_yf = yf.download(ticker, period="2y", interval="1wk", progress=False)
       if not df_yf.empty and "Volume" in df_yf.columns:
         if isinstance(df_yf.columns, pd.MultiIndex):
           df_yf.columns = df_yf.columns.get_level_values(0)
         df_yf = df_yf.dropna(subset=["Volume"])
-        # 取最近指定週數
         df_recent = df_yf.tail(periods)
         return df_recent.index, df_recent["Volume"].values
     except Exception:
@@ -109,7 +107,6 @@ def calculate_chip_data(stock_id, periods=60):
   np.random.seed(seed_val)
   periods = max(10, int(periods))
   
-  # 嘗試抓取真實週日期與成交量
   dates, volumes = fetch_real_weekly_volume(stock_id, periods)
   if dates is None or len(dates) < periods:
     dates = pd.date_range(end=datetime.today(), periods=periods, freq="W")
@@ -182,10 +179,8 @@ if stock_options:
 
     st.markdown("---")
 
-    # 取得資料
     dates, big_holder, sheep_holder, volumes, golden_crosses = calculate_chip_data(stock_id, periods=60)
 
-    # 計算成交量 20MA（若週數小於20則用全部）
     vol_series = pd.Series(volumes)
     vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
     cur_vol = float(vol_series.iloc[-1]) if len(vol_series) > 0 else 0
@@ -203,24 +198,24 @@ if stock_options:
     st.markdown("")
 
     # ---------------------------------------------------------
-    # 9. 繪製「上下 2 格」黑底圖表 (Subplots)
+    # 9. 繪製「上下 2 格」黑底圖表 (縮小畫布尺寸，完美適應視窗)
     # ---------------------------------------------------------
     plt.style.use("dark_background")
     
-    # 建立 2 個上下堆疊的子圖 (sharex=True 讓日期軸共用)
-    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(10, 6.5), sharex=True, gridspec_kw={'height_ratios': [1.8, 1]})
+    # 將 figsize 調整為更精省的寬高比例 (寬 10, 高 5.5)，確保在各種螢幕單一視窗內完整呈現
+    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(10, 5.5), sharex=True, gridspec_kw={'height_ratios': [1.8, 1]})
 
     # --- 上圖：大戶與羊群持股雙軸趨勢 ---
     color_big = "#ff4d4d"
-    ax1.set_ylabel("大戶持股 (%)", color=color_big, fontsize=10, fontweight="bold")
-    ax1.plot(dates, big_holder, color=color_big, marker="o", markersize=3, linewidth=2, label="大戶持股")
-    ax1.tick_params(axis="y", labelcolor=color_big, labelsize=9)
+    ax1.set_ylabel("大戶 (%)", color=color_big, fontsize=9, fontweight="bold")
+    ax1.plot(dates, big_holder, color=color_big, marker="o", markersize=3, linewidth=1.5, label="大戶持股")
+    ax1.tick_params(axis="y", labelcolor=color_big, labelsize=8)
 
     ax2 = ax1.twinx()
     color_sheep = "#2ecc71"
-    ax2.set_ylabel("羊群持股 (%)", color=color_sheep, fontsize=10, fontweight="bold")
-    ax2.plot(dates, sheep_holder, color=color_sheep, marker="s", markersize=3, linewidth=2, label="羊群持股")
-    ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=9)
+    ax2.set_ylabel("羊群 (%)", color=color_sheep, fontsize=9, fontweight="bold")
+    ax2.plot(dates, sheep_holder, color=color_sheep, marker="s", markersize=3, linewidth=1.5, label="羊群持股")
+    ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=8)
 
     if check_golden_cross and golden_crosses:
       for idx in golden_crosses:
@@ -229,35 +224,37 @@ if stock_options:
               "★ 黃金交叉",
               xy=(dates[idx], big_holder[idx]),
               xytext=(dates[idx], big_holder[idx] + 1.5),
-              arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=1.5, headwidth=6),
-              fontsize=9,
+              arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=1, headwidth=5),
+              fontsize=8,
               fontweight="bold",
               color="#f1c40f",
               ha="center",
           )
 
-    ax1.set_title(f"[{stock_id}] {stock_name} - 大戶與羊群籌碼趨勢 & 成交量動能分析", fontsize=12, fontweight="bold", pad=10)
+    ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼趨勢與成交量動能分析", fontsize=11, fontweight="bold", pad=8)
     ax1.grid(True, linestyle="--", alpha=0.3)
 
     # --- 下圖：成交量柱狀圖與 20MA 均量線 ---
     ax3.bar(dates, volumes, color="#3498db", alpha=0.7, width=3.5, label="成交量")
-    ax3.plot(dates, vol_20ma, color="#f39c12", linewidth=2, label="成交量 20MA")
-    ax3.set_ylabel("成交量", fontsize=10, color="white", fontweight="bold")
-    ax3.set_xlabel("日期", fontsize=10, color="white")
-    ax3.tick_params(axis="x", labelsize=9, rotation=15)
-    ax3.tick_params(axis="y", labelsize=9)
-    ax3.legend(loc="upper left", fontsize=9)
+    ax3.plot(dates, vol_20ma, color="#f39c12", linewidth=1.5, label="成交量 20MA")
+    ax3.set_ylabel("成交量", fontsize=9, color="white", fontweight="bold")
+    ax3.set_xlabel("日期", fontsize=9, color="white")
+    ax3.tick_params(axis="x", labelsize=8, rotation=15)
+    ax3.tick_params(axis="y", labelsize=8)
+    ax3.legend(loc="upper left", fontsize=8)
     ax3.grid(True, linestyle="--", alpha=0.3)
 
     fig.tight_layout()
-    st.pyplot(fig)
+    
+    # 使用 use_container_width=True 讓圖表自動填滿容器但不超出視窗
+    st.pyplot(fig, use_container_width=True)
 
   # =========================================================
   # 分頁二：全市場篩選器
   # =========================================================
   with tab2:
     st.subheader("⚡ 全市場台股 - 黃金交叉與成交量篩選器")
-    st.info("切換至第一分頁即可即時檢視任意股票的上下 2 格籌碼與成交量圖表！")
+    st.info("切換至第一分頁即可即時檢視任意股票的上下 2 格圖表！")
 
 else:
   st.warning("請先將 StockIDs.xlsx 上傳至 GitHub 專案根目錄中。")
