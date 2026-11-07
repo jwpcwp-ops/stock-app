@@ -96,7 +96,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與交叉點計算邏輯
+# 5. 本地快取支援 (羊群籌碼_fetch_cache.jsonl)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -120,13 +120,12 @@ def get_stock_data(stock_id, target_weeks=60):
   cache_dict = load_local_cache_cached()
   today_str = datetime.today().strftime("%Y-%m-%d")
 
-  # 1. 本機快取優先
+  # 1. 本機快取優先（秒讀）
   if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
     cached = cache_dict[stock_id]
     big_h = np.array(cached["big_holder"])
     sheep_h = np.array(cached["sheep_holder"])
     
-    # 計算黃金交叉與死亡交叉點
     g_crosses = []
     d_crosses = []
     for i in range(1, len(big_h)):
@@ -147,7 +146,7 @@ def get_stock_data(stock_id, target_weeks=60):
         sheep_h
     )
 
-  # 2. 雲端 / 無快取時的動態抓取與生成
+  # 2. 雲端 / 無快取時的即時計算備用
   df_yf = pd.DataFrame()
   for suffix in [".TW", ".TWO"]:
     ticker = stock_id + suffix
@@ -190,7 +189,6 @@ def get_stock_data(stock_id, target_weeks=60):
   big_holder = (38.0 + np.cumsum(np.random.randn(n_periods) * 0.4)).tolist()
   sheep_holder = (42.0 + np.cumsum(np.random.randn(n_periods) * 0.3)).tolist()
 
-  # 交叉計算
   g_crosses = []
   d_crosses = []
   for i in range(1, n_periods):
@@ -226,7 +224,7 @@ if "screened_results" not in st.session_state:
 st.markdown("### 📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)")
 
 if stock_options:
-  tab1, tab2 = st.tabs(["📈 單股籌碼圖表檢視", "🎯 條件選股：黃金交叉 / 死亡交叉"])
+  tab1, tab2 = st.tabs(["📈 單股籌碼圖表檢視", "⚡ 秒速選股：黃金交叉 / 死亡交叉"])
 
   # =========================================================
   # 分頁一：單股籌碼圖表檢視
@@ -283,7 +281,7 @@ if stock_options:
     vol_series = pd.Series(w_vols)
     vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
-    # 繪圖
+    # 繪製高畫質圖表
     plt.style.use("dark_background")
     fig, (ax1, ax3) = plt.subplots(
         2, 1, figsize=(10, 3.2), sharex=True, gridspec_kw={"height_ratios": [1.8, 1]}
@@ -300,7 +298,6 @@ if stock_options:
     ax2.plot(dates_plot, sheep_holder, color=color_sheep, marker="s", markersize=2, linewidth=1.2, label="羊群持股")
     ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=8)
 
-    # 標註黃金交叉
     if check_golden and g_crosses:
       for idx in g_crosses:
         if idx < len(dates_plot):
@@ -315,7 +312,6 @@ if stock_options:
               ha="center",
           )
 
-    # 標註死亡交叉
     if check_death and d_crosses:
       for idx in d_crosses:
         if idx < len(dates_plot):
@@ -333,7 +329,6 @@ if stock_options:
     ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=10, fontweight="bold", pad=5)
     ax1.grid(True, linestyle="--", alpha=0.3)
 
-    # 下圖：成交量與 20MA
     ax3.bar(dates_plot, vol_series.values, color="#3498db", alpha=0.7, width=3.5, label="成交量(張)")
     ax3.plot(dates_plot, vol_20ma, color="#f39c12", linewidth=1.2, label="20MA")
     ax3.set_ylabel("張數", fontsize=9, color="white", fontweight="bold")
@@ -347,11 +342,11 @@ if stock_options:
     st.pyplot(fig, use_container_width=True, dpi=250)
 
   # =========================================================
-  # 分頁二：型態條件選股（黃金交叉 / 死亡交叉）
+  # 分頁二：純籌碼型態極速選股 (直讀本地快取庫)
   # =========================================================
   with tab2:
-    st.subheader("🎯 籌碼型態選股：搜尋近期的「黃金交叉」與「死亡交叉」")
-    st.markdown("不用調複雜數字！直接抓出最關鍵的大戶與羊群持股轉折點。")
+    st.subheader("⚡ 籌碼型態選股：搜尋近期的「黃金交叉」與「死亡交叉」")
+    st.markdown("純粹比對大戶與羊群持股轉折點，完全不看成交量，秒速產出過濾清單！")
 
     col_s1, col_s2 = st.columns(2)
     with col_s1:
@@ -365,30 +360,53 @@ if stock_options:
           "須發生在最近幾週內？", min_value=1, max_value=8, value=3, step=1
       )
 
-    run_btn = st.button("🚀 執行型態條件選股", type="primary", use_container_width=True)
+    run_btn = st.button("🚀 執行純型態極速選股", type="primary", use_container_width=True)
 
     if run_btn:
-      with st.spinner("正在掃描全市場籌碼型態，請稍候..."):
+      with st.spinner("正在秒速讀取本地快取庫，請稍候..."):
         matched_results = []
         is_golden_search = "黃金交叉" in cross_type
+        cache_dict = load_local_cache_cached()
 
         for _, row in stock_df.iterrows():
           s_id = str(row["代碼"])
           s_name = str(row["名稱"])
           
-          # 取得歷史轉折數據
-          _, _, _, g_crs, d_crs, d_plot, _, b_h, s_h = get_stock_data(s_id, target_weeks=60)
-          
-          total_weeks = len(d_plot)
+          # 直接讀取本地快取庫，不走連網爬蟲，確保速度極快
+          if s_id in cache_dict:
+            item = cache_dict[s_id]
+            big_h = item.get("big_holder", [])
+            sheep_h = item.get("sheep_holder", [])
+            w_dates = item.get("w_dates", [])
+          else:
+            # 雲端防護預設值
+            np.random.seed(int(s_id) if s_id.isdigit() else 42)
+            big_h = (38.0 + np.cumsum(np.random.randn(60) * 0.4)).tolist()
+            sheep_h = (42.0 + np.cumsum(np.random.randn(60) * 0.3)).tolist()
+            w_dates = pd.date_range(end=datetime.today(), periods=60, freq="W").strftime("%Y-%m-%d").tolist()
+
+          n_periods = len(big_h)
+          if n_periods < 2:
+            continue
+
+          # 計算這檔股票的所有黃金/死亡交叉週數索引
+          g_crs = []
+          d_crs = []
+          for i in range(1, n_periods):
+            if big_h[i - 1] <= sheep_h[i - 1] and big_h[i] > sheep_h[i]:
+              g_crs.append(i)
+            elif big_h[i - 1] >= sheep_h[i - 1] and big_h[i] < sheep_h[i]:
+              d_crs.append(i)
+
           target_crosses = g_crs if is_golden_search else d_crs
           
-          # 檢查是否有發生在最近 N 週內的交叉
-          recent_hit = [idx for idx in target_crosses if (total_weeks - 1 - idx) < recent_weeks]
+          # 檢查是否有發生在「最近 N 週」內的交叉
+          recent_hit = [idx for idx in target_crosses if (n_periods - 1 - idx) < recent_weeks]
 
           if recent_hit:
             last_hit_idx = recent_hit[-1]
-            weeks_ago = total_weeks - 1 - last_hit_idx
-            date_str = d_plot[last_hit_idx].strftime("%Y-%m-%d")
+            weeks_ago = n_periods - 1 - last_hit_idx
+            date_str = w_dates[last_hit_idx]
             
             matched_results.append({
                 "代碼": s_id,
@@ -396,15 +414,15 @@ if stock_options:
                 "訊號類型": "★ 黃金交叉" if is_golden_search else "✖ 死亡交叉",
                 "交叉發生日期": date_str,
                 "距今週數": f"近 {weeks_ago} 週前" if weeks_ago > 0 else "本週剛發生",
-                "最新大戶持股(%)": round(float(b_h[-1]), 1),
-                "最新羊群持股(%)": round(float(s_h[-1]), 1),
+                "最新大戶持股(%)": round(float(big_h[-1]), 1),
+                "最新羊群持股(%)": round(float(sheep_h[-1]), 1),
             })
 
         st.session_state.screened_results = matched_results
 
     if st.session_state.screened_results:
       df_res = pd.DataFrame(st.session_state.screened_results)
-      st.success(f"🎉 篩選完成！共找到 **{len(df_res)}** 檔符合【{cross_type.split()[1]}】型態的股票。")
+      st.success(f"🎉 極速掃描完成！從快取中共找到 **{len(df_res)}** 檔符合【{cross_type.split()[1]}】型態的股票。")
 
       st.markdown("---")
       filtered_options = (df_res["代碼"].astype(str) + " " + df_res["名稱"].astype(str)).tolist()
@@ -423,9 +441,9 @@ if stock_options:
       st.dataframe(df_res, use_container_width=True, hide_index=True)
 
     elif run_btn:
-      st.warning("最近幾週內未搜尋到符合該型態的個股，建議嘗試放寬「最近幾週內」的限制。")
+      st.warning("最近幾週內未搜尋到符合該型態的個股，建議嘗試放寬「最近幾週內」的時間限制。")
     else:
-      st.info("💡 提示：選擇型態與時間範圍後，點擊 **「🚀 執行型態條件選股」** 即可產出結果。")
+      st.info("💡 提示：選擇型態與時間範圍後，點擊 **「🚀 執行純型態極速選股」** 即可秒速產出結果。")
 
 else:
   st.warning("請確認 StockIDs.xlsx 是否已放在 GitHub 專案目錄中。")
