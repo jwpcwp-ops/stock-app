@@ -59,8 +59,6 @@ plt.rcParams["axes.unicode_minus"] = False
 # ---------------------------------------------------------
 # 4. 讀取 1952 檔股票清單 (StockIDs.xlsx)
 # ---------------------------------------------------------
-
-
 @st.cache_data
 def load_stock_list():
   try:
@@ -74,35 +72,33 @@ def load_stock_list():
     )
     return [], pd.DataFrame()
 
-
 stock_options, stock_df = load_stock_list()
 
 
 # ---------------------------------------------------------
-# 5. 從網路即時抓取真實成交量與計算 20MA
+# 5. 從網路即時抓取真實週成交量資料（對應週頻率籌碼）
 # ---------------------------------------------------------
-@st.cache_data(ttl=1800)  # 快取 30 分鐘，加快讀取速度
-def fetch_real_volume_data(stock_id):
+@st.cache_data(ttl=1800)
+def fetch_real_weekly_volume(stock_id, periods=60):
   for suffix in [".TW", ".TWO"]:
     ticker = stock_id + suffix
     try:
-      df_yf = yf.download(ticker, period="3mo", progress=False)
+      # 抓取週線資料以對應集保戶週頻率
+      df_yf = yf.download(ticker, period="2y", interval="1wk", progress=False)
       if not df_yf.empty and "Volume" in df_yf.columns:
         if isinstance(df_yf.columns, pd.MultiIndex):
           df_yf.columns = df_yf.columns.get_level_values(0)
-        vol = df_yf["Volume"]
-        vol_20ma = vol.rolling(20).mean()
-        current_vol = float(vol.iloc[-1])
-        avg_20 = float(vol_20ma.iloc[-1])
-        ratio = current_vol / avg_20 if avg_20 > 0 else 1.0
-        return ratio, current_vol, avg_20
+        df_yf = df_yf.dropna(subset=["Volume"])
+        # 取最近指定週數
+        df_recent = df_yf.tail(periods)
+        return df_recent.index, df_recent["Volume"].values
     except Exception:
       continue
-  return 1.0, 0.0, 0.0
+  return None, None
 
 
 # ---------------------------------------------------------
-# 6. 籌碼模擬運算函數
+# 6. 籌碼模擬與運算函數
 # ---------------------------------------------------------
 def calculate_chip_data(stock_id, periods=60):
   try:
@@ -112,15 +108,20 @@ def calculate_chip_data(stock_id, periods=60):
 
   np.random.seed(seed_val)
   periods = max(10, int(periods))
-  dates = pd.date_range(end=datetime.today(), periods=periods, freq="W")
+  
+  # 嘗試抓取真實週日期與成交量
+  dates, volumes = fetch_real_weekly_volume(stock_id, periods)
+  if dates is None or len(dates) < periods:
+    dates = pd.date_range(end=datetime.today(), periods=periods, freq="W")
+    volumes = np.random.randint(10000, 500000, size=periods)
 
-  big_holder = 38.0 + np.cumsum(np.random.randn(periods) * 0.4)
-  sheep_holder = 42.0 + np.cumsum(np.random.randn(periods) * 0.3)
+  big_holder = 38.0 + np.cumsum(np.random.randn(len(dates)) * 0.4)
+  sheep_holder = 42.0 + np.cumsum(np.random.randn(len(dates)) * 0.3)
 
-  tail_n = min(5, periods)
+  tail_n = min(5, len(dates))
   if seed_val % 3 == 0:
     for i in range(tail_n):
-      idx = periods - tail_n + i
+      idx = len(dates) - tail_n + i
       sheep_val = sheep_holder[idx]
       big_holder[idx] = sheep_val + 1.0 + (i * 0.5)
 
@@ -132,7 +133,7 @@ def calculate_chip_data(stock_id, periods=60):
     ):
       golden_crosses.append(i)
 
-  return dates, big_holder, sheep_holder, golden_crosses
+  return dates, big_holder, sheep_holder, volumes, golden_crosses
 
 
 # ---------------------------------------------------------
@@ -173,88 +174,81 @@ if stock_options:
         selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
     )
 
-    # 抓取網路即時成交量與 20MA
-    with st.spinner("正在從網路抓取即時成交量數據..."):
-      v_ratio, cur_vol, avg_vol_20 = fetch_real_volume_data(stock_id)
-
     with col2:
       st.markdown(f"### 目前選擇：`{stock_id}` **{stock_name}**")
 
     with col3:
       check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
-    # 顯示即時成交量指標卡片（完美安置在第二欄位/醒目位置）
+    st.markdown("---")
+
+    # 取得資料
+    dates, big_holder, sheep_holder, volumes, golden_crosses = calculate_chip_data(stock_id, periods=60)
+
+    # 計算成交量 20MA（若週數小於20則用全部）
+    vol_series = pd.Series(volumes)
+    vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
+    cur_vol = float(vol_series.iloc[-1]) if len(vol_series) > 0 else 0
+    cur_20ma = float(vol_20ma[-1]) if len(vol_20ma) > 0 else 0
+    v_ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
+
+    # 頂端量化指標呈現
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("📦 今日成交量", f"{int(cur_vol):,}" if cur_vol > 0 else "資料計算中")
-    m2.metric("📊 20日均量 (20MA)", f"{int(avg_vol_20):,}" if avg_vol_20 > 0 else "---")
-    
-    # 判斷成交量是否大於 1.6 倍門檻給予顏色警示
-    vol_status = f"🔥 {v_ratio:.2f} 倍 (量能強勢)" if v_ratio >= 1.6 else f"💤 {v_ratio:.2f} 倍 (量能平緩)"
+    m1.metric("📦 最近一期成交量", f"{int(cur_vol):,}" if cur_vol > 0 else "---")
+    m2.metric("📊 成交量 20MA", f"{int(cur_20ma):,}" if cur_20ma > 0 else "---")
+    vol_status = f"🔥 {v_ratio:.2f} 倍 (強勢)" if v_ratio >= 1.6 else f"💤 {v_ratio:.2f} 倍 (平緩)"
     m3.metric("⚡ 成交量 / 20MA 比值", vol_status)
     m4.metric("🎯 門檻狀態", "符合 > 1.6" if v_ratio >= 1.6 else "未達 1.6 倍")
 
-    st.markdown("---")
+    st.markdown("")
 
-    dates, big_holder, sheep_holder, golden_crosses = calculate_chip_data(stock_id, periods=60)
-
-    # 繪製黑底圖表
+    # ---------------------------------------------------------
+    # 9. 繪製「上下 2 格」黑底圖表 (Subplots)
+    # ---------------------------------------------------------
     plt.style.use("dark_background")
-    fig, ax1 = plt.subplots(figsize=(10, 3.5))
+    
+    # 建立 2 個上下堆疊的子圖 (sharex=True 讓日期軸共用)
+    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(10, 6.5), sharex=True, gridspec_kw={'height_ratios': [1.8, 1]})
 
-    color = "#ff4d4d"
-    ax1.set_xlabel("日期", fontsize=11, color="white")
-    ax1.set_ylabel(
-        "大戶持股比例 (%)", color=color, fontsize=11, fontweight="bold"
-    )
-    ax1.plot(
-        dates,
-        big_holder,
-        color=color,
-        marker="o",
-        markersize=4,
-        linewidth=2,
-        label="大戶持股",
-    )
-    ax1.tick_params(axis="y", labelcolor=color, labelsize=10)
-    ax1.tick_params(axis="x", labelsize=10)
+    # --- 上圖：大戶與羊群持股雙軸趨勢 ---
+    color_big = "#ff4d4d"
+    ax1.set_ylabel("大戶持股 (%)", color=color_big, fontsize=10, fontweight="bold")
+    ax1.plot(dates, big_holder, color=color_big, marker="o", markersize=3, linewidth=2, label="大戶持股")
+    ax1.tick_params(axis="y", labelcolor=color_big, labelsize=9)
 
     ax2 = ax1.twinx()
-    color = "#2ecc71"
-    ax2.set_ylabel(
-        "羊群持股比例 (%)", color=color, fontsize=11, fontweight="bold"
-    )
-    ax2.plot(
-        dates,
-        sheep_holder,
-        color=color,
-        marker="s",
-        markersize=4,
-        linewidth=2,
-        label="羊群持股",
-    )
-    ax2.tick_params(axis="y", labelcolor=color, labelsize=10)
+    color_sheep = "#2ecc71"
+    ax2.set_ylabel("羊群持股 (%)", color=color_sheep, fontsize=10, fontweight="bold")
+    ax2.plot(dates, sheep_holder, color=color_sheep, marker="s", markersize=3, linewidth=2, label="羊群持股")
+    ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=9)
 
     if check_golden_cross and golden_crosses:
       for idx in golden_crosses:
-        ax1.annotate(
-            "★ 黃金交叉 (大戶突破)",
-            xy=(dates[idx], big_holder[idx]),
-            xytext=(dates[idx], big_holder[idx] + 2),
-            arrowprops=dict(
-                facecolor="#f1c40f", shrink=0.05, width=2, headwidth=8
-            ),
-            fontsize=10,
-            fontweight="bold",
-            color="#f1c40f",
-            ha="center",
-        )
+        if idx < len(dates):
+          ax1.annotate(
+              "★ 黃金交叉",
+              xy=(dates[idx], big_holder[idx]),
+              xytext=(dates[idx], big_holder[idx] + 1.5),
+              arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=1.5, headwidth=6),
+              fontsize=9,
+              fontweight="bold",
+              color="#f1c40f",
+              ha="center",
+          )
 
-    plt.title(
-        f"[{stock_id}] {stock_name} - 大戶與羊群籌碼趨勢圖 (即時網路成交量 20MA比值: {v_ratio:.2f}倍)",
-        fontsize=12,
-        fontweight="bold",
-        pad=10,
-    )
+    ax1.set_title(f"[{stock_id}] {stock_name} - 大戶與羊群籌碼趨勢 & 成交量動能分析", fontsize=12, fontweight="bold", pad=10)
+    ax1.grid(True, linestyle="--", alpha=0.3)
+
+    # --- 下圖：成交量柱狀圖與 20MA 均量線 ---
+    ax3.bar(dates, volumes, color="#3498db", alpha=0.7, width=3.5, label="成交量")
+    ax3.plot(dates, vol_20ma, color="#f39c12", linewidth=2, label="成交量 20MA")
+    ax3.set_ylabel("成交量", fontsize=10, color="white", fontweight="bold")
+    ax3.set_xlabel("日期", fontsize=10, color="white")
+    ax3.tick_params(axis="x", labelsize=9, rotation=15)
+    ax3.tick_params(axis="y", labelsize=9)
+    ax3.legend(loc="upper left", fontsize=9)
+    ax3.grid(True, linestyle="--", alpha=0.3)
+
     fig.tight_layout()
     st.pyplot(fig)
 
@@ -262,10 +256,8 @@ if stock_options:
   # 分頁二：全市場篩選器
   # =========================================================
   with tab2:
-    st.subheader("⚡ 全市場台股 - 黃金交叉與即時成交量篩選器")
-    st.markdown("點擊下方按鈕即可快速檢視系統架構。")
-    if st.button("💡 說明與提示"):
-      st.info("切換至第一分頁即可即時檢視任意股票的網路抓取成交量與 20MA 數據！")
+    st.subheader("⚡ 全市場台股 - 黃金交叉與成交量篩選器")
+    st.info("切換至第一分頁即可即時檢視任意股票的上下 2 格籌碼與成交量圖表！")
 
 else:
   st.warning("請先將 StockIDs.xlsx 上傳至 GitHub 專案根目錄中。")
