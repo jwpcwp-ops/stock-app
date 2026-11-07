@@ -18,23 +18,17 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，實現單行3元件完美對齊與簡化
+# 2. 注入自訂 CSS，完美解決標題被截斷與 3 個框框並排
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 1.5rem;
+            padding-top: 2.6rem;
             padding-bottom: 0.4rem;
             max-width: 95rem;
         }
-        /* 讓三個控鍵在同一行垂直對齊 */
-        .inline-control-row {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 10px;
-        }
+        /* 當前選擇的股票標籤樣式 */
         .current-stock-badge {
             background-color: #2b2b2b;
             border: 1px solid #444444;
@@ -44,6 +38,7 @@ st.markdown(
             font-weight: bold;
             color: #ffffff;
             white-space: nowrap;
+            display: inline-block;
         }
         /* 橫式精巧指標卡片 */
         .metric-card-horizontal {
@@ -72,7 +67,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# 3. 自動下載並載入繁體中文字型 (解決雲端 Linux 亂碼與方框)
+# 3. 自動下載並載入繁體中文字型 (徹底解決雲端 Linux 亂碼與方框)
 # ---------------------------------------------------------
 font_path = "NotoSansTC-Regular.ttf"
 if not os.path.exists(font_path):
@@ -114,7 +109,7 @@ stock_options, stock_df = load_stock_list()
 
 
 # ---------------------------------------------------------
-# 5. 從網路即時抓取真實成交量，與指定週數對齊
+# 5. 從網路即時抓取真實成交量，並與指定週數完美對齊
 # ---------------------------------------------------------
 @st.cache_data(ttl=1800)
 def fetch_real_weekly_volume_and_metrics(stock_id, target_weeks=60):
@@ -204,29 +199,30 @@ if stock_options:
   # 分頁一：單股籌碼圖表檢視
   # =========================================================
   with tab1:
-    # 使用三欄佈局精確並排：[輸入框] [選定結果標籤] [勾選框]
-    c1, c2, c3 = st.columns([1.8, 2.2, 2.0])
+    # 3個框框同方向平行並排：[輸入代碼搜尋] [選擇匹配股票下拉選單] [黃金交叉勾選框]
+    c_box1, c_box2, c_box3 = st.columns([1.8, 2.2, 1.8])
 
-    with c1:
-      search_input = st.text_input("輸入代碼或名稱", value="6669", key="stock_search_input")
+    with c_box1:
+      search_input = st.text_input("輸入代碼或名稱", value="", key="stock_search_input", placeholder="例如: 1101 或 台泥")
 
-    # 比對輸入的代碼或名稱
-    matched_opts = [opt for opt in stock_options if search_input.strip() and search_input.strip().lower() in opt.lower()]
-    if matched_opts:
-      selected_stock = matched_opts[0]
+    # 智慧過濾匹配清單
+    if search_input.strip():
+      matched_opts = [opt for opt in stock_options if search_input.strip().lower() in opt.lower()]
+      if not matched_opts:
+        matched_opts = stock_options
     else:
-      selected_stock = st.session_state.target_stock
+      matched_opts = stock_options
+
+    with c_box2:
+      selected_stock = st.selectbox("選擇匹配股票", matched_opts, label_visibility="collapsed", key="stock_select_box")
+      st.session_state.target_stock = selected_stock
+
+    with c_box3:
+      st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+      check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
     stock_id = selected_stock.split()[0]
     stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
-
-    with c2:
-      st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-      st.markdown(f'<div class="current-stock-badge">{stock_id} {stock_name}</div>', unsafe_allow_html=True)
-
-    with c3:
-      st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
-      check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
     v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_weekly_volume_and_metrics(stock_id, target_weeks=60)
 
@@ -272,7 +268,7 @@ if stock_options:
     vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
     # ---------------------------------------------------------
-    # 9. 繪製雙格微型圖表
+    # 9. 繪製完全同步對齊的微型雙格圖表
     # ---------------------------------------------------------
     plt.style.use("dark_background")
 
