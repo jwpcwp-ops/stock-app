@@ -18,33 +18,40 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，打造「橫式精巧指標」與完美留白
+# 2. 注入自訂 CSS，縮小標題與緊湊化橫式指標卡片
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 1.5rem;
+            padding-top: 1.2rem;
             padding-bottom: 0.4rem;
             max-width: 95rem;
         }
-        /* 橫式精巧指標卡片樣式 */
+        /* 自訂小巧標題，去除預設標題的巨大壓迫感 */
+        .custom-main-title {
+            font-size: 1.35rem;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 0.8rem;
+        }
+        /* 緊湊型橫式精巧指標卡片（左右並排且縮小間距） */
         .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            padding: 8px 12px;
-            border-radius: 6px;
+            padding: 6px 10px;
+            border-radius: 5px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         .metric-label {
-            font-size: 12px;
+            font-size: 11px;
             color: #aaaaaa;
             font-weight: 500;
         }
         .metric-val {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #ffffff;
         }
@@ -169,7 +176,7 @@ if "target_stock" not in st.session_state:
 # ---------------------------------------------------------
 # 8. 網頁介面佈局
 # ---------------------------------------------------------
-st.title("📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)")
+st.markdown('<div class="custom-main-title">📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)</div>', unsafe_allow_html=True)
 
 if stock_options:
   tab1, tab2 = st.tabs(
@@ -207,7 +214,7 @@ if stock_options:
     v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_daily_volume(stock_id)
 
     # ---------------------------------------------------------
-    # 橫式精巧指標呈現 (左右並排，極省垂直空間)
+    # 緊湊型橫式指標列（左右並排且不過度開散）
     # ---------------------------------------------------------
     m1, m2, m3, m4 = st.columns(4)
     with m1:
