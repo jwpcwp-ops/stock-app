@@ -187,30 +187,28 @@ if stock_options:
   # 分頁一：單股籌碼圖表檢視
   # =========================================================
   with tab1:
-    # 左右並排：左邊放文字搜尋框與下拉選單，右邊放黃金交叉勾選框
-    col1, col2 = st.columns([3, 1.5])
+    # 3個框框同方向平行並排設計 (搜尋框、下拉選單、黃金交叉勾選框)
+    c_box1, c_box2, c_box3 = st.columns([1.5, 2.0, 1.5])
 
-    with col1:
-      sub_c1, sub_c2 = st.columns([1.2, 1.8])
-      with sub_c1:
-        search_input = st.text_input("輸入代碼或名稱", value="6669", key="stock_search_input")
-      
-      matched_opts = [opt for opt in stock_options if search_input.lower() in opt.lower()]
-      if not matched_opts:
-        matched_opts = stock_options
-        
-      with sub_c2:
-        selected_stock = st.selectbox("選擇匹配股票", matched_opts, label_visibility="collapsed")
-        st.session_state.target_stock = selected_stock
+    with c_box1:
+      search_input = st.text_input("輸入代碼或名稱", value="6669", key="stock_search_input")
+
+    matched_opts = [opt for opt in stock_options if search_input.lower() in opt.lower()]
+    if not matched_opts:
+      matched_opts = stock_options
+
+    with c_box2:
+      selected_stock = st.selectbox("選擇匹配股票", matched_opts, label_visibility="collapsed")
+      st.session_state.target_stock = selected_stock
+
+    with c_box3:
+      st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+      check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
     stock_id = selected_stock.split()[0]
     stock_name = (
         selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
     )
-
-    with col2:
-      st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-      check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
     v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_weekly_volume_and_metrics(stock_id, target_weeks=60)
 
