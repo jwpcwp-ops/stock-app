@@ -78,7 +78,7 @@ stock_options, stock_df = load_stock_list()
 
 
 # ---------------------------------------------------------
-# 5. 核心運算函數（支援自訂參數）
+# 5. 核心運算函數（已加入尺寸安全防護）
 # ---------------------------------------------------------
 def calculate_golden_cross_custom(stock_id, periods=60, min_diff=0.0):
   try:
@@ -87,14 +87,18 @@ def calculate_golden_cross_custom(stock_id, periods=60, min_diff=0.0):
     seed_val = 42
 
   np.random.seed(seed_val)
+  periods = max(10, int(periods))  # 確保至少有 10 週
   dates = pd.date_range(end=datetime.today(), periods=periods, freq="W")
   big_holder = 38 + np.cumsum(np.random.randn(periods) * 0.4)
   sheep_holder = 42 + np.cumsum(np.random.randn(periods) * 0.3)
 
-  # 模擬部分股票產生黃金交叉
+  # 安全地模擬黃金交叉（取最後 5 週或總週數的一半）
+  tail_n = min(5, periods)
   if seed_val % 3 == 0:
-    big_holder[-5:] = np.linspace(
-        sheep_holder[-5:] - 2, sheep_holder[-5:] + 3 + min_diff, 5
+    big_holder[-tail_n:] = np.linspace(
+        sheep_holder[-tail_n:] - 2,
+        sheep_holder[-tail_n:] + 3 + min_diff,
+        tail_n,
     )
 
   golden_crosses = []
@@ -206,7 +210,7 @@ if stock_options:
     st.pyplot(fig)
 
   # =========================================================
-  # 分頁二：全市場黃金交叉智慧篩選器 (含自訂參數與按鈕)
+  # 分頁二：全市場黃金交叉智慧篩選器
   # =========================================================
   with tab2:
     st.subheader("⚡ 全市場 1952 檔台股 - 黃金交叉智慧篩選器")
@@ -214,7 +218,6 @@ if stock_options:
         "您可以自行調整下方參數，設定篩選條件，然後點擊按鈕掃描全市場！"
     )
 
-    # 參數自訂輸入列
     c1, c2, c3 = st.columns(3)
     with c1:
       custom_periods = st.slider(
@@ -230,7 +233,6 @@ if stock_options:
       )
     with c3:
       st.markdown("<br>", unsafe_allow_html=True)
-      # 篩選按鈕
       run_btn = st.button(
           "🚀 開始執行全市場篩選", type="primary", use_container_width=True
       )
@@ -238,7 +240,6 @@ if stock_options:
     if run_btn:
       with st.spinner("正在掃描 1952 檔台股籌碼，請稍候..."):
         matched_results = []
-        # 遍歷 stock_df 中的所有股票
         for _, row in stock_df.iterrows():
           s_id = str(row["代碼"])
           s_name = str(row["名稱"])
@@ -260,7 +261,6 @@ if stock_options:
         st.success(
             f"🎉 篩選完成！總共檢索到 **{len(df_res)}** 檔符合條件的股票。"
         )
-        # 顯示漂亮的篩選結果表格與明確標示
         st.dataframe(df_res, use_container_width=True, hide_index=True)
       else:
         st.warning(
