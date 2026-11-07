@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，完美控制版面與橫式緊湊指標
+# 2. 注入自訂 CSS，精簡搜尋框寬度與橫式指標
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -25,6 +25,10 @@ st.markdown(
             padding-top: 1.0rem;
             padding-bottom: 0.4rem;
             max-width: 95rem;
+        }
+        /* 讓輸入搜尋框適度縮小，不佔滿整行 */
+        div[data-baseweb="select"] {
+            max-width: 280px;
         }
         /* 緊湊靠左的橫式精巧指標卡片 */
         .metric-card-horizontal {
@@ -53,7 +57,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# 3. 設定圖表字型 (使用系統安全字型，徹底解決亂碼與方框問題)
+# 3. 設定圖表字型 (使用系統安全字型，確保不亂碼)
 # ---------------------------------------------------------
 plt.rcParams["font.sans-serif"] = [
     "Microsoft JhengHei",
@@ -205,8 +209,9 @@ if stock_options:
     col1, col2, col3 = st.columns([2, 3, 2])
 
     with col1:
+      # 將標題簡化為「輸入代碼或名稱」
       selected_stock = st.selectbox(
-          "選擇或搜尋股票代號與名稱",
+          "輸入代碼或名稱",
           stock_options,
           index=stock_options.index(st.session_state.target_stock)
           if st.session_state.target_stock in stock_options
