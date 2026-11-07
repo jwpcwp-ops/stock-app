@@ -16,21 +16,21 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，精簡搜尋框寬度與橫式指標
+# 2. 注入自訂 CSS，完美控制單行緊湊排版
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 1.0rem;
+            padding-top: 0.8rem;
             padding-bottom: 0.4rem;
             max-width: 95rem;
         }
-        /* 讓輸入搜尋框適度縮小，不佔滿整行 */
+        /* 讓選單外觀更精簡 */
         div[data-baseweb="select"] {
-            max-width: 280px;
+            max-width: 240px;
         }
-        /* 緊湊靠左的橫式精巧指標卡片 */
+        /* 橫式精巧指標卡片 */
         .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
@@ -206,10 +206,10 @@ if stock_options:
   # 分頁一：單股籌碼圖表檢視
   # =========================================================
   with tab1:
-    col1, col2, col3 = st.columns([2, 3, 2])
+    # 將控制元件全數改為同一行水平並排 (選單、目前選擇、勾選框)
+    col1, col2, col3 = st.columns([2.2, 2.2, 2])
 
     with col1:
-      # 將標題簡化為「輸入代碼或名稱」
       selected_stock = st.selectbox(
           "輸入代碼或名稱",
           stock_options,
@@ -226,9 +226,11 @@ if stock_options:
     )
 
     with col2:
-      st.markdown(f"#### 目前選擇：`{stock_id}` **{stock_name}**")
+      st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+      st.markdown(f"**目前選擇：`{stock_id}` {stock_name}**")
 
     with col3:
+      st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
       check_golden_cross = st.checkbox("🔍 標註近期黃金交叉點", value=True)
 
     v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_daily_volume(stock_id)
