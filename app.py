@@ -18,31 +18,33 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS，調整頂端留白避免標題被切，並精簡各元件字體
+# 2. 注入自訂 CSS，打造「橫式精巧指標」與完美留白
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 1.8rem;
-            padding-bottom: 0.5rem;
+            padding-top: 1.5rem;
+            padding-bottom: 0.4rem;
             max-width: 95rem;
         }
-        /* 精簡指標卡片樣式與字體 */
-        .metric-box {
+        /* 橫式精巧指標卡片樣式 */
+        .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            padding: 4px 8px;
-            border-radius: 5px;
-            text-align: center;
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .metric-title {
-            font-size: 10px;
+        .metric-label {
+            font-size: 12px;
             color: #aaaaaa;
-            margin-bottom: 1px;
+            font-weight: 500;
         }
-        .metric-value {
-            font-size: 13px;
+        .metric-val {
+            font-size: 14px;
             font-weight: bold;
             color: #ffffff;
         }
@@ -204,18 +206,20 @@ if stock_options:
 
     v_ratio, cur_vol, cur_20ma, w_dates, w_vols = fetch_real_daily_volume(stock_id)
 
-    # 精巧指標列
+    # ---------------------------------------------------------
+    # 橫式精巧指標呈現 (左右並排，極省垂直空間)
+    # ---------------------------------------------------------
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-      st.markdown(f'<div class="metric-box"><div class="metric-title">📦 今日成交量</div><div class="metric-value">{int(cur_vol):,} 張</div></div>', unsafe_allow_html=True)
+      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">📦 今日成交量</span><span class="metric-val">{int(cur_vol):,} 張</span></div>', unsafe_allow_html=True)
     with m2:
-      st.markdown(f'<div class="metric-box"><div class="metric-title">📊 20MA均量</div><div class="metric-value">{int(cur_20ma):,} 張</div></div>', unsafe_allow_html=True)
+      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">📊 20MA均量</span><span class="metric-val">{int(cur_20ma):,} 張</span></div>', unsafe_allow_html=True)
     with m3:
       status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
-      st.markdown(f'<div class="metric-box"><div class="metric-title">⚡ 量/20MA比</div><div class="metric-value" style="color: {status_color};">{v_ratio:.2f} 倍</div></div>', unsafe_allow_html=True)
+      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">⚡ 量/20MA比</span><span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span></div>', unsafe_allow_html=True)
     with m4:
       gate_text = "✅ 符合 > 1.6" if v_ratio >= 1.6 else "❌ 未達 1.6"
-      st.markdown(f'<div class="metric-box"><div class="metric-title">🎯 門檻狀態</div><div class="metric-value">{gate_text}</div></div>', unsafe_allow_html=True)
+      st.markdown(f'<div class="metric-card-horizontal"><span class="metric-label">🎯 門檻狀態</span><span class="metric-val">{gate_text}</span></div>', unsafe_allow_html=True)
 
     st.markdown("")
 
@@ -225,7 +229,7 @@ if stock_options:
     vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
     # ---------------------------------------------------------
-    # 9. 繪製微型化雙格圖表 (高度壓低至 2.4，確保完美收納於單一視窗內)
+    # 9. 繪製微型化雙格圖表 (高度壓低至 2.4)
     # ---------------------------------------------------------
     plt.style.use("dark_background")
     
