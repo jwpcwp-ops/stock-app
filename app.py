@@ -89,7 +89,7 @@ def load_stock_list():
     return options.tolist(), df
   except Exception as e:
     st.error(
-        f"讀取 StockIDs.xlsx 失敗, 請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
+        f"讀取 StockIDs.xlsx 失敗，請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
     )
     return [], pd.DataFrame()
 
@@ -222,7 +222,7 @@ if "screened_results" not in st.session_state:
 st.markdown("### 📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)")
 
 if stock_options:
-  # 三個核心分頁選單
+  # 三個核心分頁選單（完整保留！）
   app_mode = st.radio(
       "功能選單",
       [
@@ -483,18 +483,20 @@ if stock_options:
 
     if os.path.exists(excel_filename):
       try:
-        # 使用 header=2 自動對應您 Excel 的第 3 行作為欄位名稱
-        df_top15 = pd.read_excel(excel_filename, sheet_name=0, header=2)
+        # 讀取 Excel 中的大戶增幅前 15 名分頁（header=1 對應您的欄位標題列）
+        df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
         
         st.markdown("##### 🔗 前 15 名個股快速前往神秘金字塔：")
         
         for _, row in df_top15.iterrows():
-          stock_id = str(row.iloc[1]).zfill(4)      # 欄位索引 1 為代碼
-          stock_name = str(row.iloc[2])            # 欄位索引 2 為名稱
-          industry = str(row.iloc[3])              # 欄位索引 3 為類別
-          inc_rate = row.iloc[8]                   # 大戶持有率增幅
-          close_price = row.iloc[9]                # 今日收盤價
+          # 精準對應 Excel 中的真實股票代碼（修正先前抓錯行號的問題）
+          stock_id = str(row["代碼"]).strip().zfill(4)
+          stock_name = str(row["名稱"]).strip()
+          industry = str(row["類別"]).strip()
+          inc_rate = row["大戶持有率_增幅(%)"]
+          close_price = row["今日收盤價"]
           
+          # 正確帶入代碼的神秘金字塔網址
           url = f"https://norway.twsthr.info/StockHolders.aspx?stock={stock_id}"
           
           st.markdown(
@@ -515,7 +517,7 @@ if stock_options:
       except Exception as e:
         st.error(f"讀取總表檔案發生錯誤: {e}")
     else:
-      st.warning(f"尚未在專案中找到總表檔案 ({excel_filename})，請確認是否已上傳至 GitHub。")
+      st.warning(f"尚未在專案中找到總表檔案 (`{excel_filename}`)請確認是否已上傳至 GitHub。")
 
 else:
   st.warning("請確認 StockIDs.xlsx 是否已放在 GitHub 專案目錄中。")
