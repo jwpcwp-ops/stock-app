@@ -222,10 +222,14 @@ if "screened_results" not in st.session_state:
 st.markdown("### 📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)")
 
 if stock_options:
-  # 改用 radio 按鈕來當作導覽分頁，這樣可以完美控制點擊跳轉邏輯！
+  # 三個核心分頁選單
   app_mode = st.radio(
       "功能選單",
-      ["📈 單股籌碼圖表檢視", "⚡ 秒速選股：黃金交叉 / 死亡交叉"],
+      [
+          "📈 單股籌碼圖表檢視",
+          "⚡ 秒速選股：黃金交叉 / 死亡交叉",
+          "📋 每週大戶增幅前 15 名總表",
+      ],
       horizontal=True,
       label_visibility="collapsed"
   )
@@ -246,7 +250,6 @@ if stock_options:
     else:
       matched_opts = stock_options
 
-    # 確保選中的索引不會超出範圍
     if st.session_state.selected_index >= len(matched_opts):
       st.session_state.selected_index = 0
 
@@ -259,7 +262,6 @@ if stock_options:
           key="stock_select_box"
       )
       
-      # 更新當前索引
       try:
         st.session_state.selected_index = matched_opts.index(selected_stock)
       except:
@@ -301,7 +303,6 @@ if stock_options:
     vol_series = pd.Series(w_vols)
     vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
-    # 繪製高畫質圖表
     plt.style.use("dark_background")
     fig, (ax1, ax3) = plt.subplots(
         2, 1, figsize=(10, 3.2), sharex=True, gridspec_kw={"height_ratios": [1.8, 1]}
@@ -457,14 +458,11 @@ if stock_options:
         st.markdown("<br>", unsafe_allow_html=True)
         jump_btn = st.button("📈 前往檢視圖表", use_container_width=True)
 
-      # 修正跳轉邏輯：點擊後自動將分頁切換回圖表，並設定好該股票！
       if jump_btn and selected_from_screen:
         try:
           st.session_state.selected_index = stock_options.index(selected_from_screen)
         except:
           st.session_state.selected_index = 0
-        
-        # 使用 rerun 強制網頁立刻重新整理並切換到圖表畫面
         st.rerun()
 
       st.dataframe(df_res, use_container_width=True, hide_index=True)
@@ -472,7 +470,33 @@ if stock_options:
     elif run_btn:
       st.warning(f"在大戶持股水位 ≧ {min_big_holder}% 且符合該型態的條件下沒有找到個股，請嘗試稍微調降水位滑桿。")
     else:
-      st.info(f"💡 提示：設定好型態、週數與大戶水位後，點擊 **「🚀 執行型態與水位過濾選股」** 即可產出精華清單。")
+      st.info(f"💡 提示：設定好型態、週數與大戶水位後，點擊 **🚀 執行型態與水位過濾選股** 即可產出精華清單。")
+
+  # =========================================================
+  # 分頁三：每週大戶增幅前 15 名總表 (含神秘金字塔連結)
+  # =========================================================
+  elif app_mode == "📋 每週大戶增幅前 15 名總表":
+    st.subheader("📋 每週大戶持股增幅前 15 名總表")
+    st.markdown("此表格由 GitHub Actions 每週自動更新，讓您與群友隨時掌握最新大戶增幅精華！")
+
+    excel_filename = "20261106_大戶增幅前15名_神秘金字塔連結測試表.xlsx"
+
+    if os.path.exists(excel_filename):
+      try:
+        df_top15 = pd.read_excel(excel_filename, sheet_name=0, skiprows=2)
+        st.dataframe(df_top15, use_container_width=True, hide_index=True)
+
+        with open(excel_filename, "rb") as file:
+          st.download_button(
+              label="📥 下載本週完整 Excel 總表",
+              data=file,
+              file_name="大戶增幅前15名籌碼分析.xlsx",
+              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+      except Exception as e:
+        st.error(f"讀取總表檔案發生錯誤: {e}")
+    else:
+      st.warning(f"尚未在專案中找到總表檔案 ({excel_filename})，請確認是否已上傳至 GitHub。")
 
 else:
   st.warning("請確認 StockIDs.xlsx 是否已放在 GitHub 專案目錄中。")
