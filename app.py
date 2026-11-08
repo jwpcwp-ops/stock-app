@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS
+# 2. 注入自訂 CSS (限制表格寬度，完美精簡)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -49,13 +49,17 @@ st.markdown(
             font-weight: bold;
             color: #ffffff;
         }
+        /* 限制 4 欄表格寬度，完美符合畫框尺寸 */
+        [data-testid="stDataFrame"] {
+            max-width: 580px !important;
+        }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
 # ---------------------------------------------------------
-# 3. 自動下載並載入繁體中文字型 (高畫質清晰)
+# 3. 自動下載並載入繁體中文字型
 # ---------------------------------------------------------
 font_path = "NotoSansTC-Regular.ttf"
 if not os.path.exists(font_path):
@@ -96,7 +100,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援 (羊群籌碼_fetch_cache.jsonl)
+# 5. 本地快取支援
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -473,11 +477,11 @@ if stock_options:
       st.info(f"💡 提示：設定好型態、週數與大戶水位後，點擊 **🚀 執行型態與水位過濾選股** 即可產出精華清單。")
 
   # =========================================================
-  # 分頁三：每週大戶增幅前 15 名總表 (下載按鈕移至上方與標題同行)
+  # 分頁三：每週大戶增幅前 15 名總表 (嚴格只保留 4 個指定欄位)
   # =========================================================
   elif app_mode == "📋 每週大戶增幅前 15 名總表":
     st.subheader("📋 每週大戶持股增幅前 15 名總表")
-    st.markdown("此表格由 GitHub Actions 每週自動更新，點擊表格中的 **📈 前往神秘金字塔** 可查看趨勢圖！")
+    st.markdown("此表格由 GitHub Actions 每週自動更新，點擊 **趨勢圖連結** 即可直接前往神秘金字塔！")
 
     excel_filename = "大戶持股最新分析總表.xlsx"
 
@@ -486,15 +490,15 @@ if stock_options:
         # 讀取 Excel 中的大戶增幅前 15 名分頁（header=1 對應欄位標題列）
         df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
         
-        # 建立神秘金字塔專屬連結欄位
-        df_top15["前往神秘金字塔"] = df_top15["代碼"].apply(
+        # 建立顯示用 Dataframe，嚴格精簡為您框起來的 4 個欄位：
+        # 代碼 | 名稱 | 趨勢圖連結 | 類別
+        df_display = pd.DataFrame()
+        df_display["代碼"] = df_top15["代碼"].apply(lambda x: str(x).strip().zfill(4))
+        df_display["名稱"] = df_top15["名稱"].astype(str).str.strip()
+        df_display["趨勢圖連結"] = df_top15["代碼"].apply(
             lambda x: f"https://norway.twsthr.info/StockHolders.aspx?stock={str(x).strip().zfill(4)}"
         )
-        
-        # 將「前往神秘金字塔」移到第 3 欄（名稱右邊），免滾動即可見
-        col_order = ["代碼", "名稱", "前往神秘金字塔", "類別", "大戶持有率_差異(%)", "大戶持有率_本週(%)", "今日收盤價", "今日漲跌"]
-        existing_cols = [c for c in col_order if c in df_top15.columns]
-        df_display = df_top15[existing_cols]
+        df_display["類別"] = df_top15["類別"].astype(str).str.strip()
 
         # 頂部行：左側標題，右側下載按鈕
         c_title, c_btn = st.columns([3, 1])
@@ -513,13 +517,13 @@ if stock_options:
         st.dataframe(
             df_display,
             column_config={
-                "前往神秘金字塔": st.column_config.LinkColumn(
+                "趨勢圖連結": st.column_config.LinkColumn(
                     "🔗 趨勢圖連結",
-                    help="點擊直接前往該股票的神秘金字塔趨勢圖",
+                    help="點擊直接前往神秘金字塔趨勢圖",
                     display_text="📈 前往神秘金字塔"
                 )
             },
-            use_container_width=True,
+            use_container_width=False,
             hide_index=True
         )
 
