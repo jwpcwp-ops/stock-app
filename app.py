@@ -89,7 +89,7 @@ def load_stock_list():
     return options.tolist(), df
   except Exception as e:
     st.error(
-        f"讀取 StockIDs.xlsx 失敗，請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
+        f"讀取 StockIDs.xlsx 失敗, 請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
     )
     return [], pd.DataFrame()
 
@@ -483,17 +483,17 @@ if stock_options:
 
     if os.path.exists(excel_filename):
       try:
-        # 改用 sheet_name=0 (讀取第一個分頁) 與 header=2 (第 3 行作為欄位名稱)
+        # 使用 header=2 自動對應您 Excel 的第 3 行作為欄位名稱
         df_top15 = pd.read_excel(excel_filename, sheet_name=0, header=2)
         
         st.markdown("##### 🔗 前 15 名個股快速前往神秘金字塔：")
         
         for _, row in df_top15.iterrows():
-          stock_id = str(row["代碼"]).zfill(4)
-          stock_name = str(row["股票名稱 (含趨勢圖連結)"])
-          industry = str(row["產業類別"])
-          inc_rate = row["大戶持有率_增幅(%)"]
-          close_price = row["今日收盤價"]
+          stock_id = str(row.iloc[1]).zfill(4)      # 欄位索引 1 為代碼
+          stock_name = str(row.iloc[2])            # 欄位索引 2 為名稱
+          industry = str(row.iloc[3])              # 欄位索引 3 為類別
+          inc_rate = row.iloc[8]                   # 大戶持有率增幅
+          close_price = row.iloc[9]                # 今日收盤價
           
           url = f"https://norway.twsthr.info/StockHolders.aspx?stock={stock_id}"
           
