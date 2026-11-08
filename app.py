@@ -483,15 +483,15 @@ if stock_options:
 
     if os.path.exists(excel_filename):
       try:
-        # 改用 sheet_name=1 (讀取第二個分頁，不管分頁名稱為何) 與 header=1 (第二行為欄位名稱)
-        df_top15 = pd.read_excel(excel_filename, sheet_name=1, header=1)
+        # 改用 sheet_name=0 (讀取第一個分頁) 與 header=2 (第 3 行作為欄位名稱)
+        df_top15 = pd.read_excel(excel_filename, sheet_name=0, header=2)
         
         st.markdown("##### 🔗 前 15 名個股快速前往神秘金字塔：")
         
         for _, row in df_top15.iterrows():
           stock_id = str(row["代碼"]).zfill(4)
-          stock_name = str(row["名稱"])
-          industry = str(row["類別"])
+          stock_name = str(row["股票名稱 (含趨勢圖連結)"])
+          industry = str(row["產業類別"])
           inc_rate = row["大戶持有率_增幅(%)"]
           close_price = row["今日收盤價"]
           
