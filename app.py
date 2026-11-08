@@ -483,17 +483,16 @@ if stock_options:
 
     if os.path.exists(excel_filename):
       try:
-        # 讀取 Excel 中的大戶增幅前 15 名分頁（header=1 對應您的欄位標題列）
+        # 正確讀取「大戶增幅前15名」分頁，並且 header=1 對應欄位名稱列
         df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
         
         st.markdown("##### 🔗 前 15 名個股快速前往神秘金字塔：")
         
         for _, row in df_top15.iterrows():
-          # 精準對應 Excel 中的真實股票代碼（修正先前抓錯行號的問題）
           stock_id = str(row["代碼"]).strip().zfill(4)
           stock_name = str(row["名稱"]).strip()
           industry = str(row["類別"]).strip()
-          inc_rate = row["大戶持有率_增幅(%)"]
+          inc_rate = row["大戶持有率_差異(%)"]
           close_price = row["今日收盤價"]
           
           # 正確帶入代碼的神秘金字塔網址
@@ -517,7 +516,7 @@ if stock_options:
       except Exception as e:
         st.error(f"讀取總表檔案發生錯誤: {e}")
     else:
-      st.warning(f"尚未在專案中找到總表檔案 (`{excel_filename}`)請確認是否已上傳至 GitHub。")
+      st.warning(f"尚未在專案中找到總表檔案 (`{excel_filename}`)，請確認是否已上傳至 GitHub。")
 
 else:
   st.warning("請確認 StockIDs.xlsx 是否已放在 GitHub 專案目錄中。")
