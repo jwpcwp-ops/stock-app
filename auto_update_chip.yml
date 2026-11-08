@@ -1,0 +1,37 @@
+name: 自動更新每週大戶籌碼分析表
+
+on:
+  schedule:
+    #  UTC 時間每週六 00:00 執行 (等於台灣時間每週六早上 08:00)
+    - cron: '0 0 * * 6'
+  workflow_dispatch: # 支援在 GitHub 網頁上點擊「Run workflow」手動觸發執行
+
+jobs:
+  update-chip-data:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 檢出程式碼
+      uses: actions/checkout@v3
+
+    - name: 設定 Python 環境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: 安裝所需 Python 套件
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl requests beautifulsoup4
+
+    - name: 執行大戶持股爬蟲與 Excel 生成腳本
+      run: |
+        python 大戶股權分析.py
+
+    - name: 自動提交並推送更新至 GitHub
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add .
+        git diff-index --quiet HEAD || git commit -m "Auto-update: 每週大戶持股分析與神秘金字塔連結更新"
+        git push
