@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (限制表格寬度，完美精簡)
+# 2. 注入自訂 CSS (調整左右雙欄表格的樣式與間距)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -48,10 +48,6 @@ st.markdown(
             font-size: 14px;
             font-weight: bold;
             color: #ffffff;
-        }
-        /* 限制 4 欄表格寬度，完美符合畫框尺寸 */
-        [data-testid="stDataFrame"] {
-            max-width: 580px !important;
         }
     </style>
 """,
@@ -477,12 +473,9 @@ if stock_options:
       st.info(f"💡 提示：設定好型態、週數與大戶水位後，點擊 **🚀 執行型態與水位過濾選股** 即可產出精華清單。")
 
   # =========================================================
-  # 分頁三：每週大戶增幅前 15 名總表 (嚴格只保留 4 個指定欄位)
+  # 分頁三：每週大戶增幅前 15 名總表 (左右雙欄並排：左 8 檔、右 7 檔)
   # =========================================================
   elif app_mode == "📋 每週大戶增幅前 15 名總表":
-    st.subheader("📋 每週大戶持股增幅前 15 名總表")
-    st.markdown("此表格由 GitHub Actions 每週自動更新，點擊 **趨勢圖連結** 即可直接前往神秘金字塔！")
-
     excel_filename = "大戶持股最新分析總表.xlsx"
 
     if os.path.exists(excel_filename):
@@ -490,8 +483,7 @@ if stock_options:
         # 讀取 Excel 中的大戶增幅前 15 名分頁（header=1 對應欄位標題列）
         df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
         
-        # 建立顯示用 Dataframe，嚴格精簡為您框起來的 4 個欄位：
-        # 代碼 | 名稱 | 趨勢圖連結 | 類別
+        # 建立顯示用 Dataframe (只保留 4 個指定欄位)
         df_display = pd.DataFrame()
         df_display["代碼"] = df_top15["代碼"].apply(lambda x: str(x).strip().zfill(4))
         df_display["名稱"] = df_top15["名稱"].astype(str).str.strip()
@@ -503,7 +495,7 @@ if stock_options:
         # 頂部行：左側標題，右側下載按鈕
         c_title, c_btn = st.columns([3, 1])
         with c_title:
-          st.markdown("##### 📊 完整數據總表：")
+          st.subheader("📋 每週大戶持股增幅前 15 名總表")
         with c_btn:
           with open(excel_filename, "rb") as file:
             st.download_button(
@@ -514,18 +506,45 @@ if stock_options:
                 use_container_width=True,
             )
 
-        st.dataframe(
-            df_display,
-            column_config={
-                "趨勢圖連結": st.column_config.LinkColumn(
-                    "🔗 趨勢圖連結",
-                    help="點擊直接前往神秘金字塔趨勢圖",
-                    display_text="📈 前往神秘金字塔"
-                )
-            },
-            use_container_width=False,
-            hide_index=True
-        )
+        st.markdown("此表格由 GitHub Actions 每週自動更新，左右兩側分別顯示前 8 名與後 7 名，點擊 **趨勢圖連結** 即可前往神秘金字塔！")
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # 將 15 筆資料拆成左右兩半：左邊 8 筆 (index 0~7)，右邊 7 筆 (index 8~14)
+        df_left = df_display.iloc[:8].reset_index(drop=True)
+        df_right = df_display.iloc[8:].reset_index(drop=True)
+
+        # 建立左右兩欄
+        col_left, col_right = st.columns(2)
+
+        with col_left:
+          st.markdown("##### 📌 前 1 ~ 8 名")
+          st.dataframe(
+              df_left,
+              column_config={
+                  "趨勢圖連結": st.column_config.LinkColumn(
+                      "🔗 趨勢圖連結",
+                      help="點擊前往神秘金字塔趨勢圖",
+                      display_text="📈 前往神秘金字塔"
+                  )
+              },
+              use_container_width=True,
+              hide_index=True
+          )
+
+        with col_right:
+          st.markdown("##### 📌 後 9 ~ 15 名")
+          st.dataframe(
+              df_right,
+              column_config={
+                  "趨勢圖連結": st.column_config.LinkColumn(
+                      "🔗 趨勢圖連結",
+                      help="點擊前往神秘金字塔趨勢圖",
+                      display_text="📈 前往神秘金字塔"
+                  )
+              },
+              use_container_width=True,
+              hide_index=True
+          )
 
       except Exception as e:
         st.error(f"讀取總表檔案發生錯誤: {e}")
