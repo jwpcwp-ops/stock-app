@@ -483,8 +483,8 @@ if stock_options:
 
     if os.path.exists(excel_filename):
       try:
-        # 正確讀取標題在第 2 行 (header=1) 的資料表
-        df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
+        # 改用 sheet_name=1 (讀取第二個分頁，不管分頁名稱為何) 與 header=1 (第二行為欄位名稱)
+        df_top15 = pd.read_excel(excel_filename, sheet_name=1, header=1)
         
         st.markdown("##### 🔗 前 15 名個股快速前往神秘金字塔：")
         
