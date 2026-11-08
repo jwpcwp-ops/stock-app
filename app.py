@@ -477,13 +477,33 @@ if stock_options:
   # =========================================================
   elif app_mode == "📋 每週大戶增幅前 15 名總表":
     st.subheader("📋 每週大戶持股增幅前 15 名總表")
-    st.markdown("此表格由 GitHub Actions 每週自動更新，讓您與群友隨時掌握最新大戶增幅精華！")
+    st.markdown("此表格由 GitHub Actions 每週自動更新，點擊下方連結可直接前往神秘金字塔！")
 
-    excel_filename = "20261106_大戶增幅前15名_神秘金字塔連結測試表.xlsx"
+    excel_filename = "大戶持股最新單週20261106分析總表.xlsx"
 
     if os.path.exists(excel_filename):
       try:
-        df_top15 = pd.read_excel(excel_filename, sheet_name=0, skiprows=2)
+        # 正確讀取標題在第 2 行 (header=1) 的資料表
+        df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
+        
+        st.markdown("##### 🔗 前 15 名個股快速前往神秘金字塔：")
+        
+        # 迴圈動態建立帶有直接點擊超連結的介面
+        for _, row in df_top15.iterrows():
+          stock_id = str(row["代碼"]).zfill(4)
+          stock_name = str(row["名稱"])
+          industry = str(row["類別"])
+          inc_rate = row["大戶持有率_增幅(%)"]
+          close_price = row["今日收盤價"]
+          
+          url = f"https://norway.twsthr.info/StockHolders.aspx?stock={stock_id}"
+          
+          st.markdown(
+              f"- **[{stock_id} {stock_name}]** ({industry}) | 大戶增幅: **+{inc_rate}%** | 收盤價: {close_price} -> [🔗 點擊前往神秘金字塔]({url})"
+          )
+            
+        st.markdown("---")
+        st.markdown("##### 📊 完整數據總表：")
         st.dataframe(df_top15, use_container_width=True, hide_index=True)
 
         with open(excel_filename, "rb") as file:
