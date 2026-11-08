@@ -222,7 +222,7 @@ if "screened_results" not in st.session_state:
 st.markdown("### 📊 台股大戶與羊群持股比例趨勢系統 (資料來源:股市小民)")
 
 if stock_options:
-  # 三個核心分頁選單（完整保留！）
+  # 三個核心分頁選單
   app_mode = st.radio(
       "功能選單",
       [
@@ -477,35 +477,54 @@ if stock_options:
   # =========================================================
   elif app_mode == "📋 每週大戶增幅前 15 名總表":
     st.subheader("📋 每週大戶持股增幅前 15 名總表")
-    st.markdown("此表格由 GitHub Actions 每週自動更新，點擊下方連結可直接前往神秘金字塔！")
+    st.markdown("此表格由 GitHub Actions 每週自動更新，點擊下方表格內的股票名稱即可直接前往神秘金字塔！")
 
     excel_filename = "大戶持股最新分析總表.xlsx"
 
     if os.path.exists(excel_filename):
       try:
-        # 正確讀取「大戶增幅前15名」分頁，並且 header=1 對應欄位名稱列
+        # 讀取 Excel 中的大戶增幅前 15 名分頁（header=1 對應欄位標題列）
         df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
         
-        st.markdown("##### 🔗 前 15 名個股快速前往神秘金字塔：")
-        
-        for _, row in df_top15.iterrows():
+        # 複製一份並將「名稱」欄位轉換為 Markdown 格式的超連結，直接嵌入神秘金字塔網址
+        df_display = df_top15.copy()
+        for idx, row in df_display.iterrows():
           stock_id = str(row["代碼"]).strip().zfill(4)
           stock_name = str(row["名稱"]).strip()
-          industry = str(row["類別"]).strip()
-          inc_rate = row["大戶持有率_差異(%)"]
-          close_price = row["今日收盤價"]
-          
-          # 正確帶入代碼的神秘金字塔網址
           url = f"https://norway.twsthr.info/StockHolders.aspx?stock={stock_id}"
-          
-          st.markdown(
-              f"- **[{stock_id} {stock_name}]** ({industry}) | 大戶增幅: **+{inc_rate}%** | 收盤價: {close_price} -> [🔗 點擊前往神秘金字塔]({url})"
-          )
-            
-        st.markdown("---")
-        st.markdown("##### 📊 完整數據總表：")
-        st.dataframe(df_top15, use_container_width=True, hide_index=True)
+          # 在名稱上建立超連結
+          df_display.at[idx, "名稱"] = f"[{stock_name}]({url})"
 
+        st.markdown("##### 📊 完整數據總表：")
+        
+        # 使用 st.markdown 配合 use_container_width 讓 DataFrame 中的 Markdown 連結正常渲染點擊
+        # 注意：Streamlit 的 st.dataframe 對 Markdown 連結支援有限，我們改用 st.markdown 表格或 st.dataframe 搭配 column_config 
+        # 最穩定且能點擊的做法是使用 st.dataframe 搭配 column_config.LinkColumn：
+        
+        # 為了完美呈現，我們為 DataFrame 增加一個專屬的「神秘金字塔連結」欄位，並將名稱保持乾淨
+        df_table = df_top15.copy()
+        df_table["神秘金字塔"] = df_table["代碼"].apply(
+            lambda x: f"https://norway.twsthr.info/StockHolders.aspx?stock={str(x).strip().zfill(4)}"
+        )
+        
+        # 重新調整欄位順序，讓連結欄位排在前面或好點擊的地方
+        cols = [c for c in df_table.columns if c != "神秘金字塔"]
+        df_table = df_table[["代碼", "名稱"] + [c for c in cols if c not in ["代碼", "名稱"]] + ["神秘金字塔"]]
+
+        st.dataframe(
+            df_table,
+            column_config={
+                "神秘金字塔": st.column_config.LinkColumn(
+                    "🔗 前往神秘金字塔",
+                    help="點擊直接前往該股票的神秘金字塔趨勢圖",
+                    display_text="📈 點擊查看趨勢圖"
+                )
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.markdown("---")
         with open(excel_filename, "rb") as file:
           st.download_button(
               label="📥 下載本週完整 Excel 總表",
