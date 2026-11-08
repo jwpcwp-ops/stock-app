@@ -473,11 +473,11 @@ if stock_options:
       st.info(f"💡 提示：設定好型態、週數與大戶水位後，點擊 **🚀 執行型態與水位過濾選股** 即可產出精華清單。")
 
   # =========================================================
-  # 分頁三：每週大戶增幅前 15 名總表 (含神秘金字塔連結)
+  # 分頁三：每週大戶增幅前 15 名總表 (下載按鈕移至上方與標題同行)
   # =========================================================
   elif app_mode == "📋 每週大戶增幅前 15 名總表":
     st.subheader("📋 每週大戶持股增幅前 15 名總表")
-    st.markdown("此表格由 GitHub Actions 每週自動更新，點擊下方表格內的股票名稱即可直接前往神秘金字塔！")
+    st.markdown("此表格由 GitHub Actions 每週自動更新，點擊表格中的 **📈 前往神秘金字塔** 可查看趨勢圖！")
 
     excel_filename = "大戶持股最新分析總表.xlsx"
 
@@ -486,52 +486,43 @@ if stock_options:
         # 讀取 Excel 中的大戶增幅前 15 名分頁（header=1 對應欄位標題列）
         df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
         
-        # 複製一份並將「名稱」欄位轉換為 Markdown 格式的超連結，直接嵌入神秘金字塔網址
-        df_display = df_top15.copy()
-        for idx, row in df_display.iterrows():
-          stock_id = str(row["代碼"]).strip().zfill(4)
-          stock_name = str(row["名稱"]).strip()
-          url = f"https://norway.twsthr.info/StockHolders.aspx?stock={stock_id}"
-          # 在名稱上建立超連結
-          df_display.at[idx, "名稱"] = f"[{stock_name}]({url})"
-
-        st.markdown("##### 📊 完整數據總表：")
-        
-        # 使用 st.markdown 配合 use_container_width 讓 DataFrame 中的 Markdown 連結正常渲染點擊
-        # 注意：Streamlit 的 st.dataframe 對 Markdown 連結支援有限，我們改用 st.markdown 表格或 st.dataframe 搭配 column_config 
-        # 最穩定且能點擊的做法是使用 st.dataframe 搭配 column_config.LinkColumn：
-        
-        # 為了完美呈現，我們為 DataFrame 增加一個專屬的「神秘金字塔連結」欄位，並將名稱保持乾淨
-        df_table = df_top15.copy()
-        df_table["神秘金字塔"] = df_table["代碼"].apply(
+        # 建立神秘金字塔專屬連結欄位
+        df_top15["前往神秘金字塔"] = df_top15["代碼"].apply(
             lambda x: f"https://norway.twsthr.info/StockHolders.aspx?stock={str(x).strip().zfill(4)}"
         )
         
-        # 重新調整欄位順序，讓連結欄位排在前面或好點擊的地方
-        cols = [c for c in df_table.columns if c != "神秘金字塔"]
-        df_table = df_table[["代碼", "名稱"] + [c for c in cols if c not in ["代碼", "名稱"]] + ["神秘金字塔"]]
+        # 將「前往神秘金字塔」移到第 3 欄（名稱右邊），免滾動即可見
+        col_order = ["代碼", "名稱", "前往神秘金字塔", "類別", "大戶持有率_差異(%)", "大戶持有率_本週(%)", "今日收盤價", "今日漲跌"]
+        existing_cols = [c for c in col_order if c in df_top15.columns]
+        df_display = df_top15[existing_cols]
+
+        # 頂部行：左側標題，右側下載按鈕
+        c_title, c_btn = st.columns([3, 1])
+        with c_title:
+          st.markdown("##### 📊 完整數據總表：")
+        with c_btn:
+          with open(excel_filename, "rb") as file:
+            st.download_button(
+                label="📥 下載完整 Excel",
+                data=file,
+                file_name="大戶增幅前15名籌碼分析.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
 
         st.dataframe(
-            df_table,
+            df_display,
             column_config={
-                "神秘金字塔": st.column_config.LinkColumn(
-                    "🔗 前往神秘金字塔",
+                "前往神秘金字塔": st.column_config.LinkColumn(
+                    "🔗 趨勢圖連結",
                     help="點擊直接前往該股票的神秘金字塔趨勢圖",
-                    display_text="📈 點擊查看趨勢圖"
+                    display_text="📈 前往神秘金字塔"
                 )
             },
             use_container_width=True,
             hide_index=True
         )
 
-        st.markdown("---")
-        with open(excel_filename, "rb") as file:
-          st.download_button(
-              label="📥 下載本週完整 Excel 總表",
-              data=file,
-              file_name="大戶增幅前15名籌碼分析.xlsx",
-              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          )
       except Exception as e:
         st.error(f"讀取總表檔案發生錯誤: {e}")
     else:
