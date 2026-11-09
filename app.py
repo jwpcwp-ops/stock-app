@@ -119,61 +119,16 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援
+# 5. 抓取 250 日日K線與成交量資料 (yfinance)
 # ---------------------------------------------------------
-CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
-
 @st.cache_data
-def load_local_cache_cached():
-    cache_dict = {}
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        data = json.loads(line)
-                        s_id = data.get("stock_id")
-                        if s_id:
-                            cache_dict[s_id] = data
-        except Exception as e:
-            print(f"讀取快取失敗: {e}")
-    return cache_dict
-
-def get_stock_data(stock_id, target_weeks=60):
-    cache_dict = load_local_cache_cached()
-    today_str = datetime.today().strftime("%Y-%m-%d")
-
-    if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
-        cached = cache_dict[stock_id]
-        big_h = np.array(cached["big_holder"])
-        sheep_h = np.array(cached["sheep_holder"])
-        
-        g_crosses = []
-        d_crosses = []
-        for i in range(1, len(big_h)):
-            if big_h[i - 1] <= sheep_h[i - 1] and big_h[i] > sheep_h[i]:
-                g_crosses.append(i)
-            elif big_h[i - 1] >= sheep_h[i - 1] and big_h[i] < sheep_h[i]:
-                d_crosses.append(i)
-
-        return (
-            cached.get("v_ratio", 1.0),
-            cached.get("cur_vol", 0.0),
-            cached.get("cur_20ma", 0.0),
-            g_crosses,
-            d_crosses,
-            pd.to_datetime(cached["w_dates"]),
-            cached["w_vols"],
-            big_h,
-            sheep_h
-        )
-
+def get_daily_kline_data(stock_id):
     df_yf = pd.DataFrame()
     for suffix in [".TW", ".TWO"]:
         ticker = stock_id + suffix
         try:
-            temp_df = yf.download(ticker, period="2y", progress=False)
-            if not temp_df.empty and "Volume" in temp_df.columns:
+            temp_df = yf.download(ticker, period="1y", progress=False)
+            if not temp_df.empty and "Close" in temp_df.columns:
                 df_yf = temp_df
                 break
         except:
@@ -182,53 +137,28 @@ def get_stock_data(stock_id, target_weeks=60):
     if not df_yf.empty:
         if isinstance(df_yf.columns, pd.MultiIndex):
             df_yf.columns = df_yf.columns.get_level_values(0)
-        df_yf = df_yf.dropna(subset=["Volume"])
-        vol_daily = df_yf["Volume"] / 1000
+        df_yf = df_yf.dropna(subset=["Close", "Volume"])
+        df_k = df_yf.tail(250).copy()
+        
+        vol_daily = df_k["Volume"] / 1000
         cur_vol = float(vol_daily.iloc[-1]) if len(vol_daily) > 0 else 0.0
         vol_20ma_daily = vol_daily.rolling(20).mean()
         cur_20ma = float(vol_20ma_daily.iloc[-1]) if len(vol_20ma_daily) > 0 else 0.0
         ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
 
-        df_weekly = df_yf.resample("W").agg({"Volume": "sum"}).dropna().tail(target_weeks)
-        w_dates = df_weekly.index.strftime("%Y-%m-%d").tolist()
-        w_vols = (df_weekly["Volume"].values / 1000).tolist()
+        return df_k, cur_vol, cur_20ma, ratio
     else:
-        cur_vol = 10000.0
-        cur_20ma = 8000.0
-        ratio = 1.25
-        fallback_dt = pd.date_range(end=datetime.today(), periods=target_weeks, freq="W")
-        w_dates = fallback_dt.strftime("%Y-%m-%d").tolist()
-        w_vols = np.random.randint(5000, 50000, size=target_weeks).tolist()
-
-    try:
-        seed_val = int(stock_id)
-    except:
-        seed_val = 42
-
-    np.random.seed(seed_val)
-    n_periods = len(w_dates)
-    big_holder = (38.0 + np.cumsum(np.random.randn(n_periods) * 0.4)).tolist()
-    sheep_holder = (42.0 + np.cumsum(np.random.randn(n_periods) * 0.3)).tolist()
-
-    g_crosses = []
-    d_crosses = []
-    for i in range(1, n_periods):
-        if big_holder[i - 1] <= sheep_holder[i - 1] and big_holder[i] > sheep_holder[i]:
-            g_crosses.append(i)
-        elif big_holder[i - 1] >= sheep_holder[i - 1] and big_holder[i] < sheep_holder[i]:
-            d_crosses.append(i)
-
-    return (
-        ratio,
-        cur_vol,
-        cur_20ma,
-        g_crosses,
-        d_crosses,
-        pd.to_datetime(w_dates),
-        np.array(w_vols),
-        np.array(big_holder),
-        np.array(sheep_holder)
-    )
+        # 備用假資料機制（防範網路斷線或無資料時）
+        dates = pd.date_range(end=datetime.today(), periods=250, freq="B")
+        prices = 100 + np.cumsum(np.random.randn(250) * 0.8)
+        df_k = pd.DataFrame({
+            "Open": prices - 0.5,
+            "High": prices + 1.0,
+            "Low": prices - 1.0,
+            "Close": prices,
+            "Volume": np.random.randint(5000, 30000, size=250)
+        }, index=dates)
+        return df_k, 12000.0, 10000.0, 1.2
 
 # ---------------------------------------------------------
 # 6. Session State 初始化
@@ -283,7 +213,7 @@ if stock_options:
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
     # =========================================================
-    # 分頁一：單股籌碼圖表檢視
+    # 分頁一：單股圖表 (250日日K線 + 均線 + 成交量)
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
@@ -302,16 +232,11 @@ if stock_options:
         except:
             st.session_state.selected_index = 0
 
-        c_chk1, c_chk2, c_chk3 = st.columns([1.2, 1.2, 2.6])
-        with c_chk1:
-            check_golden = st.checkbox("★ 黃金交叉", value=True)
-        with c_chk2:
-            check_death = st.checkbox("✖ 死亡交叉", value=True)
-
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        v_ratio, cur_vol, cur_20ma, g_crosses, d_crosses, dates_plot, w_vols, big_holder, sheep_holder = get_stock_data(stock_id, target_weeks=60)
+        # 取得 250 日日K線資料
+        df_k, cur_vol, cur_20ma, v_ratio = get_daily_kline_data(stock_id)
 
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
         st.markdown(
@@ -334,77 +259,44 @@ if stock_options:
             unsafe_allow_html=True,
         )
 
-        vol_series = pd.Series(w_vols)
-        vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
+        # 計算均線 (5MA, 20MA, 60MA季線)
+        ma5 = df_k["Close"].rolling(5).mean()
+        ma20 = df_k["Close"].rolling(20).mean()
+        ma60 = df_k["Close"].rolling(60).mean()
 
+        # 繪製專業日K線圖
         plt.style.use("dark_background")
-        fig, (ax1, ax3) = plt.subplots(
-            2, 1, figsize=(10, 4.0), sharex=True, gridspec_kw={"height_ratios": [1.9, 1]}
+        fig, (ax_k, ax_vol) = plt.subplots(
+            2, 1, figsize=(10, 5.0), sharex=True, gridspec_kw={"height_ratios": [3, 1]}
         )
 
-        color_big = "#ff4d4d"
-        ax1.set_ylabel("大戶(%)", color=color_big, fontsize=10, fontweight="bold")
-        ax1.plot(dates_plot, big_holder, color=color_big, marker="o", markersize=3, linewidth=1.3, label="大戶持股")
-        ax1.tick_params(axis="y", labelcolor=color_big, labelsize=9)
+        # 畫日K蠟燭棒 (紅漲綠跌)
+        for i in range(len(df_k)):
+            dt = df_k.index[i]
+            o = df_k["Open"].iloc[i]
+            h = df_k["High"].iloc[i]
+            l = df_k["Low"].iloc[i]
+            c = df_k["Close"].iloc[i]
+            color = "#ff4d4d" if c >= o else "#2ecc71"
+            ax_k.vlines(dt, l, h, color=color, linewidth=0.8)
+            ax_k.bar(dt, abs(c - o), bottom=min(o, c), color=color, width=0.8)
 
-        ax2 = ax1.twinx()
-        color_sheep = "#2ecc71"
-        ax2.set_ylabel("羊群(%)", color=color_sheep, fontsize=10, fontweight="bold")
-        ax2.plot(dates_plot, sheep_holder, color=color_sheep, marker="s", markersize=3, linewidth=1.3, label="羊群持股")
-        ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=9)
+        # 畫均線
+        ax_k.plot(df_k.index, ma5, color="#f1c40f", linewidth=1.1, label="5MA")
+        ax_k.plot(df_k.index, ma20, color="#3498db", linewidth=1.1, label="20MA")
+        ax_k.plot(df_k.index, ma60, color="#9b59b6", linewidth=1.1, label="60MA(季線)")
 
-        if check_golden and g_crosses:
-            for idx in g_crosses:
-                if idx < len(dates_plot):
-                    ax1.annotate(
-                        "★ 黃金交叉",
-                        xy=(dates_plot[idx], big_holder[idx]),
-                        xytext=(dates_plot[idx], big_holder[idx] + 1.2),
-                        arrowprops=dict(facecolor="#f1c40f", shrink=0.05, width=0.8, headwidth=4),
-                        fontsize=8,
-                        fontweight="bold",
-                        color="#f1c40f",
-                        ha="center",
-                    )
+        ax_k.set_title(f"[{stock_id}] {stock_name} - 250日日K線與均線趨勢", fontsize=11, fontweight="bold", color="white")
+        ax_k.set_ylabel("股價 (元)", fontsize=9, color="white")
+        ax_k.legend(loc="upper left", fontsize=8)
+        ax_k.grid(True, linestyle="--", alpha=0.2)
 
-        if check_death and d_crosses:
-            for idx in d_crosses:
-                if idx < len(dates_plot):
-                    ax1.annotate(
-                        "✖ 死亡交叉",
-                        xy=(dates_plot[idx], big_holder[idx]),
-                        xytext=(dates_plot[idx], big_holder[idx] - 1.5),
-                        arrowprops=dict(facecolor="#e74c3c", shrink=0.05, width=0.8, headwidth=4),
-                        fontsize=8,
-                        fontweight="bold",
-                        color="#e74c3c",
-                        ha="center",
-                    )
-
-        latest_big_val = big_holder[-1] if len(big_holder) > 0 else 0.0
-        latest_sheep_val = sheep_holder[-1] if len(sheep_holder) > 0 else 0.0
-
-        ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=11, fontweight="bold", pad=20)
-        
-        ax1.text(
-            0.52, 1.04, f"大戶: {latest_big_val:.1f}%", 
-            transform=ax1.transAxes, color="#ff3333", fontsize=10, fontweight="bold", ha="left", va="bottom"
-        )
-        ax1.text(
-            0.74, 1.04, f"羊群: {latest_sheep_val:.1f}%", 
-            transform=ax1.transAxes, color="#00ff66", fontsize=10, fontweight="bold", ha="left", va="bottom"
-        )
-
-        ax1.grid(True, linestyle="--", alpha=0.3)
-
-        ax3.bar(dates_plot, vol_series.values, color="#3498db", alpha=0.7, width=3.5, label="成交量(張)")
-        ax3.plot(dates_plot, vol_20ma, color="#f39c12", linewidth=1.3, label="20MA")
-        ax3.set_ylabel("張數", fontsize=9, color="white", fontweight="bold")
-        ax3.set_xlabel("日期", fontsize=9, color="white")
-        ax3.tick_params(axis="x", labelsize=9, rotation=10)
-        ax3.tick_params(axis="y", labelsize=9)
-        ax3.legend(loc="upper left", fontsize=8)
-        ax3.grid(True, linestyle="--", alpha=0.3)
+        # 畫成交量副圖
+        vol_colors = ["#ff4d4d" if df_k["Close"].iloc[i] >= df_k["Open"].iloc[i] else "#2ecc71" for i in range(len(df_k))]
+        ax_vol.bar(df_k.index, df_k["Volume"] / 1000, color=vol_colors, alpha=0.8, width=0.8, label="成交量(張)")
+        ax_vol.set_ylabel("張數", fontsize=9, color="white")
+        ax_vol.set_xlabel("日期", fontsize=9, color="white")
+        ax_vol.grid(True, linestyle="--", alpha=0.2)
 
         fig.tight_layout(pad=0.5)
         st.pyplot(fig, use_container_width=True, dpi=250)
@@ -438,7 +330,15 @@ if stock_options:
             with st.spinner("正在秒速讀取本地快取庫並進行條件過濾，請稍候..."):
                 matched_results = []
                 is_golden_search = "黃金交叉" in cross_type
-                cache_dict = load_local_cache_cached()
+                CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
+                cache_dict = {}
+                if os.path.exists(CACHE_FILE):
+                    with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                        for line in f:
+                            if line.strip():
+                                data = json.loads(line)
+                                if "stock_id" in data:
+                                    cache_dict[data["stock_id"]] = data
 
                 for _, row in stock_df.iterrows():
                     s_id = str(row["代碼"])
@@ -595,7 +495,7 @@ if stock_options:
             st.warning(f"尚未在專案中找到總表檔案 (`{excel_filename}`)，請確認是否已上傳至 GitHub。")
 
     # =========================================================
-    # 分頁四：基本面與圖表 (無論上市上櫃，皆能穩定顯示縮圖與放大檢視)
+    # 分頁四：基本面與圖表 (多維度財務縮圖 + 點擊放大)
     # =========================================================
     elif app_mode == "📊 基本面與圖表":
         st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
@@ -618,7 +518,6 @@ if stock_options:
         target_code = selected_fund_stock.split()[0]
         target_name = selected_fund_stock.split()[1] if len(selected_fund_stock.split()) > 1 else ""
 
-        # 💡 不論上市或上櫃，直接流暢呈現多維度財務縮圖與互動放大檢視
         st.markdown(f'<p class="sub-header-14">📈 [{target_code}] {target_name} 財務與基本面核心指標總覽（點擊縮圖可放大）</p>', unsafe_allow_html=True)
         
         quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
