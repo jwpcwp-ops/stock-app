@@ -320,6 +320,7 @@ if stock_options:
         df = pd.DataFrame(k_records)
         s_close = df["close"]
         
+        # 計算各項均線 (支援 3, 7, 10, 20, 35, 65, 120, 200)
         for period in [3, 7, 10, 20, 35, 65, 120, 200]:
             df[f"ma{period}"] = s_close.ewm(span=period, adjust=False).mean()
 
@@ -339,14 +340,14 @@ if stock_options:
         df["long_trend"] = cond3 & cond4
         trend_colors = ["#FF4D4D" if is_bull else "#00C853" for is_bull in df["long_trend"]]
 
-        # 處理 X 軸的顯示日期格式 (改為 2 位數月/日，例如 "05/05")
+        # 處理 X 軸的顯示日期格式 (改為 2 位數月/日，例如 "11/06")
         formatted_x_dates = [
             f"{d[4:6]}/{d[6:8]}" if len(str(d)) == 8 else str(d) 
             for d in df["date"]
         ]
 
         # ---------------------------------------------------------
-        # 建立 Plotly 5 層互動式暗色系圖表
+        # 建立 Plotly 5 層互動式暗色系圖表 (含十字線與查價)
         # ---------------------------------------------------------
         fig = make_subplots(
             rows=5, cols=1,
@@ -371,7 +372,7 @@ if stock_options:
             row=1, col=1
         )
 
-        # 動態均線繪製
+        # 動態均線繪製 (依照 3, 7, 10, 20, 35, 65, 120, 200 勾選狀態產生或剔除)
         ma_configs = [
             (show_ma3, "ma3", "3日", "#58A6FF"),
             (show_ma7, "ma7", "7日", "#D2A8FF"),
