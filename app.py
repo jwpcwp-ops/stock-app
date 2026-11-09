@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (手機與電腦版共用：優化間距與卡片佈局)
+# 2. 注入自訂 CSS
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -35,24 +35,23 @@ st.markdown(
             margin-bottom: 4px;
             color: #ffffff;
         }
-        /* 讓數據方塊在手機與電腦上都能緊密並排，避免上下佔太大版面 */
         .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            padding: 6px 10px;
+            padding: 8px 12px;
             border-radius: 6px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
         .metric-label {
-            font-size: 11px;
+            font-size: 12px;
             color: #aaaaaa;
             font-weight: 500;
         }
         .metric-val {
-            font-size: 13px;
+            font-size: 14px;
             font-weight: bold;
             color: #ffffff;
         }
@@ -85,7 +84,7 @@ else:
 plt.rcParams["axes.unicode_minus"] = False
 
 # ---------------------------------------------------------
-# 4. 讀取 1952 檔股票清單 (StockIDs.xlsx)
+# 4. 讀取股票清單 (StockIDs.xlsx)
 # ---------------------------------------------------------
 @st.cache_data
 def load_stock_list():
@@ -287,25 +286,28 @@ if stock_options:
         v_ratio, cur_vol, cur_20ma, g_crosses, d_crosses, dates_plot, w_vols, big_holder, sheep_holder = get_stock_data(stock_id, target_weeks=60)
 
         # ---------------------------------------------------------
-        # 改善手機版：強制三欄數據在手機與電腦上均勻並排顯示
+        # 改回原生區塊顯示，確保手機版不會因寬度不足而隱藏圖表
         # ---------------------------------------------------------
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.markdown(
-                f'<div class="metric-card-horizontal"><span class="metric-label">📦 今日成交:</span><span class="metric-val">{int(cur_vol):,} 張</span></div>',
-                unsafe_allow_html=True,
-            )
-        with m2:
-            st.markdown(
-                f'<div class="metric-card-horizontal"><span class="metric-label">📊 20MA均量:</span><span class="metric-val">{int(cur_20ma):,} 張</span></div>',
-                unsafe_allow_html=True,
-            )
-        with m3:
-            status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
-            st.markdown(
-                f'<div class="metric-card-horizontal"><span class="metric-label">⚡ 量比值:</span><span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span></div>',
-                unsafe_allow_html=True,
-            )
+        status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
+        st.markdown(
+            f"""
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <div class="metric-card-horizontal" style="flex: 1;">
+                    <span class="metric-label">📦 今日成交</span>
+                    <span class="metric-val">{int(cur_vol):,} 張</span>
+                </div>
+                <div class="metric-card-horizontal" style="flex: 1;">
+                    <span class="metric-label">📊 20MA均量</span>
+                    <span class="metric-val">{int(cur_20ma):,} 張</span>
+                </div>
+                <div class="metric-card-horizontal" style="flex: 1;">
+                    <span class="metric-label">⚡ 量比值</span>
+                    <span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
@@ -554,7 +556,7 @@ if stock_options:
                         df_right,
                         column_config={
                             "趨勢圖連結": st.column_config.LinkColumn(
-                                "🔗 趨설圖連結",
+                                "🔗 趨勢圖連結",
                                 help="點擊前往神秘金字塔趨勢圖",
                                 display_text="📈 前往神秘金字塔"
                             )
