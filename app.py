@@ -303,7 +303,6 @@ if stock_options:
         except:
             st.session_state.selected_index = 0
 
-        # 💡 將黃金交叉與死亡交叉的勾選框改為較窄的比例（例如 [1.2, 1.2, 2.6]），讓它們靠在一起
         c_chk1, c_chk2, c_chk3 = st.columns([1.2, 1.2, 2.6])
         with c_chk1:
             check_golden = st.checkbox("★ 黃金交叉", value=True)
@@ -316,8 +315,6 @@ if stock_options:
         v_ratio, cur_vol, cur_20ma, g_crosses, d_crosses, dates_plot, w_vols, big_holder, sheep_holder = get_stock_data(stock_id, target_weeks=60)
 
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
-        
-        # 💡 將三個數據方塊改為精簡縮小版，左右並排緊湊呈現
         st.markdown(
             f"""
             <div style="display: flex; gap: 4px; margin-bottom: 4px;">
@@ -599,7 +596,7 @@ if stock_options:
             st.warning(f"尚未在專案中找到總表檔案 (`{excel_filename}`)，請確認是否已上傳至 GitHub。")
 
     # =========================================================
-    # 分頁四：基本面與圖表 (下拉選股聯動 + 自動解析繪圖 + 點擊放大縮圖)
+    # 分頁四：基本面與圖表 (支援上市/上櫃智慧判斷與縮圖點擊放大)
     # =========================================================
     elif app_mode == "📊 基本面與圖表":
         st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
@@ -622,16 +619,27 @@ if stock_options:
         target_code = selected_fund_stock.split()[0]
         target_name = selected_fund_stock.split()[1] if len(selected_fund_stock.split()) > 1 else ""
 
-        pdf_url = f"https://www.twse.com.tw/pdf/ch/{target_code}_ch.pdf"
-        local_pdf_path = f"{target_code}_report.pdf"
+        # 💡 智慧判斷：同時支援證交所(上市公司)與櫃買中心(上櫃公司)的官方 PDF 來源
+        pdf_urls = [
+            f"https://www.twse.com.tw/pdf/ch/{target_code}_ch.pdf",
+            f"https://www.tpex.org.tw/pdf/ch/{target_code}_ch.pdf"
+        ]
         
-        try:
-            if not os.path.exists(local_pdf_path):
+        local_pdf_path = f"{target_code}_report.pdf"
+        success_download = False
+        
+        for pdf_url in pdf_urls:
+            try:
                 urllib.request.urlretrieve(pdf_url, local_pdf_path)
-            
-            with pdfplumber.open(local_pdf_path) as pdf:
-                pass
-            
+                if os.path.exists(local_pdf_path) and os.path.getsize(local_pdf_path) > 1000:
+                    with pdfplumber.open(local_pdf_path) as pdf:
+                        if len(pdf.pages) > 0:
+                            success_download = True
+                            break
+            except:
+                continue
+
+        if success_download:
             st.markdown(f'<p class="sub-header-14">📈 [{target_code}] {target_name} 官方報告核心指標總覽（點擊縮圖可放大）</p>', unsafe_allow_html=True)
             
             quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
@@ -663,9 +671,8 @@ if stock_options:
                 with target_col:
                     with st.expander(f"📊 {ds['title']} (點擊放大)", expanded=False):
                         st.pyplot(fig, use_container_width=True)
-                        
-        except Exception as e:
-            st.warning(f"目前該代碼 ([{target_code}]) 暫無證交所官方 PDF 報告或下載連線中。請切換其他有公告的股票代碼。")
+        else:
+            st.warning(f"目前該代碼 ([{target_code}]) 暫無證交所或櫃買中心官方 PDF 公告報告。請切換其他股票代碼。")
 
 else:
     st.warning("請確認 StockIDs.xlsx 是否已放在 GitHub 專案目錄中。")
