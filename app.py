@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (強制手機版橫向緊湊排列、設定 14px 標題字體)
+# 2. 注入自訂 CSS (強制手機版橫向緊湊排列、精簡數據方塊大小)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -52,11 +52,12 @@ st.markdown(
             flex: 1 !important;
             min-width: 0 !important;
         }
+        /* 將數據方塊改為精緻縮小版，左右並排更緊湊 */
         .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            padding: 5px 6px;
-            border-radius: 6px;
+            padding: 4px 6px;
+            border-radius: 5px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -68,7 +69,7 @@ st.markdown(
             font-weight: 500;
         }
         .metric-val {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             color: #ffffff;
         }
@@ -302,11 +303,12 @@ if stock_options:
         except:
             st.session_state.selected_index = 0
 
-        c_chk1, c_chk2 = st.columns(2)
+        # 💡 將黃金交叉與死亡交叉的勾選框改為較窄的比例（例如 [1.2, 1.2, 2.6]），讓它們靠在一起
+        c_chk1, c_chk2, c_chk3 = st.columns([1.2, 1.2, 2.6])
         with c_chk1:
-            check_golden = st.checkbox("★ 標註黃金交叉", value=True)
+            check_golden = st.checkbox("★ 黃金交叉", value=True)
         with c_chk2:
-            check_death = st.checkbox("✖ 標註死亡交叉", value=True)
+            check_death = st.checkbox("✖ 死亡交叉", value=True)
 
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
@@ -314,9 +316,11 @@ if stock_options:
         v_ratio, cur_vol, cur_20ma, g_crosses, d_crosses, dates_plot, w_vols, big_holder, sheep_holder = get_stock_data(stock_id, target_weeks=60)
 
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
+        
+        # 💡 將三個數據方塊改為精簡縮小版，左右並排緊湊呈現
         st.markdown(
             f"""
-            <div style="display: flex; gap: 6px; margin-bottom: 4px;">
+            <div style="display: flex; gap: 4px; margin-bottom: 4px;">
                 <div class="metric-card-horizontal" style="flex: 1;">
                     <span class="metric-label">📦 今日成交</span>
                     <span class="metric-val">{int(cur_vol):,} 張</span>
@@ -600,7 +604,6 @@ if stock_options:
     elif app_mode == "📊 基本面與圖表":
         st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
         
-        # 💡 改用與第一頁完全相同的股票下拉搜尋框（支援代碼或名稱）
         if "fundamental_select_idx" not in st.session_state:
             st.session_state.fundamental_select_idx = 0
 
@@ -622,17 +625,13 @@ if stock_options:
         pdf_url = f"https://www.twse.com.tw/pdf/ch/{target_code}_ch.pdf"
         local_pdf_path = f"{target_code}_report.pdf"
         
-        # 自動背景下載與解析（選好股票後直接執行，不需要按鈕）
         try:
             if not os.path.exists(local_pdf_path):
                 urllib.request.urlretrieve(pdf_url, local_pdf_path)
             
             with pdfplumber.open(local_pdf_path) as pdf:
-                pass # 確認檔案可讀取
+                pass
             
-            # =========================================================
-            # 統一繪製多張精簡小圖（模擬 PDF 縮圖排版，點擊展開放大）
-            # =========================================================
             st.markdown(f'<p class="sub-header-14">📈 [{target_code}] {target_name} 官方報告核心指標總覽（點擊縮圖可放大）</p>', unsafe_allow_html=True)
             
             quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
