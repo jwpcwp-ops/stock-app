@@ -2,11 +2,10 @@ from datetime import datetime
 import json
 import os
 import urllib.request
-import matplotlib.font_manager as fm
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pdfplumber
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
 import yfinance as yf
 
@@ -78,30 +77,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# 3. 自動下載並載入繁體中文字型
-# ---------------------------------------------------------
-font_path = "NotoSansTC-Regular.ttf"
-if not os.path.exists(font_path):
-    font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf"
-    try:
-        urllib.request.urlretrieve(font_url, font_path)
-    except Exception as e:
-        print(f"字型下載失敗: {e}")
-
-if os.path.exists(font_path):
-    fm.fontManager.addfont(font_path)
-    plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
-else:
-    plt.rcParams["font.sans-serif"] = [
-        "Microsoft JhengHei",
-        "Arial Unicode MS",
-        "sans-serif",
-    ]
-
-plt.rcParams["axes.unicode_minus"] = False
-
-# ---------------------------------------------------------
-# 4. 讀取股票清單 (StockIDs.xlsx)
+# 3. 讀取股票清單 (StockIDs.xlsx)
 # ---------------------------------------------------------
 @st.cache_data
 def load_stock_list():
@@ -119,7 +95,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取
+# 4. 本地快取支援與資料抓取
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -143,7 +119,6 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
     cache_dict = load_local_cache_cached()
     today_str = datetime.today().strftime("%Y-%m-%d")
 
-    # 取得日K與成交量數據 (yfinance)
     df_yf = pd.DataFrame()
     for suffix in [".TW", ".TWO"]:
         ticker = stock_id + suffix
@@ -194,7 +169,6 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
                 "vol": np.random.randint(5000, 30000)
             })
 
-    # 取得大戶與羊群持股快取資料
     if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
         cached = cache_dict[stock_id]
         big_holder = np.array(cached.get("big_holder", [40.0]*len(k_records)))
@@ -212,7 +186,7 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
     return k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio
 
 # ---------------------------------------------------------
-# 6. Session State 初始化
+# 5. Session State 初始化
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
     st.session_state.selected_index = 0
@@ -224,7 +198,7 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (4個分頁按鈕並排)
+# 6. 網頁主介面佈局 (4個分頁按鈕並排)
 # ---------------------------------------------------------
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
@@ -264,7 +238,7 @@ if stock_options:
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
     # =========================================================
-    # 分頁一：單股圖表 (5層專業整合圖表：K線 + MACD + 成交量 + 大戶羊群 + 多空線)
+    # 分頁一：單股圖表 (互動式 Plotly + 3/7/10/20/35/65/120/200 均線開關 + 十字線查詢)
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
@@ -286,7 +260,7 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # 取得完整資料
+        # 取得資料
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id)
 
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
@@ -310,14 +284,35 @@ if stock_options:
             unsafe_allow_html=True,
         )
 
+        # ---------------------------------------------------------
+        # 均線開關控制面板 (支援 3, 7, 10, 20, 35, 65, 120, 200)
+        # ---------------------------------------------------------
+        st.markdown('<p class="sub-header-14">⚙️ 均線顯示開關 (勾選產生，不勾選則剔除)</p>', unsafe_allow_html=True)
+        ma_cols = st.columns(8)
+        with ma_cols[0]:
+            show_ma3 = st.checkbox("3日", value=True)
+        with ma_cols[1]:
+            show_ma7 = st.checkbox("7日", value=True)
+        with ma_cols[2]:
+            show_ma10 = st.checkbox("10日", value=False)
+        with ma_cols[3]:
+            show_ma20 = st.checkbox("20日", value=True)
+        with ma_cols[4]:
+            show_ma35 = st.checkbox("35日", value=False)
+        with ma_cols[5]:
+            show_ma65 = st.checkbox("65日", value=True)  # 季線
+        with ma_cols[6]:
+            show_ma120 = st.checkbox("120日", value=False) # 半年線
+        with ma_cols[7]:
+            show_ma200 = st.checkbox("200日", value=False) # 年線
+
         # 轉換 DataFrame 並計算技術指標
         df = pd.DataFrame(k_records)
         s_close = df["close"]
-        df["ema3"] = s_close.ewm(span=3, adjust=False).mean()
-        df["ema7"] = s_close.ewm(span=7, adjust=False).mean()
-        df["ema15"] = s_close.ewm(span=15, adjust=False).mean()
-        df["ema30"] = s_close.ewm(span=30, adjust=False).mean()
-        df["ema60"] = s_close.ewm(span=60, adjust=False).mean()
+        
+        # 計算各項均線
+        for period in [3, 7, 10, 20, 35, 65, 120, 200]:
+            df[f"ma{period}"] = s_close.ewm(span=period, adjust=False).mean()
 
         # MACD 計算
         df["dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
@@ -327,91 +322,110 @@ if stock_options:
         # 成交量均量
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
 
-        # 多空線判定條件
+        # 多空線判定條件 (使用 ema15 與 ema30 或 ma20/ma65 邏輯依您原本設計)
+        df["ema15"] = s_close.ewm(span=15, adjust=False).mean()
+        df["ema30"] = s_close.ewm(span=30, adjust=False).mean()
         cond3 = ((df["ema15"] / df["ema30"] - 1) * 100) > 0
         cond4 = df["ema15"] > df["ema30"]
         df["long_trend"] = cond3 & cond4
+        trend_colors = ["#FF4D4D" if is_bull else "#00C853" for is_bull in df["long_trend"]]
 
-        # 繪圖樣式設定
-        BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#0D1117", "#161B22", "#21262D", "#30363D"
-        BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF4D4D", "#00C853"
-        body_colors = [BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR for o, c in zip(df["open"], df["close"])]
-        osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
-
-        plt.style.use("dark_background")
-        fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(
-            5, 1, figsize=(10, 6.8), sharex=True,
-            gridspec_kw={"height_ratios": [3.5, 1.0, 1.0, 1.2, 0.22]}
+        # ---------------------------------------------------------
+        # 建立 Plotly 5 層互動式暗色系圖表 (含十字線與查價)
+        # ---------------------------------------------------------
+        fig = make_subplots(
+            rows=5, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=[0.45, 0.15, 0.15, 0.18, 0.07],
+            subplot_titles=(f"[{stock_id}] {stock_name} - 5層專業技術籌碼圖表 (支援互動十字線查價)", "", "", "", "")
         )
 
-        for ax in [fig, ax1, ax2, ax3, ax4, ax5]:
-            ax.set_facecolor(BG_COLOR)
-        fig.patch.set_facecolor(BG_COLOR)
-        x = list(range(len(df)))
+        # 1. 主圖：K線 (Candlestick)
+        fig.add_trace(
+            go.Candlestick(
+                x=df["date"],
+                open=df["open"],
+                high=df["high"],
+                low=df["low"],
+                close=df["close"],
+                name="K線",
+                increasing_line_color="#ff4d4d",
+                decreasing_line_color="#00C853"
+            ),
+            row=1, col=1
+        )
 
-        # 層 1：主圖 (K線 + 均線)
-        ax1.set_facecolor(PANEL_BG)
-        ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.8, alpha=0.9)
-        body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
-        body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
-        ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
-        ax1.plot(x, df["ema3"], linewidth=0.7, color="#58A6FF", label="EMA3", alpha=0.9)
-        ax1.plot(x, df["ema60"], linewidth=0.7, color="#FFFFFF", label="EMA60", linestyle="--")
-        ax1.set_title(f"[{stock_id}] {stock_name} - 專業多維度籌碼技術圖表", fontsize=11, fontweight="bold", color="white")
-        ax1.yaxis.tick_right()
-        ax1.tick_params(axis="y", labelsize=7.5, colors="#8B949E")
-        ax1.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
+        # 動態均線繪製 (依照勾選狀態產生或剔除)
+        ma_configs = [
+            (show_ma3, "ma3", "3日", "#58A6FF"),
+            (show_ma7, "ma7", "7日", "#D2A8FF"),
+            (show_ma10, "ma10", "10日", "#3498DB"),
+            (show_ma20, "ma20", "20日", "#F1C40F"),
+            (show_ma35, "ma35", "35日", "#E67E22"),
+            (show_ma65, "ma65", "65日", "#FFFFFF"),
+            (show_ma120, "ma120", "120日", "#7EE787"),
+            (show_ma200, "ma200", "200日", "#FF7B72"),
+        ]
 
-        # 層 2：MACD 副圖
-        ax2.set_facecolor(PANEL_BG)
-        ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.85)
-        ax2.plot(x, df["dif"], linewidth=0.6, color="#00E5FF", label="DIF")
-        ax2.plot(x, df["dem"], linewidth=0.6, color="#F59E0B", label="DEA")
-        ax2.axhline(0, color="#30363D", linestyle=":", linewidth=1)
-        ax2.yaxis.tick_right()
-        ax2.tick_params(axis="y", labelsize=7.5, colors="#8B949E")
-        ax2.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax2.text(0.015, 0.82, "MACD", transform=ax2.transAxes, fontsize=8, fontweight="bold", color="#8B949E")
+        for show_flag, col_name, label_str, color_hex in ma_configs:
+            if show_flag:
+                fig.add_trace(
+                    go.Scatter(
+                        x=df["date"], y=df[col_name],
+                        mode="lines", name=label_str,
+                        line=dict(color=color_hex, width=1.2)
+                    ),
+                    row=1, col=1
+                )
 
-        # 層 3：成交量副圖
-        ax3.set_facecolor(PANEL_BG)
-        ax3.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.85)
-        ax3.plot(x, df["vol_ma5"], linewidth=0.6, color="#00E5FF", label="VOL5")
-        ax3.yaxis.tick_right()
-        ax3.tick_params(axis="y", labelsize=7.5, colors="#8B949E")
-        ax3.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax3.text(0.015, 0.82, "成交量(張)", transform=ax3.transAxes, fontsize=8, fontweight="bold", color="#8B949E")
+        # 2. MACD 副圖
+        osc_colors = ["#ff4d4d" if val >= 0 else "#00C853" for val in df["osc"]]
+        fig.add_trace(go.Bar(x=df["date"], y=df["osc"], name="MACD", marker_color=osc_colors), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["dif"], mode="lines", name="DIF", line=dict(color="#00E5FF", width=1.0)), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["dem"], mode="lines", name="DEA", line=dict(color="#F59E0B", width=1.0)), row=2, col=1)
 
-        # 層 4：大戶與羊群持股比例副圖
-        ax4.set_facecolor(PANEL_BG)
+        # 3. 成交量副圖
+        vol_colors = ["#ff4d4d" if c >= o else "#00C853" for o, c in zip(df["open"], df["close"])]
+        fig.add_trace(go.Bar(x=df["date"], y=df["vol"], name="成交量(張)", marker_color=vol_colors), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["vol_ma5"], mode="lines", name="VOL5", line=dict(color="#00E5FF", width=1.0)), row=3, col=1)
+
+        # 4. 大戶與羊群持股副圖
         if len(big_holder) > 0 and len(sheep_holder) > 0:
             b_plot = big_holder[-len(df):]
             s_plot = sheep_holder[-len(df):]
-            x_chip = x[-len(b_plot):]
-            ax4.plot(x_chip, b_plot, color="#FF4D4D", linewidth=1.1, marker='o', markersize=2, label="大戶(%)")
-            ax4.plot(x_chip, s_plot, color="#2ECC71", linewidth=1.1, marker='s', markersize=2, label="羊群(%)")
-        ax4.yaxis.tick_right()
-        ax4.tick_params(axis="y", labelsize=7.5, colors="#8B949E")
-        ax4.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax4.legend(loc="upper left", fontsize=7)
-        ax4.text(0.015, 0.82, "大戶與羊群", transform=ax4.transAxes, fontsize=8, fontweight="bold", color="#8B949E")
+            fig.add_trace(go.Scatter(x=df["date"], y=b_plot, mode="lines+markers", name="大戶持股(%)", line=dict(color="#FF4D4D", width=1.5), marker=dict(size=3)), row=4, col=1)
+            fig.add_trace(go.Scatter(x=df["date"], y=s_plot, mode="lines+markers", name="羊群持股(%)", line=dict(color="#00C853", width=1.5), marker=dict(size=3)), row=4, col=1)
 
-        # 層 5：最底部的多空線色帶
-        ax5.set_facecolor(PANEL_BG)
-        trend_colors = [BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR for is_bull in df["long_trend"]]
-        ax5.bar(x, [1] * len(df), width=1.0, color=trend_colors, edgecolor="none")
-        ax5.text(0.015, 0.5, "多空線", transform=ax5.transAxes, fontsize=8.0, color="#FFFFFF", ha="left", va="center")
-        ax5.set_yticks([])
+        # 5. 多空線色帶副圖 (無縫連貫色帶)
+        fig.add_trace(
+            go.Bar(
+                x=df["date"], y=[1]*len(df),
+                name="多空線",
+                marker=dict(color=trend_colors, line=dict(width=0)),
+                width=1.0, showlegend=False
+            ),
+            row=5, col=1
+        )
 
-        # 統一框線與邊距
-        for ax in [ax1, ax2, ax3, ax4, ax5]:
-            for spine in ax.spines.values():
-                spine.set_visible(True)
-                spine.set_color(SUB_BORDER)
-                spine.set_linewidth(0.8)
+        # 圖表整體佈局設定 (暗色系、內建十字線 Hover)
+        fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="#0D1117",
+            plot_bgcolor="#161B22",
+            height=740,
+            margin=dict(l=10, r=10, t=30, b=10),
+            hovermode="x unified",
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
 
-        plt.subplots_adjust(left=0.015, right=0.98, top=0.96, bottom=0.06, hspace=0.08)
-        st.pyplot(fig, use_container_width=True, dpi=250)
+        # 啟用十字線與精準對齊格線
+        fig.update_xaxes(rangeslider_visible=False, showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", gridcolor="#21262D")
+        fig.update_yaxes(showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", gridcolor="#21262D")
+        fig.update_yaxes(showticklabels=False, row=5, col=1)
+
+        st.plotly_chart(fig, use_container_width=True)
 
     # =========================================================
     # 分頁二：純籌碼型態極速選股
@@ -632,6 +646,7 @@ if stock_options:
             {"title": "每股盈餘 (EPS) 表現", "y_label": "元 (EPS)", "val1": [0.85, 0.92, 1.15, 1.02, 1.30], "val2": [], "c1": "#9b59b6", "c2": ""}
         ]
 
+        import matplotlib.pyplot as plt
         plt.style.use("dark_background")
         cols = st.columns(2)
         
