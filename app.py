@@ -322,14 +322,14 @@ if stock_options:
         df["long_trend"] = df["close"] >= df["ema60"]
 
         # =========================================================
-        # Plotly 5 層互動式圖表 (支援十字線查價)
+        # Plotly 5 層互動式暗色系圖表 (固定為黑底，無白底)
         # =========================================================
         fig = make_subplots(
             rows=5, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.03,
             row_heights=[0.45, 0.15, 0.15, 0.18, 0.07],
-            subplot_titles=(f"[{stock_id}] {stock_name} - 5層技術指標 (滑鼠移入即顯示十字線查價)", "", "", "", "")
+            subplot_titles=(f"[{stock_id}] {stock_name} - 5層專業技術籌碼圖表 (十字線查價)", "", "", "", "")
         )
 
         # 1. 主圖：K線 (Candlestick)
@@ -383,20 +383,22 @@ if stock_options:
         trend_colors = ["#ff4d4d" if is_bull else "#2ecc71" for is_bull in df["long_trend"]]
         fig.add_trace(go.Bar(x=df["date"], y=[1]*len(df), name="多空線", marker_color=trend_colors, showlegend=False), row=5, col=1)
 
-        # 設定全局主題與十字線 (Crosshair)
+        # 強制指定 plotly_dark 主題與純黑底色配置
         fig.update_layout(
             template="plotly_dark",
+            paper_bgcolor="#0D1117",
+            plot_bgcolor="#161B22",
             height=720,
             margin=dict(l=10, r=10, t=30, b=10),
-            hovermode="x unified",  # 設定滑鼠移入時一併顯示該 X 軸上所有指標
+            hovermode="x unified",
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
 
-        # 開啟十字線與修飾 Y 軸
-        fig.update_xaxes(rangeslider_visible=False, showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across")
-        fig.update_yaxes(showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across")
-        fig.update_yaxes(showticklabels=False, row=5, col=1) # 隱藏多空線數字刻度
+        # 開啟十字線與修飾格線
+        fig.update_xaxes(rangeslider_visible=False, showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", gridcolor="#21262D")
+        fig.update_yaxes(showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", gridcolor="#21262D")
+        fig.update_yaxes(showticklabels=False, row=5, col=1)
 
         st.plotly_chart(fig, use_container_width=True)
 
