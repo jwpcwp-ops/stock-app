@@ -19,39 +19,49 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (極致優化手機版面、間距與緊湊排列)
+# 2. 注入自訂 CSS (強制手機版橫向緊湊排列、不亂換行)
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 0.6rem;
-            padding-bottom: 0.4rem;
+            padding-top: 0.5rem;
+            padding-bottom: 0.3rem;
             max-width: 95rem;
         }
         .mobile-title {
-            font-size: 17px;
+            font-size: 16px;
             font-weight: bold;
             margin-bottom: 2px;
             color: #ffffff;
         }
+        /* 確保手機上的分頁按鈕與勾選框完美強制並排，不往下掉 */
+        [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 6px !important;
+        }
+        [data-testid="stHorizontalBlock"] > div {
+            flex: 1 !important;
+            min-width: 0 !important;
+        }
         .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            padding: 6px 8px;
+            padding: 5px 6px;
             border-radius: 6px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
         }
         .metric-label {
-            font-size: 11px;
+            font-size: 10px;
             color: #aaaaaa;
             font-weight: 500;
         }
         .metric-val {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
             color: #ffffff;
         }
@@ -228,14 +238,14 @@ if "screened_results" not in st.session_state:
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
 if stock_options:
-    # 上方 3 個分頁選單並排
+    # 上方 3 個分頁選單強制橫向並排
     m_col1, m_col2, m_col3 = st.columns(3)
     
     if "app_mode_idx" not in st.session_state:
         st.session_state.app_mode_idx = 0
 
     modes = [
-        "📈 單股籌碼圖表",
+        "📈 單股圖表",
         "⚡ 秒速選股",
         "📋 增幅前15名",
     ]
@@ -264,7 +274,6 @@ if stock_options:
     # 分頁一：單股籌碼圖表檢視
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
-        # 恢復支援直接點擊並輸入代碼/名稱搜尋的下拉選單
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
@@ -281,7 +290,7 @@ if stock_options:
         except:
             st.session_state.selected_index = 0
 
-        # 💡 將黃金交叉與死亡交叉勾選框改為「左右並排同一行」
+        # 黃金交叉與死亡交叉勾選框強制左右並排同一行
         c_chk1, c_chk2 = st.columns(2)
         with c_chk1:
             check_golden = st.checkbox("★ 標註黃金交叉", value=True)
@@ -297,7 +306,7 @@ if stock_options:
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
         st.markdown(
             f"""
-            <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+            <div style="display: flex; gap: 6px; margin-bottom: 4px;">
                 <div class="metric-card-horizontal" style="flex: 1;">
                     <span class="metric-label">📦 今日成交</span>
                     <span class="metric-val">{int(cur_vol):,} 張</span>
@@ -318,10 +327,10 @@ if stock_options:
         vol_series = pd.Series(w_vols)
         vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
-        # 放大圖表尺寸與高度
+        # 圖表尺寸設定
         plt.style.use("dark_background")
         fig, (ax1, ax3) = plt.subplots(
-            2, 1, figsize=(10, 4.2), sharex=True, gridspec_kw={"height_ratios": [1.9, 1]}
+            2, 1, figsize=(10, 4.0), sharex=True, gridspec_kw={"height_ratios": [1.9, 1]}
         )
 
         color_big = "#ff4d4d"
@@ -368,7 +377,7 @@ if stock_options:
 
         ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=11, fontweight="bold", pad=20)
         
-        # 將大戶、羊群數值字體放大、加粗並設定極高亮度
+        # 高亮度大戶、羊群數值顯示
         ax1.text(
             0.52, 1.04, f"大戶: {latest_big_val:.1f}%", 
             transform=ax1.transAxes, color="#ff3333", fontsize=10, fontweight="bold", ha="left", va="bottom"
@@ -493,7 +502,7 @@ if stock_options:
                     st.session_state.selected_index = stock_options.index(selected_from_screen)
                 except:
                     st.session_state.selected_index = 0
-                st.session_state.app_mode_idx = 0  # 自動跳回圖表分頁
+                st.session_state.app_mode_idx = 0
                 st.rerun()
 
             st.dataframe(df_res, use_container_width=True, hide_index=True)
@@ -504,7 +513,7 @@ if stock_options:
             st.info(f"💡 提示：設定好型態、週數與大戶水位後，點擊 **🚀 執行型態與水位過濾選股** 即可產出精華清單。")
 
     # =========================================================
-    # 分頁三：每週大戶增幅前 15 名總表 (左右雙欄並排：左 8 檔、右 7 檔)
+    # 分頁三：每週大戶增幅前 15 名總表
     # =========================================================
     elif app_mode == "📋 每週大戶增幅前 15 名總表":
         excel_filename = "大戶持股最新分析總表.xlsx"
