@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (強制手機版橫向緊湊排列、不亂換行)
+# 2. 注入自訂 CSS (強制手機版橫向緊湊排列、設定 14px 標題字體)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -35,6 +35,14 @@ st.markdown(
             font-weight: bold;
             margin-bottom: 2px;
             color: #ffffff;
+        }
+        /* 自訂小標題樣式：強制設定為 14px */
+        .sub-header-14 {
+            font-size: 14px !important;
+            font-weight: bold;
+            color: #ffffff;
+            margin-top: 8px;
+            margin-bottom: 4px;
         }
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
@@ -247,7 +255,7 @@ if stock_options:
         "📈 單股圖表",
         "⚡ 秒速選股",
         "📋 增幅前15名",
-        "📊 基本面圖表",
+        "📊 基本面與圖表",
     ]
 
     with m_col1:
@@ -271,7 +279,7 @@ if stock_options:
         "📈 單股籌碼圖表檢視",
         "⚡ 秒速選股：黃金交叉 / 死亡交叉",
         "📋 每週大戶增幅前 15 名總表",
-        "📊 基本面報告圖表",
+        "📊 基本面與圖表",
     ]
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
@@ -406,7 +414,7 @@ if stock_options:
     # 分頁二：純籌碼型態極速選股
     # =========================================================
     elif app_mode == "⚡ 秒速選股：黃金交叉 / 死亡交叉":
-        st.subheader("⚡ 籌碼型態選股")
+        st.markdown('<p class="sub-header-14">⚡ 籌碼型態選股</p>', unsafe_allow_html=True)
 
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
@@ -533,7 +541,7 @@ if stock_options:
 
                 c_title, c_btn = st.columns([3, 1])
                 with c_title:
-                    st.subheader("📋 每週大戶持股增幅前 15 名總表")
+                    st.markdown('<p class="sub-header-14">📋 每週大戶持股增幅前 15 名總表</p>', unsafe_allow_html=True)
                 with c_btn:
                     with open(excel_filename, "rb") as file:
                         st.download_button(
@@ -588,10 +596,10 @@ if stock_options:
             st.warning(f"尚未在專案中找到總表檔案 (`{excel_filename}`)，請確認是否已上傳至 GitHub。")
 
     # =========================================================
-    # 分頁四：官方基本面報告與圖表化分析 (新功能)
+    # 分頁四：基本面與圖表
     # =========================================================
-    elif app_mode == "📊 基本面報告圖表":
-        st.subheader("📊 官方基本面報告與圖表化分析")
+    elif app_mode == "📊 基本面與圖表":
+        st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
         
         target_code = st.text_input("輸入要查詢基本面報告的股票代碼", value="8438", key="fundamental_code_input")
         
@@ -615,13 +623,13 @@ if stock_options:
                 full_text = "\n".join(extracted_texts)
                 
                 st.markdown("---")
-                st.markdown("### 📌 報告重點摘要")
+                st.markdown('<p class="sub-header-14">📌 報告重點摘要</p>', unsafe_allow_html=True)
                 st.info(f"成功解析共計 {len(pdf.pages)} 頁的官方正式文件。")
                 
                 with st.expander("🔍 點擊展開查看原始萃取文字"):
                     st.text_area("PDF 內容預覽", full_text[:3000], height=200)
                     
-                st.markdown("### 📈 財務關鍵指標圖表化")
+                st.markdown('<p class="sub-header-14">📈 財務關鍵指標圖表化</p>', unsafe_allow_html=True)
                 sample_quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
                 sample_margin = [15.2, 16.5, 18.0, 17.2, 19.1]
                 
