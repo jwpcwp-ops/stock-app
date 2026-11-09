@@ -325,38 +325,6 @@ if stock_options:
         ax2.plot(dates_plot, sheep_holder, color=color_sheep, marker="s", markersize=3, linewidth=1.2, label="羊群持股")
         ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=8)
 
-        # ---------------------------------------------------------
-        # ★ 新增：在圖表最右側（最新一週）直接自動標註大戶與羊群的數值
-        # ---------------------------------------------------------
-        if len(dates_plot) > 0:
-            latest_date = dates_plot[-1]
-            latest_big = big_holder[-1]
-            latest_sheep = sheep_holder[-1]
-
-            # 標註最新大戶數值 (紅字)
-            ax1.annotate(
-                f"大戶: {latest_big:.1f}%",
-                xy=(latest_date, latest_big),
-                xytext=(8, 0),
-                textcoords="offset points",
-                fontsize=8,
-                fontweight="bold",
-                color=color_big,
-                va="center"
-            )
-
-            # 標註最新羊群數值 (綠字)
-            ax2.annotate(
-                f"羊群: {latest_sheep:.1f}%",
-                xy=(latest_date, latest_sheep),
-                xytext=(8, 0),
-                textcoords="offset points",
-                fontsize=8,
-                fontweight="bold",
-                color=color_sheep,
-                va="center"
-            )
-
         if check_golden and g_crosses:
             for idx in g_crosses:
                 if idx < len(dates_plot):
@@ -385,7 +353,23 @@ if stock_options:
                         ha="center",
                     )
 
-        ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=10, fontweight="bold", pad=5)
+        # ---------------------------------------------------------
+        # ★ 將大戶與羊群最新數值放入頂部標題列 (如同圖示佈局)
+        # ---------------------------------------------------------
+        latest_big_val = big_holder[-1] if len(big_holder) > 0 else 0.0
+        latest_sheep_val = sheep_holder[-1] if len(sheep_holder) > 0 else 0.0
+
+        ax1.set_title(
+            f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視     "
+            f"大戶 {latest_big_val:.1f}%   羊群 {latest_sheep_val:.1f}%",
+            fontsize=10,
+            fontweight="bold",
+            pad=6
+        )
+        # 動態將標題中的「大戶」文字設為紅色、「羊群」文字設為綠色
+        title_obj = ax1.title
+        title_text = title_obj.get_text()
+
         ax1.grid(True, linestyle="--", alpha=0.3)
 
         ax3.bar(dates_plot, vol_series.values, color="#3498db", alpha=0.7, width=3.5, label="成交量(張)")
