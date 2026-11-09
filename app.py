@@ -354,21 +354,23 @@ if stock_options:
                     )
 
         # ---------------------------------------------------------
-        # ★ 將大戶與羊群最新數值放入頂部標題列 (如同圖示佈局)
+        # ★ 頂部標題與數值顯示（透過文字顏色完美對應紅大戶、綠羊群）
         # ---------------------------------------------------------
         latest_big_val = big_holder[-1] if len(big_holder) > 0 else 0.0
         latest_sheep_val = sheep_holder[-1] if len(sheep_holder) > 0 else 0.0
 
-        ax1.set_title(
-            f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視     "
-            f"大戶 {latest_big_val:.1f}%   羊群 {latest_sheep_val:.1f}%",
-            fontsize=10,
-            fontweight="bold",
-            pad=6
+        # 設定主標題
+        ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=10, fontweight="bold", pad=18)
+        
+        # 在圖表上方利用文字分別標上大戶（紅）與羊群（綠）的數值
+        ax1.text(
+            0.55, 1.03, f"大戶: {latest_big_val:.1f}%", 
+            transform=ax1.transAxes, color=color_big, fontsize=9, fontweight="bold", ha="left", va="bottom"
         )
-        # 動態將標題中的「大戶」文字設為紅色、「羊群」文字設為綠色
-        title_obj = ax1.title
-        title_text = title_obj.get_text()
+        ax1.text(
+            0.75, 1.03, f"羊群: {latest_sheep_val:.1f}%", 
+            transform=ax1.transAxes, color=color_sheep, fontsize=9, fontweight="bold", ha="left", va="bottom"
+        )
 
         ax1.grid(True, linestyle="--", alpha=0.3)
 
