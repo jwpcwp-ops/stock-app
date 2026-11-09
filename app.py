@@ -19,23 +19,23 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (強制手機版橫向緊湊排列、不亂換行)
+# 2. 注入自訂 CSS (極致優化手機版面、間距與緊湊排列)
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 0.5rem;
-            padding-bottom: 0.3rem;
+            padding-top: 0.6rem;
+            padding-bottom: 0.4rem;
             max-width: 95rem;
         }
         .mobile-title {
-            font-size: 16px;
+            font-size: 17px;
             font-weight: bold;
             margin-bottom: 2px;
             color: #ffffff;
         }
-        /* 確保手機上的分頁按鈕與勾選框完美強制並排，不往下掉 */
+        /* 強制手機上的選項與按鈕完美橫向並排，不往下掉 */
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
@@ -48,20 +48,20 @@ st.markdown(
         .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            padding: 5px 6px;
+            padding: 6px 8px;
             border-radius: 6px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
         }
         .metric-label {
-            font-size: 10px;
+            font-size: 11px;
             color: #aaaaaa;
             font-weight: 500;
         }
         .metric-val {
-            font-size: 12px;
+            font-size: 13px;
             font-weight: bold;
             color: #ffffff;
         }
@@ -238,7 +238,7 @@ if "screened_results" not in st.session_state:
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
 if stock_options:
-    # 上方 3 個分頁選單強制橫向並排
+    # 上方 3 個分頁選單並排
     m_col1, m_col2, m_col3 = st.columns(3)
     
     if "app_mode_idx" not in st.session_state:
@@ -377,7 +377,6 @@ if stock_options:
 
         ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=11, fontweight="bold", pad=20)
         
-        # 高亮度大戶、羊群數值顯示
         ax1.text(
             0.52, 1.04, f"大戶: {latest_big_val:.1f}%", 
             transform=ax1.transAxes, color="#ff3333", fontsize=10, fontweight="bold", ha="left", va="bottom"
@@ -402,18 +401,19 @@ if stock_options:
         st.pyplot(fig, use_container_width=True, dpi=250)
 
     # =========================================================
-    # 分頁二：純籌碼型態極速選股
+    # 分頁二：純籌碼型態極速選股 (已精簡標題並將選項改為橫向)
     # =========================================================
     elif app_mode == "⚡ 秒速選股：黃金交叉 / 死亡交叉":
-        st.subheader("⚡ 籌碼型態選股：搜尋近期的「黃金交叉」與「死亡交叉」")
-        st.markdown("結合型態轉折與大戶持股水位過濾，秒速產出精華清單！")
+        st.subheader("⚡ 籌碼型態選股")
 
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
+            # 💡 依照您的截圖標註：將篩選型態選項改為左右並排橫向顯示
             cross_type = st.radio(
                 "選擇要篩選的型態",
                 ["🚀 近期黃金交叉 (大戶買、羊群賣)", "⚠️ 近期死亡交叉 (大戶賣、羊群買)"],
                 horizontal=True,
+                label_visibility="collapsed"
             )
         with col_s2:
             recent_weeks = st.slider(
