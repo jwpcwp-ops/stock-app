@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 import urllib.request
@@ -88,14 +88,14 @@ def load_stock_list():
         return options.tolist(), df
     except Exception as e:
         st.error(
-            f"讀取 StockIDs.xlsx 失敗，請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
+            f"讀取 StockIDs.xlsx 失敗,請確認是否已上傳該檔案至 GitHub。錯誤訊息: {e}"
         )
         return [], pd.DataFrame()
 
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 4. 本地快取支援與資料抓取
+# 4. 本地快取支援與資料抓取 (強制指定明確起訖日期以獲取最新日K)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -119,11 +119,15 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
     cache_dict = load_local_cache_cached()
     today_str = datetime.today().strftime("%Y-%m-%d")
 
+    #明確計算開始與結束日期 (從一年前直到今天，確保抓到最新交易日)
+    start_date = (datetime.today() - timedelta(days=400)).strftime("%Y-%m-%d")
+    end_date = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+
     df_yf = pd.DataFrame()
     for suffix in [".TW", ".TWO"]:
         ticker = stock_id + suffix
         try:
-            temp_df = yf.download(ticker, period="1y", progress=False)
+            temp_df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
             if not temp_df.empty and "Close" in temp_df.columns:
                 df_yf = temp_df
                 break
@@ -264,12 +268,11 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # 取得資料 (含當日開盤價)
+        # 取得最新資料
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio, cur_open = get_comprehensive_stock_data(stock_id)
 
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
         
-        # 顯示4格即時數據方塊 (加入當日開盤價)
         st.markdown(
             f"""
             <div style="display: flex; gap: 4px; margin-bottom: 4px;">
@@ -320,7 +323,6 @@ if stock_options:
         df = pd.DataFrame(k_records)
         s_close = df["close"]
         
-        # 計算各項均線 (支援 3, 7, 10, 20, 35, 65, 120, 200)
         for period in [3, 7, 10, 20, 35, 65, 120, 200]:
             df[f"ma{period}"] = s_close.ewm(span=period, adjust=False).mean()
 
@@ -340,14 +342,14 @@ if stock_options:
         df["long_trend"] = cond3 & cond4
         trend_colors = ["#FF4D4D" if is_bull else "#00C853" for is_bull in df["long_trend"]]
 
-        # 處理 X 軸的顯示日期格式 (改為 2 位數月/日，例如 "11/06")
+        # 處理 X 軸的顯示日期格式 (改為 2 位數月/日，例如 "11/09")
         formatted_x_dates = [
             f"{d[4:6]}/{d[6:8]}" if len(str(d)) == 8 else str(d) 
             for d in df["date"]
         ]
 
         # ---------------------------------------------------------
-        # 建立 Plotly 5 層互動式暗色系圖表 (含十字線與查價)
+        # 建立 Plotly 5 層互動式暗色系圖表
         # ---------------------------------------------------------
         fig = make_subplots(
             rows=5, cols=1,
@@ -372,7 +374,7 @@ if stock_options:
             row=1, col=1
         )
 
-        # 動態均線繪製 (依照 3, 7, 10, 20, 35, 65, 120, 200 勾選狀態產生或剔除)
+        # 動態均線繪製
         ma_configs = [
             (show_ma3, "ma3", "3日", "#58A6FF"),
             (show_ma7, "ma7", "7日", "#D2A8FF"),
@@ -413,7 +415,7 @@ if stock_options:
             fig.add_trace(go.Scatter(x=formatted_x_dates, y=b_plot, mode="lines+markers", name="大戶持股(%)", line=dict(color="#FF4D4D", width=1.5), marker=dict(size=3)), row=4, col=1)
             fig.add_trace(go.Scatter(x=formatted_x_dates, y=s_plot, mode="lines+markers", name="羊群持股(%)", line=dict(color="#00C853", width=1.5), marker=dict(size=3)), row=4, col=1)
 
-        # 5. 多空線色帶副圖 (無縫連貫色帶)
+        # 5. 多空線色帶副圖
         fig.add_trace(
             go.Bar(
                 x=formatted_x_dates, y=[1]*len(df),
@@ -424,7 +426,6 @@ if stock_options:
             row=5, col=1
         )
 
-        # 圖表整體佈局設定
         fig.update_layout(
             template="plotly_dark",
             paper_bgcolor="#0D1117",
@@ -436,7 +437,6 @@ if stock_options:
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
 
-        # 啟用十字線與精準對齊格線
         fig.update_xaxes(rangeslider_visible=False, showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", gridcolor="#21262D")
         fig.update_yaxes(showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", gridcolor="#21262D")
         fig.update_yaxes(showticklabels=False, row=5, col=1)
@@ -629,7 +629,7 @@ if stock_options:
             st.warning(f"尚未在專案中找到總表檔案 (`{excel_filename}`)，請確認是否已上傳至 GitHub。")
 
     # =========================================================
-    # 分頁四：基本面與圖表 (多維度財務縮圖 + 點擊放大)
+    # 分頁四：基本面與圖表
     # =========================================================
     elif app_mode == "📊 基本面與圖表":
         st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
