@@ -2,11 +2,11 @@ from datetime import datetime
 import json
 import os
 import urllib.request
+import matplotlib.font_manager as fm
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pdfplumber
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import streamlit as st
 import yfinance as yf
 
@@ -78,7 +78,30 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# 3. 讀取股票清單 (StockIDs.xlsx)
+# 3. 自動下載並載入繁體中文字型
+# ---------------------------------------------------------
+font_path = "NotoSansTC-Regular.ttf"
+if not os.path.exists(font_path):
+    font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf"
+    try:
+        urllib.request.urlretrieve(font_url, font_path)
+    except Exception as e:
+        print(f"字型下載失敗: {e}")
+
+if os.path.exists(font_path):
+    fm.fontManager.addfont(font_path)
+    plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
+else:
+    plt.rcParams["font.sans-serif"] = [
+        "Microsoft JhengHei",
+        "Arial Unicode MS",
+        "sans-serif",
+    ]
+
+plt.rcParams["axes.unicode_minus"] = False
+
+# ---------------------------------------------------------
+# 4. 讀取股票清單 (StockIDs.xlsx)
 # ---------------------------------------------------------
 @st.cache_data
 def load_stock_list():
@@ -96,35 +119,15 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 4. 本地快取支援與資料抓取
+# 5. 抓取 250 日日K線與成交量資料 (yfinance)
 # ---------------------------------------------------------
-CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
-
 @st.cache_data
-def load_local_cache_cached():
-    cache_dict = {}
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        data = json.loads(line)
-                        s_id = data.get("stock_id")
-                        if s_id:
-                            cache_dict[s_id] = data
-        except Exception as e:
-            print(f"讀取快取失敗: {e}")
-    return cache_dict
-
-def get_comprehensive_stock_data(stock_id, target_weeks=250):
-    cache_dict = load_local_cache_cached()
-    today_str = datetime.today().strftime("%Y-%m-%d")
-
+def get_daily_kline_data(stock_id):
     df_yf = pd.DataFrame()
     for suffix in [".TW", ".TWO"]:
         ticker = stock_id + suffix
         try:
-            temp_df = yf.download(ticker, period="2y", progress=False)
+            temp_df = yf.download(ticker, period="1y", progress=False)
             if not temp_df.empty and "Close" in temp_df.columns:
                 df_yf = temp_df
                 break
@@ -135,59 +138,30 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
         if isinstance(df_yf.columns, pd.MultiIndex):
             df_yf.columns = df_yf.columns.get_level_values(0)
         df_yf = df_yf.dropna(subset=["Close", "Volume"])
-        df_k = df_yf.tail(target_weeks).copy()
+        df_k = df_yf.tail(250).copy()
         
         vol_daily = df_k["Volume"] / 1000
         cur_vol = float(vol_daily.iloc[-1]) if len(vol_daily) > 0 else 0.0
         vol_20ma_daily = vol_daily.rolling(20).mean()
         cur_20ma = float(vol_20ma_daily.iloc[-1]) if len(vol_20ma_daily) > 0 else 0.0
         ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
-        
-        k_records = []
-        for idx, row in df_k.iterrows():
-            k_records.append({
-                "date": idx.strftime("%Y-%m-%d"),
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"]),
-                "vol": float(row["Volume"]) / 1000
-            })
-    else:
-        cur_vol = 12000.0
-        cur_20ma = 10000.0
-        ratio = 1.2
-        dates = pd.date_range(end=datetime.today(), periods=target_weeks, freq="B")
-        prices = 100 + np.cumsum(np.random.randn(target_weeks) * 0.8)
-        k_records = []
-        for i, d in enumerate(dates):
-            k_records.append({
-                "date": d.strftime("%Y-%m-%d"),
-                "open": prices[i] - 0.5,
-                "high": prices[i] + 1.0,
-                "low": prices[i] - 1.0,
-                "close": prices[i],
-                "vol": np.random.randint(5000, 30000)
-            })
 
-    if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
-        cached = cache_dict[stock_id]
-        big_holder = np.array(cached.get("big_holder", [40.0]*len(k_records)))
-        sheep_holder = np.array(cached.get("sheep_holder", [42.0]*len(k_records)))
+        return df_k, cur_vol, cur_20ma, ratio
     else:
-        try:
-            seed_val = int(stock_id)
-        except:
-            seed_val = 42
-        np.random.seed(seed_val)
-        n_p = len(k_records)
-        big_holder = 38.0 + np.cumsum(np.random.randn(n_p) * 0.4)
-        sheep_holder = 42.0 + np.cumsum(np.random.randn(n_p) * 0.3)
-
-    return k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio
+        # 備用假資料機制（防範網路斷線或無資料時）
+        dates = pd.date_range(end=datetime.today(), periods=250, freq="B")
+        prices = 100 + np.cumsum(np.random.randn(250) * 0.8)
+        df_k = pd.DataFrame({
+            "Open": prices - 0.5,
+            "High": prices + 1.0,
+            "Low": prices - 1.0,
+            "Close": prices,
+            "Volume": np.random.randint(5000, 30000, size=250)
+        }, index=dates)
+        return df_k, 12000.0, 10000.0, 1.2
 
 # ---------------------------------------------------------
-# 5. Session State 初始化
+# 6. Session State 初始化
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
     st.session_state.selected_index = 0
@@ -199,7 +173,7 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 6. 網頁主介面佈局 (4個分頁按鈕並排)
+# 7. 網頁主介面佈局 (4個分頁按鈕並排)
 # ---------------------------------------------------------
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
@@ -239,7 +213,7 @@ if stock_options:
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
     # =========================================================
-    # 分頁一：單股圖表
+    # 分頁一：單股圖表 (250日日K線 + 均線 + 成交量)
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
@@ -258,26 +232,11 @@ if stock_options:
         except:
             st.session_state.selected_index = 0
 
-        # 均線顯示開關 (全實體線)
-        st.markdown('<p class="sub-header-14">⚙️ 均線顯示開關 (全實體線)</p>', unsafe_allow_html=True)
-        ma_col1, ma_col2, ma_col3, ma_col4, ma_col5, ma_col6 = st.columns(6)
-        with ma_col1:
-            show_ma3 = st.checkbox("3日", value=True)
-        with ma_col2:
-            show_ma7 = st.checkbox("7日", value=True)
-        with ma_col3:
-            show_ma35 = st.checkbox("35均", value=True)
-        with ma_col4:
-            show_ma60 = st.checkbox("季線", value=True)
-        with ma_col5:
-            show_ma120 = st.checkbox("半年線", value=False)
-        with ma_col6:
-            show_ma240 = st.checkbox("年線", value=False)
-
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id)
+        # 取得 250 日日K線資料
+        df_k, cur_vol, cur_20ma, v_ratio = get_daily_kline_data(stock_id)
 
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
         st.markdown(
@@ -300,121 +259,47 @@ if stock_options:
             unsafe_allow_html=True,
         )
 
-        df = pd.DataFrame(k_records)
-        s_close = df["close"]
-        df["ema3"] = s_close.ewm(span=3, adjust=False).mean()
-        df["ema7"] = s_close.ewm(span=7, adjust=False).mean()
-        df["ema15"] = s_close.ewm(span=15, adjust=False).mean()
-        df["ema30"] = s_close.ewm(span=30, adjust=False).mean()
-        df["ema35"] = s_close.ewm(span=35, adjust=False).mean()
-        df["ema60"] = s_close.ewm(span=60, adjust=False).mean()
-        df["ema120"] = s_close.ewm(span=120, adjust=False).mean()
-        df["ema240"] = s_close.ewm(span=240, adjust=False).mean()
+        # 計算均線 (5MA, 20MA, 60MA季線)
+        ma5 = df_k["Close"].rolling(5).mean()
+        ma20 = df_k["Close"].rolling(20).mean()
+        ma60 = df_k["Close"].rolling(60).mean()
 
-        # MACD 計算
-        df["dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
-        df["dem"] = df["dif"].ewm(span=9, adjust=False).mean()
-        df["osc"] = (df["dif"] - df["dem"]) * 2
-
-        # 成交量均量
-        df["vol_ma5"] = df["vol"].rolling(window=5).mean()
-
-        # 🟢 多空線邏輯：還原為連貫色帶樣式
-        slope = (df["ema15"] / df["ema30"] - 1) * 100
-        cond3 = slope > 0
-        cond4 = df["ema15"] > df["ema30"]
-        df["long_trend"] = cond3 & cond4
-        trend_colors = ["#FF4D4D" if is_bull else "#00C853" for is_bull in df["long_trend"]]
-
-        # =========================================================
-        # Plotly 5 層互動式暗色系圖表 (純黑底、全實體均線、無縫連貫色帶)
-        # =========================================================
-        fig = make_subplots(
-            rows=5, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.03,
-            row_heights=[0.45, 0.15, 0.15, 0.18, 0.07],
-            subplot_titles=(f"[{stock_id}] {stock_name} - 5層專業技術籌碼圖表 (十字線查價)", "", "", "", "")
+        # 繪製專業日K線圖
+        plt.style.use("dark_background")
+        fig, (ax_k, ax_vol) = plt.subplots(
+            2, 1, figsize=(10, 5.0), sharex=True, gridspec_kw={"height_ratios": [3, 1]}
         )
 
-        # 1. 主圖：K線 (Candlestick)
-        fig.add_trace(
-            go.Candlestick(
-                x=df["date"],
-                open=df["open"],
-                high=df["high"],
-                low=df["low"],
-                close=df["close"],
-                name="K線",
-                increasing_line_color="#ff4d4d",
-                decreasing_line_color="#00C853"
-            ),
-            row=1, col=1
-        )
+        # 畫日K蠟燭棒 (紅漲綠跌)
+        for i in range(len(df_k)):
+            dt = df_k.index[i]
+            o = df_k["Open"].iloc[i]
+            h = df_k["High"].iloc[i]
+            l = df_k["Low"].iloc[i]
+            c = df_k["Close"].iloc[i]
+            color = "#ff4d4d" if c >= o else "#2ecc71"
+            ax_k.vlines(dt, l, h, color=color, linewidth=0.8)
+            ax_k.bar(dt, abs(c - o), bottom=min(o, c), color=color, width=0.8)
 
-        # 均線繪製 (全部為實體線，無虛線)
-        if show_ma3:
-            fig.add_trace(go.Scatter(x=df["date"], y=df["ema3"], mode="lines", name="3日", line=dict(color="#58A6FF", width=1.2)), row=1, col=1)
-        if show_ma7:
-            fig.add_trace(go.Scatter(x=df["date"], y=df["ema7"], mode="lines", name="7日", line=dict(color="#D2A8FF", width=1.2)), row=1, col=1)
-        if show_ma35:
-            fig.add_trace(go.Scatter(x=df["date"], y=df["ema35"], mode="lines", name="35均", line=dict(color="#FFFF00", width=1.2)), row=1, col=1)
-        if show_ma60:
-            fig.add_trace(go.Scatter(x=df["date"], y=df["ema60"], mode="lines", name="季線", line=dict(color="#FFFFFF", width=1.2)), row=1, col=1)
-        if show_ma120:
-            fig.add_trace(go.Scatter(x=df["date"], y=df["ema120"], mode="lines", name="半年線", line=dict(color="#7EE787", width=1.2)), row=1, col=1)
-        if show_ma240:
-            fig.add_trace(go.Scatter(x=df["date"], y=df["ema240"], mode="lines", name="年線", line=dict(color="#FF7B72", width=1.3)), row=1, col=1)
+        # 畫均線
+        ax_k.plot(df_k.index, ma5, color="#f1c40f", linewidth=1.1, label="5MA")
+        ax_k.plot(df_k.index, ma20, color="#3498db", linewidth=1.1, label="20MA")
+        ax_k.plot(df_k.index, ma60, color="#9b59b6", linewidth=1.1, label="60MA(季線)")
 
-        # 2. MACD 副圖
-        osc_colors = ["#ff4d4d" if val >= 0 else "#00C853" for val in df["osc"]]
-        fig.add_trace(go.Bar(x=df["date"], y=df["osc"], name="MACD", marker_color=osc_colors), row=2, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["dif"], mode="lines", name="DIF", line=dict(color="#00E5FF", width=1.0)), row=2, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["dem"], mode="lines", name="DEA", line=dict(color="#F59E0B", width=1.0)), row=2, col=1)
+        ax_k.set_title(f"[{stock_id}] {stock_name} - 250日日K線與均線趨勢", fontsize=11, fontweight="bold", color="white")
+        ax_k.set_ylabel("股價 (元)", fontsize=9, color="white")
+        ax_k.legend(loc="upper left", fontsize=8)
+        ax_k.grid(True, linestyle="--", alpha=0.2)
 
-        # 3. 成交量副圖
-        vol_colors = ["#ff4d4d" if c >= o else "#00C853" for o, c in zip(df["open"], df["close"])]
-        fig.add_trace(go.Bar(x=df["date"], y=df["vol"], name="成交量(張)", marker_color=vol_colors), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["vol_ma5"], mode="lines", name="VOL5", line=dict(color="#00E5FF", width=1.0)), row=3, col=1)
+        # 畫成交量副圖
+        vol_colors = ["#ff4d4d" if df_k["Close"].iloc[i] >= df_k["Open"].iloc[i] else "#2ecc71" for i in range(len(df_k))]
+        ax_vol.bar(df_k.index, df_k["Volume"] / 1000, color=vol_colors, alpha=0.8, width=0.8, label="成交量(張)")
+        ax_vol.set_ylabel("張數", fontsize=9, color="white")
+        ax_vol.set_xlabel("日期", fontsize=9, color="white")
+        ax_vol.grid(True, linestyle="--", alpha=0.2)
 
-        # 4. 大戶與羊群持股副圖
-        if len(big_holder) > 0 and len(sheep_holder) > 0:
-            b_plot = big_holder[-len(df):]
-            s_plot = sheep_holder[-len(df):]
-            fig.add_trace(go.Scatter(x=df["date"], y=b_plot, mode="lines+markers", name="大戶持股(%)", line=dict(color="#FF4D4D", width=1.5), marker=dict(size=3)), row=4, col=1)
-            fig.add_trace(go.Scatter(x=df["date"], y=s_plot, mode="lines+markers", name="羊群持股(%)", line=dict(color="#00C853", width=1.5), marker=dict(size=3)), row=4, col=1)
-
-        # 5. 多空線色帶副圖 (設定 width=1.0 且線寬設為 0，消除格線間隙，完美呈現連續無縫色帶)
-        fig.add_trace(
-            go.Bar(
-                x=df["date"], 
-                y=[1]*len(df), 
-                name="多空線", 
-                marker=dict(color=trend_colors, line=dict(width=0)), 
-                width=1.0, 
-                showlegend=False
-            ), 
-            row=5, col=1
-        )
-
-        # 強制指定 plotly_dark 主題與純黑底色配置
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="#0D1117",
-            plot_bgcolor="#161B22",
-            height=720,
-            margin=dict(l=10, r=10, t=30, b=10),
-            hovermode="x unified",
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-
-        # 開啟十字線與修飾格線
-        fig.update_xaxes(rangeslider_visible=False, showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", gridcolor="#21262D")
-        fig.update_yaxes(showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", gridcolor="#21262D")
-        fig.update_yaxes(showticklabels=False, row=5, col=1)
-
-        st.plotly_chart(fig, use_container_width=True)
+        fig.tight_layout(pad=0.5)
+        st.pyplot(fig, use_container_width=True, dpi=250)
 
     # =========================================================
     # 分頁二：純籌碼型態極速選股
@@ -445,7 +330,15 @@ if stock_options:
             with st.spinner("正在秒速讀取本地快取庫並進行條件過濾，請稍候..."):
                 matched_results = []
                 is_golden_search = "黃金交叉" in cross_type
-                cache_dict = load_local_cache_cached()
+                CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
+                cache_dict = {}
+                if os.path.exists(CACHE_FILE):
+                    with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                        for line in f:
+                            if line.strip():
+                                data = json.loads(line)
+                                if "stock_id" in data:
+                                    cache_dict[data["stock_id"]] = data
 
                 for _, row in stock_df.iterrows():
                     s_id = str(row["代碼"])
@@ -635,7 +528,6 @@ if stock_options:
             {"title": "每股盈餘 (EPS) 表現", "y_label": "元 (EPS)", "val1": [0.85, 0.92, 1.15, 1.02, 1.30], "val2": [], "c1": "#9b59b6", "c2": ""}
         ]
 
-        import matplotlib.pyplot as plt
         plt.style.use("dark_background")
         cols = st.columns(2)
         
