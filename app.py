@@ -225,7 +225,6 @@ if "screened_results" not in st.session_state:
 # ---------------------------------------------------------
 # 7. 網頁主介面佈局
 # ---------------------------------------------------------
-# 簡化標題並縮小尺寸[cite: 1]
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
 if stock_options:
@@ -317,14 +316,46 @@ if stock_options:
 
         color_big = "#ff4d4d"
         ax1.set_ylabel("大戶(%)", color=color_big, fontsize=9, fontweight="bold")
-        ax1.plot(dates_plot, big_holder, color=color_big, marker="o", markersize=2, linewidth=1.2, label="大戶持股")
+        ax1.plot(dates_plot, big_holder, color=color_big, marker="o", markersize=3, linewidth=1.2, label="大戶持股")
         ax1.tick_params(axis="y", labelcolor=color_big, labelsize=8)
 
         ax2 = ax1.twinx()
         color_sheep = "#2ecc71"
         ax2.set_ylabel("羊群(%)", color=color_sheep, fontsize=9, fontweight="bold")
-        ax2.plot(dates_plot, sheep_holder, color=color_sheep, marker="s", markersize=2, linewidth=1.2, label="羊群持股")
+        ax2.plot(dates_plot, sheep_holder, color=color_sheep, marker="s", markersize=3, linewidth=1.2, label="羊群持股")
         ax2.tick_params(axis="y", labelcolor=color_sheep, labelsize=8)
+
+        # ---------------------------------------------------------
+        # ★ 新增：在圖表最右側（最新一週）直接自動標註大戶與羊群的數值
+        # ---------------------------------------------------------
+        if len(dates_plot) > 0:
+            latest_date = dates_plot[-1]
+            latest_big = big_holder[-1]
+            latest_sheep = sheep_holder[-1]
+
+            # 標註最新大戶數值 (紅字)
+            ax1.annotate(
+                f"大戶: {latest_big:.1f}%",
+                xy=(latest_date, latest_big),
+                xytext=(8, 0),
+                textcoords="offset points",
+                fontsize=8,
+                fontweight="bold",
+                color=color_big,
+                va="center"
+            )
+
+            # 標註最新羊群數值 (綠字)
+            ax2.annotate(
+                f"羊群: {latest_sheep:.1f}%",
+                xy=(latest_date, latest_sheep),
+                xytext=(8, 0),
+                textcoords="offset points",
+                fontsize=8,
+                fontweight="bold",
+                color=color_sheep,
+                va="center"
+            )
 
         if check_golden and g_crosses:
             for idx in g_crosses:
