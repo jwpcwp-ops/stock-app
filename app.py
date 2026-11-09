@@ -143,12 +143,11 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
     cache_dict = load_local_cache_cached()
     today_str = datetime.today().strftime("%Y-%m-%d")
 
-    # 取得日K與成交量數據 (yfinance)
     df_yf = pd.DataFrame()
     for suffix in [".TW", ".TWO"]:
         ticker = stock_id + suffix
         try:
-            temp_df = yf.download(ticker, period="1y", progress=False)
+            temp_df = yf.download(ticker, period="2y", progress=False)
             if not temp_df.empty and "Close" in temp_df.columns:
                 df_yf = temp_df
                 break
@@ -194,7 +193,6 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
                 "vol": np.random.randint(5000, 30000)
             })
 
-    # 取得大戶與羊群持股快取資料
     if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
         cached = cache_dict[stock_id]
         big_holder = np.array(cached.get("big_holder", [40.0]*len(k_records)))
@@ -264,7 +262,7 @@ if stock_options:
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
     # =========================================================
-    # 分頁一：單股圖表 (5層專業整合圖表：K線 + MACD + 成交量 + 大戶羊群 + 多空線)
+    # 分頁一：單股圖表 (帶有互動均線開關與年線)
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
@@ -283,10 +281,25 @@ if stock_options:
         except:
             st.session_state.selected_index = 0
 
+        # 📌 網頁互動均線開關列 (包含 3日、7日、35均、季線、半年線、年線)
+        st.markdown('<p class="sub-header-14">⚙️ 均線顯示開關</p>', unsafe_allow_html=True)
+        ma_col1, ma_col2, ma_col3, ma_col4, ma_col5, ma_col6 = st.columns(6)
+        with ma_col1:
+            show_ma3 = st.checkbox("3日", value=True)
+        with ma_col2:
+            show_ma7 = st.checkbox("7日", value=True)
+        with ma_col3:
+            show_ma35 = st.checkbox("35均", value=True)
+        with ma_col4:
+            show_ma60 = st.checkbox("季線", value=True)
+        with ma_col5:
+            show_ma120 = st.checkbox("半年線", value=False)
+        with ma_col6:
+            show_ma240 = st.checkbox("年線", value=False)
+
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # 取得完整資料
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id)
 
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
@@ -310,14 +323,15 @@ if stock_options:
             unsafe_allow_html=True,
         )
 
-        # 轉換 DataFrame 並計算技術指標
         df = pd.DataFrame(k_records)
         s_close = df["close"]
+        # 計算各項均線與指標
         df["ema3"] = s_close.ewm(span=3, adjust=False).mean()
         df["ema7"] = s_close.ewm(span=7, adjust=False).mean()
-        df["ema15"] = s_close.ewm(span=15, adjust=False).mean()
-        df["ema30"] = s_close.ewm(span=30, adjust=False).mean()
+        df["ema35"] = s_close.ewm(span=35, adjust=False).mean()
         df["ema60"] = s_close.ewm(span=60, adjust=False).mean()
+        df["ema120"] = s_close.ewm(span=120, adjust=False).mean()
+        df["ema240"] = s_close.ewm(span=240, adjust=False).mean() # 年線
 
         # MACD 計算
         df["dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
@@ -328,11 +342,11 @@ if stock_options:
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
 
         # 多空線判定條件
-        cond3 = ((df["ema15"] / df["ema30"] - 1) * 100) > 0
-        cond4 = df["ema15"] > df["ema30"]
-        df["long_trend"] = cond3 & cond4
+        cond3 = ((df["ema60"] / df["ema120"] - 1) * 100) > 0 # 可依需求微調
+        cond4 = df["ema60"] > df["ema120"]
+        df["long_trend"] = df["close"] >= df["ema60"]
 
-        # 繪圖樣式設定
+        # 繪圖設定
         BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#0D1117", "#161B22", "#21262D", "#30363D"
         BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF4D4D", "#00C853"
         body_colors = [BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR for o, c in zip(df["open"], df["close"])]
@@ -349,18 +363,32 @@ if stock_options:
         fig.patch.set_facecolor(BG_COLOR)
         x = list(range(len(df)))
 
-        # 層 1：主圖 (K線 + 均線)
+        # 層 1：主圖 (K線 + 依開關動態顯示均線)
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.8, alpha=0.9)
         body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
         body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
         ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
-        ax1.plot(x, df["ema3"], linewidth=0.7, color="#58A6FF", label="EMA3", alpha=0.9)
-        ax1.plot(x, df["ema60"], linewidth=0.7, color="#FFFFFF", label="EMA60", linestyle="--")
-        ax1.set_title(f"[{stock_id}] {stock_name} - 專業多維度籌碼技術圖表", fontsize=11, fontweight="bold", color="white")
+
+        # 根據 Streamlit 勾選狀態動態繪製均線
+        if show_ma3:
+            ax1.plot(x, df["ema3"], linewidth=0.7, color="#58A6FF", label="3日", alpha=0.9)
+        if show_ma7:
+            ax1.plot(x, df["ema7"], linewidth=0.7, color="#D2A8FF", label="7日", alpha=0.9)
+        if show_ma35:
+            ax1.plot(x, df["ema35"], linewidth=0.7, color="#FFFF00", label="35均", linestyle="--", alpha=0.9)
+        if show_ma60:
+            ax1.plot(x, df["ema60"], linewidth=0.7, color="#FFFFFF", label="季線", linestyle="--", alpha=0.9)
+        if show_ma120:
+            ax1.plot(x, df["ema120"], linewidth=0.7, color="#7EE787", label="半年線", alpha=0.9)
+        if show_ma240:
+            ax1.plot(x, df["ema240"], linewidth=0.8, color="#FF7B72", label="年線", alpha=0.9)
+
+        ax1.set_title(f"[{stock_id}] {stock_name} - 互動均線與多維度籌碼圖表", fontsize=11, fontweight="bold", color="white")
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=7.5, colors="#8B949E")
         ax1.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
+        ax1.legend(loc="upper left", fontsize=7)
 
         # 層 2：MACD 副圖
         ax2.set_facecolor(PANEL_BG)
