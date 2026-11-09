@@ -239,7 +239,7 @@ if stock_options:
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
     # =========================================================
-    # 分頁一：單股圖表 (支援 Plotly 動態十字線查價 + 實體均線 + 圖1原版多空線)
+    # 分頁一：單股圖表
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
@@ -258,8 +258,8 @@ if stock_options:
         except:
             st.session_state.selected_index = 0
 
-        # 均線顯示開關
-        st.markdown('<p class="sub-header-14">⚙️ 均線顯示開關</p>', unsafe_allow_html=True)
+        # 均線顯示開關 (全實體線)
+        st.markdown('<p class="sub-header-14">⚙️ 均線顯示開關 (全實體線)</p>', unsafe_allow_html=True)
         ma_col1, ma_col2, ma_col3, ma_col4, ma_col5, ma_col6 = st.columns(6)
         with ma_col1:
             show_ma3 = st.checkbox("3日", value=True)
@@ -319,14 +319,15 @@ if stock_options:
         # 成交量均量
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
 
-        # 🟢 完全還原圖 1 原版的 15/30 EMA 斜率與大小關係多空判定邏輯
+        # 🟢 多空線邏輯：還原為連貫色帶樣式 (多頭紅 #ff4d4d、空頭綠 #2ecc71)
         slope = (df["ema15"] / df["ema30"] - 1) * 100
-        cond3 = slope > 0                # 成立3：斜率 > 0
-        cond4 = df["ema15"] > df["ema30"]      # 成立4：EMA15 > EMA30
-        df["long_trend"] = cond3 & cond4       # 綜合多空 (多頭紅，空頭綠)
+        cond3 = slope > 0
+        cond4 = df["ema15"] > df["ema30"]
+        df["long_trend"] = cond3 & cond4
+        trend_colors = ["#ff4d4d" if is_bull else "#2ecc71" for is_bull in df["long_trend"]]
 
         # =========================================================
-        # Plotly 5 層互動式暗色系圖表 (固定為黑底，全實體均線)
+        # Plotly 5 層互動式暗色系圖表 (純黑底、全實體均線、連貫多空色帶)
         # =========================================================
         fig = make_subplots(
             rows=5, cols=1,
@@ -351,7 +352,7 @@ if stock_options:
             row=1, col=1
         )
 
-        # 均線繪製 (全部改為實體線，無虛線)
+        # 均線繪製 (全部為實體線，無虛線)
         if show_ma3:
             fig.add_trace(go.Scatter(x=df["date"], y=df["ema3"], mode="lines", name="3日", line=dict(color="#58A6FF", width=1.2)), row=1, col=1)
         if show_ma7:
@@ -383,9 +384,8 @@ if stock_options:
             fig.add_trace(go.Scatter(x=df["date"], y=b_plot, mode="lines+markers", name="大戶持股(%)", line=dict(color="#FF4D4D", width=1.5), marker=dict(size=3)), row=4, col=1)
             fig.add_trace(go.Scatter(x=df["date"], y=s_plot, mode="lines+markers", name="羊群持股(%)", line=dict(color="#2ECC71", width=1.5), marker=dict(size=3)), row=4, col=1)
 
-        # 5. 多空線色帶副圖 (圖 1 原版樣式)
-        trend_colors = ["#ff4d4d" if is_bull else "#2ecc71" for is_bull in df["long_trend"]]
-        fig.add_trace(go.Bar(x=df["date"], y=[1]*len(df), name="多空線", marker_color=trend_colors, showlegend=False), row=5, col=1)
+        # 5. 多空線副圖 (設定 width=1.0 讓長條緊密相連，呈現如圖 1 的連貫色帶)
+        fig.add_trace(go.Bar(x=df["date"], y=[1]*len(df), name="多空線", marker_color=trend_colors, width=1.0, showlegend=False), row=5, col=1)
 
         # 強制指定 plotly_dark 主題與純黑底色配置
         fig.update_layout(
