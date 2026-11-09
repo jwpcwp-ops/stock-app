@@ -228,7 +228,7 @@ if "screened_results" not in st.session_state:
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
 if stock_options:
-    # 💡 將上方 3 個分頁選單改為並排 3 欄
+    # 上方 3 個分頁選單並排
     m_col1, m_col2, m_col3 = st.columns(3)
     
     if "app_mode_idx" not in st.session_state:
@@ -264,7 +264,7 @@ if stock_options:
     # 分頁一：單股籌碼圖表檢視
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
-        # 💡 拿掉上方多餘的文字搜尋框，直接保留下拉選單（支援直接打字輸入代碼或名稱自動過濾）
+        # 恢復支援直接點擊並輸入代碼/名稱搜尋的下拉選單
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
@@ -273,8 +273,7 @@ if stock_options:
             stock_options,
             index=st.session_state.selected_index,
             label_visibility="collapsed",
-            key="stock_select_box",
-            placeholder="請輸入代碼或名稱 (例如 2317 或 鴻海)"
+            key="stock_select_box"
         )
         
         try:
@@ -294,7 +293,7 @@ if stock_options:
 
         v_ratio, cur_vol, cur_20ma, g_crosses, d_crosses, dates_plot, w_vols, big_holder, sheep_holder = get_stock_data(stock_id, target_weeks=60)
 
-        # 💡 數據方塊並排顯示
+        # 數據方塊並排顯示
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
         st.markdown(
             f"""
@@ -319,7 +318,7 @@ if stock_options:
         vol_series = pd.Series(w_vols)
         vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
-        # 💡 放大圖表尺寸與高度
+        # 放大圖表尺寸與高度
         plt.style.use("dark_background")
         fig, (ax1, ax3) = plt.subplots(
             2, 1, figsize=(10, 4.2), sharex=True, gridspec_kw={"height_ratios": [1.9, 1]}
@@ -369,7 +368,7 @@ if stock_options:
 
         ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=11, fontweight="bold", pad=20)
         
-        # 💡 將大戶、羊群數值字體放大、加粗並設定極高亮度
+        # 將大戶、羊群數值字體放大、加粗並設定極高亮度
         ax1.text(
             0.52, 1.04, f"大戶: {latest_big_val:.1f}%", 
             transform=ax1.transAxes, color="#ff3333", fontsize=10, fontweight="bold", ha="left", va="bottom"
