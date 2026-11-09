@@ -19,39 +19,40 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (優化手機與電腦端的版面留白與元件間距)
+# 2. 注入自訂 CSS (手機與電腦版共用：優化間距與卡片佈局)
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 1.0rem;  /* 大幅縮小頂部留白，讓手機版面更緊湊 */
+            padding-top: 0.8rem;
             padding-bottom: 0.4rem;
             max-width: 95rem;
         }
         .mobile-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
             color: #ffffff;
         }
+        /* 讓數據方塊在手機與電腦上都能緊密並排，避免上下佔太大版面 */
         .metric-card-horizontal {
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            padding: 8px 15px;
+            padding: 6px 10px;
             border-radius: 6px;
             display: flex;
-            justify-content: flex-start;
-            gap: 12px;
+            justify-content: space-between;
             align-items: center;
+            margin-bottom: 4px;
         }
         .metric-label {
-            font-size: 12px;
+            font-size: 11px;
             color: #aaaaaa;
             font-weight: 500;
         }
         .metric-val {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #ffffff;
         }
@@ -228,7 +229,6 @@ if "screened_results" not in st.session_state:
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
 if stock_options:
-    # 三個核心分頁選單
     app_mode = st.radio(
         "功能選單",
         [
@@ -274,7 +274,7 @@ if stock_options:
                 st.session_state.selected_index = 0
 
         with c_box3:
-            st.markdown("<div style='margin-top: 5px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-top: 2px;'></div>", unsafe_allow_html=True)
             col_g, col_d = st.columns(2)
             with col_g:
                 check_golden = st.checkbox("★ 標註黃金交叉", value=True)
@@ -286,25 +286,28 @@ if stock_options:
 
         v_ratio, cur_vol, cur_20ma, g_crosses, d_crosses, dates_plot, w_vols, big_holder, sheep_holder = get_stock_data(stock_id, target_weeks=60)
 
+        # ---------------------------------------------------------
+        # 改善手機版：強制三欄數據在手機與電腦上均勻並排顯示
+        # ---------------------------------------------------------
         m1, m2, m3 = st.columns(3)
         with m1:
             st.markdown(
-                f'<div class="metric-card-horizontal"><span class="metric-label">📦 今日成交量:</span><span class="metric-val">{int(cur_vol):,} 張</span></div>',
+                f'<div class="metric-card-horizontal"><span class="metric-label">📦 今日成交:</span><span class="metric-val">{int(cur_vol):,} 張</span></div>',
                 unsafe_allow_html=True,
             )
         with m2:
             st.markdown(
-                f'<div class="metric-card-horizontal"><span class="metric-label">📊 20MA 均量:</span><span class="metric-val">{int(cur_20ma):,} 張</span></div>',
+                f'<div class="metric-card-horizontal"><span class="metric-label">📊 20MA均量:</span><span class="metric-val">{int(cur_20ma):,} 張</span></div>',
                 unsafe_allow_html=True,
             )
         with m3:
             status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
             st.markdown(
-                f'<div class="metric-card-horizontal"><span class="metric-label">⚡ 量 / 20MA 比值:</span><span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span></div>',
+                f'<div class="metric-card-horizontal"><span class="metric-label">⚡ 量比值:</span><span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span></div>',
                 unsafe_allow_html=True,
             )
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
         vol_series = pd.Series(w_vols)
         vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
@@ -353,16 +356,11 @@ if stock_options:
                         ha="center",
                     )
 
-        # ---------------------------------------------------------
-        # ★ 頂部標題與數值顯示（透過文字顏色完美對應紅大戶、綠羊群）
-        # ---------------------------------------------------------
         latest_big_val = big_holder[-1] if len(big_holder) > 0 else 0.0
         latest_sheep_val = sheep_holder[-1] if len(sheep_holder) > 0 else 0.0
 
-        # 設定主標題
         ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=10, fontweight="bold", pad=18)
         
-        # 在圖表上方利用文字分別標上大戶（紅）與羊群（綠）的數值
         ax1.text(
             0.55, 1.03, f"大戶: {latest_big_val:.1f}%", 
             transform=ax1.transAxes, color=color_big, fontsize=9, fontweight="bold", ha="left", va="bottom"
@@ -556,7 +554,7 @@ if stock_options:
                         df_right,
                         column_config={
                             "趨勢圖連結": st.column_config.LinkColumn(
-                                "🔗 趨勢圖連結",
+                                "🔗 趨설圖連結",
                                 help="點擊前往神秘金字塔趨勢圖",
                                 display_text="📈 前往神秘金字塔"
                             )
