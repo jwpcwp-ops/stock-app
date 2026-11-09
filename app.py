@@ -36,7 +36,6 @@ st.markdown(
             margin-bottom: 2px;
             color: #ffffff;
         }
-        /* 自訂小標題樣式：強制設定為 14px */
         .sub-header-14 {
             font-size: 14px !important;
             font-weight: bold;
@@ -595,11 +594,11 @@ if stock_options:
         else:
             st.warning(f"尚未在專案中找到總表檔案 (`{excel_filename}`)，請確認是否已上傳至 GitHub。")
 
-  # =========================================================
+    # =========================================================
     # 分頁四：基本面與圖表 (小縮圖預覽 + 點擊放大設計)
     # =========================================================
     elif app_mode == "📊 基本面與圖表":
-        st.markdown('<p class="sub-header-14">📊 官方基本面報告與多維度圖表</p>', unsafe_allow_html=True)
+        st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
         
         target_code = st.text_input("輸入要查詢基本面報告的股票代碼", value="8438", key="fundamental_code_input")
         
@@ -622,21 +621,16 @@ if stock_options:
                 
                 full_text = "\n".join(extracted_texts)
                 
-                st.markdown("---")
-                st.markdown('<p class="sub-header-14">📌 報告重點摘要與檔案資訊</p>', unsafe_allow_html=True)
-                st.info(f"成功解析共計 {len(pdf.pages)} 頁的官方正式文件。")
-                
                 with st.expander("🔍 點擊展開查看原始萃取文字"):
                     st.text_area("PDF 內容預覽", full_text[:3000], height=150)
                 
                 # =========================================================
-                # 統一繪製多張精簡小圖（模擬 PDF 縮圖排版）
+                # 統一繪製多張精簡小圖（模擬 PDF 縮圖排版，點擊展開放大）
                 # =========================================================
-                st.markdown('<p class="sub-header-14">📈 財務與營運指標總覽（點擊下方圖片或展開可看大圖）</p>', unsafe_allow_html=True)
+                st.markdown('<p class="sub-header-14">📈 財務與營運指標總覽（點擊下方縮圖可放大檢視）</p>', unsafe_allow_html=True)
                 
                 quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
                 
-                # 準備三種不同面向的假資料/萃取數據圖表
                 data_sets = [
                     {"title": "毛利率與營業利益率趨勢", "y_label": "百分比 (%)", "val1": [15.2, 16.5, 18.0, 17.2, 19.1], "val2": [8.1, 9.0, 10.5, 9.8, 11.2], "c1": "#00ff66", "c2": "#3498db"},
                     {"title": "單季營業收入與年增率", "y_label": "金額 (億)", "val1": [12.5, 13.2, 14.1, 13.8, 15.0], "val2": [5.2, 6.1, 8.3, 7.0, 9.2], "c1": "#f1c40f", "c2": "#e74c3c"},
@@ -644,12 +638,9 @@ if stock_options:
                 ]
 
                 plt.style.use("dark_background")
-
-                # 讓縮圖左右並排（手機上也能完美呈現精簡大小）
                 cols = st.columns(2)
                 
                 for idx, ds in enumerate(data_sets):
-                    # 建立精簡尺寸的圖表 (小範圍呈現)
                     fig, ax = plt.subplots(figsize=(4.5, 2.2))
                     ax.plot(quarters, ds["val1"], marker='o', markersize=4, color=ds["c1"], linewidth=1.5, label="主指標")
                     if ds["val2"]:
@@ -663,13 +654,10 @@ if stock_options:
                     
                     fig.tight_layout(pad=0.4)
                     
-                    # 輪流放入左右欄位中，形成小縮圖陣列
                     target_col = cols[idx % 2]
                     with target_col:
-                        # 讓使用者可以點擊展開看大圖的設計
                         with st.expander(f"📊 {ds['title']} (點擊放大)", expanded=False):
                             st.pyplot(fig, use_container_width=True)
-                            st.caption(f"提示：點擊上方圖表可檢視完整數據細節。")
                         
             except Exception as e:
                 st.error(f"無法取得該代碼的官方 PDF 報告，請確認證交所是否有上傳此代碼檔案。錯誤訊息: {e}")
