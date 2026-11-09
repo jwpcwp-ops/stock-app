@@ -228,10 +228,9 @@ if "screened_results" not in st.session_state:
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
 if stock_options:
-    # 💡 依照需求 1：將上方 3 個分頁選單改為並排 3 欄
+    # 💡 將上方 3 個分頁選單改為並排 3 欄
     m_col1, m_col2, m_col3 = st.columns(3)
     
-    # 為了讓 radio 按鈕更像分頁按鈕，使用 session state 簡單切換
     if "app_mode_idx" not in st.session_state:
         st.session_state.app_mode_idx = 0
 
@@ -241,7 +240,6 @@ if stock_options:
         "📋 增幅前15名",
     ]
 
-    # 用按鈕呈現橫向選單列，極度節省空間
     with m_col1:
         if st.button(modes[0], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 0 else "secondary"):
             st.session_state.app_mode_idx = 0
@@ -266,7 +264,7 @@ if stock_options:
     # 分頁一：單股籌碼圖表檢視
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
-        # 💡 依照需求 2：省略多餘的文字搜尋框，直接保留乾淨俐落的下拉選單
+        # 💡 拿掉上方多餘的文字搜尋框，直接保留下拉選單（支援直接打字輸入代碼或名稱自動過濾）
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
@@ -275,7 +273,8 @@ if stock_options:
             stock_options,
             index=st.session_state.selected_index,
             label_visibility="collapsed",
-            key="stock_select_box"
+            key="stock_select_box",
+            placeholder="請輸入代碼或名稱 (例如 2317 或 鴻海)"
         )
         
         try:
@@ -283,7 +282,7 @@ if stock_options:
         except:
             st.session_state.selected_index = 0
 
-        # 💡 依照需求 3：將黃金交叉與死亡交叉勾選框改為「左右並排同一行」
+        # 💡 將黃金交叉與死亡交叉勾選框改為「左右並排同一行」
         c_chk1, c_chk2 = st.columns(2)
         with c_chk1:
             check_golden = st.checkbox("★ 標註黃金交叉", value=True)
@@ -295,7 +294,7 @@ if stock_options:
 
         v_ratio, cur_vol, cur_20ma, g_crosses, d_crosses, dates_plot, w_vols, big_holder, sheep_holder = get_stock_data(stock_id, target_weeks=60)
 
-        # 💡 數據方塊並排顯示，不佔版面
+        # 💡 數據方塊並排顯示
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
         st.markdown(
             f"""
@@ -320,7 +319,7 @@ if stock_options:
         vol_series = pd.Series(w_vols)
         vol_20ma = vol_series.rolling(min(20, len(vol_series))).mean().values
 
-        # 💡 依照需求 4：放大圖表尺寸與高度，讓畫面更清晰、視覺空間更舒適
+        # 💡 放大圖表尺寸與高度
         plt.style.use("dark_background")
         fig, (ax1, ax3) = plt.subplots(
             2, 1, figsize=(10, 4.2), sharex=True, gridspec_kw={"height_ratios": [1.9, 1]}
@@ -370,7 +369,7 @@ if stock_options:
 
         ax1.set_title(f"[{stock_id}] {stock_name} - 籌碼與成交量動能雙格檢視", fontsize=11, fontweight="bold", pad=20)
         
-        # 💡 依照需求 4：將大戶、羊群數值字體放大、加粗並設定極高亮度（亮紅與亮綠），解決原本太暗的問題
+        # 💡 將大戶、羊群數值字體放大、加粗並設定極高亮度
         ax1.text(
             0.52, 1.04, f"大戶: {latest_big_val:.1f}%", 
             transform=ax1.transAxes, color="#ff3333", fontsize=10, fontweight="bold", ha="left", va="bottom"
