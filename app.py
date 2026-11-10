@@ -338,7 +338,7 @@ if stock_options:
         x = list(range(len(df)))
 
         # ---------------------------------------------------------
-        # 層 1：K線與實體均線、高亮度數據、扣抵方向、黃金分割率
+        # 層 1：K線與實體均線、高亮度純白數據、扣抵方向、黃金分割率
         # ---------------------------------------------------------
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.8, alpha=0.95)
@@ -351,7 +351,7 @@ if stock_options:
         for ma_name, (period, is_show, color) in ma_config.items():
             if is_show:
                 ma_series = df[f"ma_{period}"]
-                ax1.plot(x, ma_series, linewidth=1.2, color=color, linestyle="-", alpha=0.95)
+                ax1.plot(x, ma_series, linewidth=0.8, color=color, linestyle="-", alpha=0.95)
                 
                 val_now = float(ma_series.iloc[-1]) if not pd.isna(ma_series.iloc[-1]) else 0.0
                 val_prev = float(ma_series.iloc[-2]) if last_idx > 0 and not pd.isna(ma_series.iloc[-2]) else val_now
@@ -360,7 +360,7 @@ if stock_options:
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
                 legend_labels.append((label_str, color))
 
-        # 黃金分割率線
+        # 黃金分割率線 (文字改為高亮純白加粗)
         if show_fib and not df.empty:
             max_p = float(df["high"].max())
             min_p = float(df["low"].min())
@@ -378,19 +378,18 @@ if stock_options:
             
             for ratio_val, label_txt, price_val in fib_levels:
                 ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.9, alpha=0.8)
-                ax1.text(last_idx, price_val, f" {price_val:.2f} ({label_txt})", color="#00E5FF", fontsize=7.5, fontweight="bold", va="center", ha="left", backgroundcolor="#000000")
+                ax1.text(last_idx, price_val, f" {price_val:.2f} ({label_txt})", color="#FFFFFF", fontsize=7.5, fontweight="bold", va="center", ha="left", backgroundcolor="#000000")
 
-        # 高亮度網格與右側刻度
+        # 高亮度網格與右側刻度 (純白高亮)
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # 頂部即時行情資訊 (包含今日日期、開高低收量)
-        price_color_str = "#FF3B30" if last_close >= last_open else "#00C853"
+        # 頂部即時行情資訊 (改為參考圖示中的經典深綠色 #00C853，清晰醒目)
         header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
-        ax1.text(0.01, 0.95, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=price_color_str, backgroundcolor="#000000")
+        ax1.text(0.01, 0.95, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#00C853", backgroundcolor="#000000")
 
-        # 在圖表左上角顯示動態均線數值與扣抵方向
+        # 在圖表左上角顯示動態均線數值與扣抵方向 (純白高亮)
         if legend_labels:
             text_x = 0.01
             text_y = 0.86
@@ -402,7 +401,7 @@ if stock_options:
                     text_y -= 0.08
 
         # ---------------------------------------------------------
-        # 層 2：MACD (加入高亮度數據顯示)
+        # 層 2：MACD (純白高亮數據顯示)
         # ---------------------------------------------------------
         ax2.set_facecolor(PANEL_BG)
         ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.9)
@@ -417,7 +416,7 @@ if stock_options:
         ax2.text(0.015, 0.80, macd_info_text, transform=ax2.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#000000")
 
         # ---------------------------------------------------------
-        # 層 3：成交量 (高亮度數值顯示)
+        # 層 3：成交量 (純白高亮數據顯示)
         # ---------------------------------------------------------
         ax3.set_facecolor(PANEL_BG)
         ax3.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
@@ -430,7 +429,7 @@ if stock_options:
         ax3.text(0.015, 0.80, vol_info_text, transform=ax3.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#000000")
 
         # ---------------------------------------------------------
-        # 層 4：大戶與羊群持股 (仿成交量樣式顯示高亮度數值)
+        # 層 4：大戶與羊群持股 (純白高亮數據顯示)
         # ---------------------------------------------------------
         ax4.set_facecolor(PANEL_BG)
         cur_big, cur_sheep = 0.0, 0.0
@@ -438,8 +437,8 @@ if stock_options:
             b_plot = big_holder[-len(df):]
             s_plot = sheep_holder[-len(df):]
             x_chip = x[-len(b_plot):]
-            ax4.plot(x_chip, b_plot, color="#FF3B30", linewidth=1.2, marker='o', markersize=2, label="大戶(%)")
-            ax4.plot(x_chip, s_plot, color="#00C853", linewidth=1.2, marker='s', markersize=2, label="羊群(%)")
+            ax4.plot(x_chip, b_plot, color="#FF3B30", linewidth=0.8, marker='o', markersize=2, label="大戶(%)")
+            ax4.plot(x_chip, s_plot, color="#00C853", linewidth=0.8, marker='s', markersize=2, label="羊群(%)")
             cur_big = float(b_plot[-1])
             cur_sheep = float(s_plot[-1])
 
