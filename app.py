@@ -51,26 +51,6 @@ st.markdown(
             flex: 1 !important;
             min-width: 0 !important;
         }
-        .metric-card-horizontal {
-            background-color: #121212;
-            border: 1px solid #262626;
-            padding: 3px 5px;
-            border-radius: 4px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2px;
-        }
-        .metric-label {
-            font-size: 9.5px;
-            color: #999999;
-            font-weight: 500;
-        }
-        .metric-val {
-            font-size: 10.5px;
-            font-weight: bold;
-            color: #ffffff;
-        }
         .stButton button {
             font-size: 12px !important;
             padding: 4px 8px !important;
@@ -271,16 +251,9 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板：K線顯示數量、黃金分割率、均線開關 (5, 10, 20, 30, 60, 120, 200) ---
-        with st.expander("⚙️ K線數量、黃金分割率與均線開關設定 (點擊展開)", expanded=True):
-            c_cnt1, c_cnt2 = st.columns([1, 1])
-            with c_cnt1:
-                k_days_choice = st.selectbox("顯示 K線數量基準", [60, 120, 200], index=0)
-            with c_cnt2:
-                show_fib = st.checkbox("📐 顯示黃金分割率開關", value=True)
-
-            st.markdown("---")
-            ma_cols = st.columns(7)
+        # --- 控制面板：將 5日~200日均線、黃金分割率、K線數量基準全部整合在 10 個欄位橫排中 ---
+        with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
+            ma_cols = st.columns(10)
             with ma_cols[0]:
                 show_ma5 = st.checkbox("5日", value=True)
             with ma_cols[1]:
@@ -295,29 +268,17 @@ if stock_options:
                 show_ma120 = st.checkbox("120日", value=False)
             with ma_cols[6]:
                 show_ma200 = st.checkbox("200日", value=False)
+            with ma_cols[7]:
+                show_fib = st.checkbox("黃金分割率", value=True)
+            with ma_cols[8]:
+                show_k200 = st.checkbox("250天", value=True)
+            with ma_cols[9]:
+                show_k120 = st.checkbox("120天", value=False)
+
+        # 根據勾選決定 K 線顯示數量基準
+        k_days_choice = 250 if show_k200 else (120 if show_k120 else 60)
 
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id, target_days=k_days_choice)
-
-        status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
-        st.markdown(
-            f"""
-            <div style="display: flex; gap: 4px; margin-bottom: 3px;">
-                <div class="metric-card-horizontal" style="flex: 1;">
-                    <span class="metric-label">📦 今日成交</span>
-                    <span class="metric-val">{int(cur_vol):,} 張</span>
-                </div>
-                <div class="metric-card-horizontal" style="flex: 1;">
-                    <span class="metric-label">📊 20MA均量</span>
-                    <span class="metric-val">{int(cur_20ma):,} 張</span>
-                </div>
-                <div class="metric-card-horizontal" style="flex: 1;">
-                    <span class="metric-label">⚡ 量比值</span>
-                    <span class="metric-val" style="color: {status_color};">{v_ratio:.2f} 倍</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
         df = pd.DataFrame(k_records)
         s_close = df["close"]
@@ -387,7 +348,7 @@ if stock_options:
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
                 legend_labels.append((label_str, color))
 
-        # 黃金分割率 (Fibonacci Retracement) 開關設置（已加入 float 強制轉換確保安全）
+        # 黃金分割率 (Fibonacci Retracement) 開關設置
         if show_fib and not df.empty:
             max_p = float(df["high"].max())
             min_p = float(df["low"].min())
@@ -434,14 +395,16 @@ if stock_options:
         ax2.grid(True, linestyle=":", color=GRID_COLOR, alpha=0.8)
         ax2.text(0.015, 0.80, "MACD", transform=ax2.transAxes, fontsize=7.5, fontweight="bold", color="#888888")
 
-        # 層 3：成交量
+        # 層 3：成交量 (今日成交、20MA均量、量比值)
         ax3.set_facecolor(PANEL_BG)
         ax3.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.85)
         ax3.plot(x, df["vol_ma5"], linewidth=0.5, color="#00E5FF", label="VOL5")
         ax3.yaxis.tick_right()
         ax3.tick_params(axis="y", labelsize=7, colors="#888888")
         ax3.grid(True, linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax3.text(0.015, 0.80, "成交量(張)", transform=ax3.transAxes, fontsize=7.5, fontweight="bold", color="#888888")
+        
+        vol_info_text = f"成交量(張)  今日:{int(cur_vol):,} | 20MA:{int(cur_20ma):,} | 量比:{v_ratio:.2f}倍"
+        ax3.text(0.015, 0.80, vol_info_text, transform=ax3.transAxes, fontsize=7.5, fontweight="bold", color="#ffffff", backgroundcolor="#000000")
 
         # 層 4：大戶與羊群持股
         ax4.set_facecolor(PANEL_BG)
