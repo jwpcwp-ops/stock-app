@@ -449,15 +449,21 @@ if stock_options:
             
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # --- 整合：將季線多/空頭趨勢標籤（無日期、多頭紅字/空頭綠字）放置在量的後端 ---
+        # --- 基礎資訊列 (不含趨勢字串) ---
+        header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
+        t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+        t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.7))
+
+        # --- 獨立渲染「季線趨勢狀態標籤」（放在量之後，並保有專屬顏色：多頭紅字 / 空頭綠字） ---
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
         trend_color = "#FF3B30" if is_bull else "#00C853"  # 多頭紅字 / 空頭綠字
 
-        header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張   {trend_status}"
-        t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.7))
+        # 利用基礎字串長度估算對應的放置 x 座標位置，將趨勢標籤精準接在量之後
+        approx_x_pos = 0.01 + len(header_quote_str) * 0.0075
+        t_trend_badge = ax1.text(approx_x_pos, 0.94, trend_status, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=trend_color)
+        t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.6))
 
         if legend_labels:
             text_x = 0.01
