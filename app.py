@@ -349,7 +349,17 @@ if stock_options:
         prev_osc = float(df["osc"].iloc[-2]) if len(df) > 1 else cur_osc
         osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
 
+        # 成交量均線 MAS (5MA) 與 MA20
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
+        df["vol_ma20"] = df["vol"].rolling(window=20).mean()
+
+        cur_mas = float(df["vol_ma5"].iloc[-1]) if not pd.isna(df["vol_ma5"].iloc[-1]) else 0.0
+        cur_ma20 = float(df["vol_ma20"].iloc[-1]) if not pd.isna(df["vol_ma20"].iloc[-1]) else 0.0
+        prev_mas = float(df["vol_ma5"].iloc[-2]) if len(df) > 1 else cur_mas
+        prev_ma20 = float(df["vol_ma20"].iloc[-2]) if len(df) > 1 else cur_ma20
+
+        mas_arrow = "↑" if cur_mas >= prev_mas else "↓"
+        ma20_arrow = "↑" if cur_ma20 >= prev_ma20 else "↓"
 
         cond3 = ((s_close.ewm(span=15, adjust=False).mean() / s_close.ewm(span=30, adjust=False).mean() - 1) * 100) > 0
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
@@ -377,7 +387,7 @@ if stock_options:
         x = list(range(len(df)))
 
         # ---------------------------------------------------------
-        # 層 1：K線、均線 (0.5粗細)、爆亮純白即時資訊列
+        # 層 1：K線、均線 (0.5粗細)、右上角趨勢標籤與倒數天數標記
         # ---------------------------------------------------------
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.5, alpha=0.95)
@@ -418,6 +428,22 @@ if stock_options:
                 ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.9, alpha=0.8)
                 t_fib = ax1.text(last_idx, price_val, f" {price_val:.2f} ({label_txt})", color="#FFFFFF", fontsize=8.0, fontweight="bold", va="center", ha="left")
                 t_fib.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+
+        # --- 新增：右上角季線趨勢狀態標籤 ---
+        ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
+        trend_status = "【季線多頭趨勢】" if last_close >= ma60_val else "【季線空頭趨勢】"
+        trend_color = "#00C853" if last_close >= ma60_val else "#FF3B30"
+        t_trend_top = ax1.text(0.98, 0.94, f"{trend_status}\n日期: {last_date}", transform=ax1.transAxes, 
+                               fontsize=9.0, fontweight="bold", color=trend_color, ha="right", va="top")
+        t_trend_top.set_path_effects(get_bright_effect(trend_color, 0.6))
+
+        # --- 新增：K線下方歷史天數倒數標記 (120, 65, 35, 5) ---
+        total_len = len(df)
+        for count_days in [120, 65, 35, 5]:
+            idx_pos = total_len - count_days
+            if idx_pos > 0:
+                ax1.text(idx_pos, df["low"].min(), f"{count_days}", color="#888888", 
+                         fontsize=7.5, ha="center", va="bottom")
 
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
@@ -476,11 +502,12 @@ if stock_options:
             start_x += len(text_str) * 0.007
 
         # ---------------------------------------------------------
-        # 層 3：成交量
+        # 層 3：成交量 (雙量均線 MAS 與 MA20)
         # ---------------------------------------------------------
         ax3.set_facecolor(PANEL_BG)
         ax3.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
-        ax3.plot(x, df["vol_ma5"], linewidth=0.5, color="#00E5FF", label="VOL5")
+        ax3.plot(x, df["vol_ma5"], linewidth=0.5, color="#00E5FF", label="MAS")
+        ax3.plot(x, df["vol_ma20"], linewidth=0.5, color="#FFB300", label="MA20")
         ax3.yaxis.tick_right()
         ax3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
         for t in ax3.get_yticklabels():
@@ -488,7 +515,7 @@ if stock_options:
             t.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
         ax3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        vol_info_text = f"成交量(張)  今日:{int(cur_vol):,} | 20MA:{int(cur_20ma):,} | 量比:{v_ratio:.2f}倍"
+        vol_info_text = f"成交量:{int(last_vol):,}張   MAS:{int(cur_mas):,} {mas_arrow}   MA20:{int(cur_ma20):,} {ma20_arrow}   量比:{v_ratio:.2f}倍"
         t_vol = ax3.text(0.015, 0.78, vol_info_text, transform=ax3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
         t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
@@ -643,7 +670,7 @@ if stock_options:
             st.warning("找不到總表檔案。")
 
     # =========================================================
-    # 分頁四：基本面與圖表
+    # 分頁四：基本面與圖表 (保持原樣不變)
     # =========================================================
     elif app_mode == "📊 基本面與圖表":
         st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
