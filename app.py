@@ -71,7 +71,6 @@ st.markdown(
             font-weight: bold;
             color: #ffffff;
         }
-        /* 縮小按鈕與下拉選單邊距，利於手機單手點擊 */
         .stButton button {
             font-size: 12px !important;
             padding: 4px 8px !important;
@@ -140,7 +139,7 @@ def load_local_cache_cached():
             pass
     return cache_dict
 
-def get_comprehensive_stock_data(stock_id, target_weeks=250):
+def get_comprehensive_stock_data(stock_id, target_days=250):
     cache_dict = load_local_cache_cached()
     today_str = datetime.today().strftime("%Y-%m-%d")
 
@@ -159,7 +158,7 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
         if isinstance(df_yf.columns, pd.MultiIndex):
             df_yf.columns = df_yf.columns.get_level_values(0)
         df_yf = df_yf.dropna(subset=["Close", "Volume"])
-        df_k = df_yf.tail(target_weeks).copy()
+        df_k = df_yf.tail(target_days).copy()
         
         vol_daily = df_k["Volume"] / 1000
         cur_vol = float(vol_daily.iloc[-1]) if len(vol_daily) > 0 else 0.0
@@ -179,8 +178,8 @@ def get_comprehensive_stock_data(stock_id, target_weeks=250):
             })
     else:
         cur_vol, cur_20ma, ratio = 12000.0, 10000.0, 1.2
-        dates = pd.date_range(end=datetime.today(), periods=target_weeks, freq="B")
-        prices = 100 + np.cumsum(np.random.randn(target_weeks) * 0.8)
+        dates = pd.date_range(end=datetime.today(), periods=target_days, freq="B")
+        prices = 100 + np.cumsum(np.random.randn(target_days) * 0.8)
         k_records = []
         for i, d in enumerate(dates):
             k_records.append({
@@ -250,7 +249,7 @@ if stock_options:
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
     # =========================================================
-    # 分頁一：單股圖表 (黑底專業券商風：K線 + MACD + 量 + 籌碼 + 多空線)
+    # 分頁一：單股圖表
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
@@ -272,7 +271,32 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id)
+        # --- 控制面板：K線顯示數量與均線開關 ---
+        with st.expander("⚙️ K線數量與均線開關設定 (點擊展開)", expanded=True):
+            c_cnt1, c_cnt2 = st.columns([1, 2])
+            with c_cnt1:
+                k_days_choice = st.selectbox("顯示 K線數量", [60, 120, 200], index=0)
+            with c_cnt2:
+                show_fib = st.checkbox("📐 顯示黃金分割率線", value=True)
+
+            st.markdown("---")
+            ma_cols = st.columns(7)
+            with ma_cols[0]:
+                show_ma5 = st.checkbox("5日", value=True)
+            with ma_cols[1]:
+                show_ma10 = st.checkbox("10日", value=False)
+            with ma_cols[2]:
+                show_ma20 = st.checkbox("20日", value=False)
+            with ma_cols[3]:
+                show_ma35 = st.checkbox("35日", value=False)
+            with ma_cols[4]:
+                show_ma65 = st.checkbox("65日", value=False)
+            with ma_cols[5]:
+                show_ma120 = st.checkbox("120日", value=False)
+            with ma_cols[6]:
+                show_ma200 = st.checkbox("200日", value=False)
+
+        k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id, target_days=k_days_choice)
 
         status_color = "#ff4d4d" if v_ratio >= 1.6 else "#ffffff"
         st.markdown(
@@ -297,8 +321,20 @@ if stock_options:
 
         df = pd.DataFrame(k_records)
         s_close = df["close"]
-        df["ema3"] = s_close.ewm(span=3, adjust=False).mean()
-        df["ema60"] = s_close.ewm(span=60, adjust=False).mean()
+
+        # 計算均線
+        ma_config = {
+            "5日": (5, show_ma5, "#00E5FF"),
+            "10日": (10, show_ma10, "#FFD700"),
+            "20日": (20, show_ma20, "#FF00FF"),
+            "35日": (35, show_ma35, "#00FF66"),
+            "65日": (65, show_ma65, "#FFA500"),
+            "120日": (120, show_ma120, "#9D4EDD"),
+            "200日": (200, show_ma200, "#FFFFFF")
+        }
+
+        for ma_name, (period, is_show, color) in ma_config.items():
+            df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
         # MACD
         df["dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
@@ -311,7 +347,7 @@ if stock_options:
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
         df["long_trend"] = cond3 & cond4
 
-        # 純黑配色 (模仿券商 App 樣式)
+        # 純黑配色 (擬真券商 App 風格)
         BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#000000", "#0a0a0a", "#1a1a1a", "#2a2a2a"
         BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3B30", "#00C853"
         body_colors = [BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR for o, c in zip(df["open"], df["close"])]
@@ -328,18 +364,44 @@ if stock_options:
         fig.patch.set_facecolor(BG_COLOR)
         x = list(range(len(df)))
 
-        # 層 1：K線與均線
+        # 層 1：K線與均線、黃金分割率
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.7, alpha=0.9)
         body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
         body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
         ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
-        ax1.plot(x, df["ema3"], linewidth=0.7, color="#00E5FF", label="EMA3", alpha=0.9)
-        ax1.plot(x, df["ema60"], linewidth=0.7, color="#FFFFFF", label="EMA60", linestyle="--")
-        ax1.set_title(f"[{stock_id}] {stock_name} - 專業多維度籌碼技術圖表", fontsize=10.5, fontweight="bold", color="white")
+
+        # 繪製均線 (實體線)
+        for ma_name, (period, is_show, color) in ma_config.items():
+            if is_show:
+                ax1.plot(x, df[f"ma_{period}"], linewidth=0.8, color=color, label=f"MA{period}", linestyle="-", alpha=0.9)
+
+        # 黃金分割率 (Fibonacci Retracement) 繪製
+        if show_fib and not df.empty:
+            max_p = df["high"].max()
+            min_p = df["low"].min()
+            diff_p = max_p - min_p
+            
+            # 常見黃金分割比例
+            fib_levels = [
+                (0.0, "0%", max_p),
+                (0.191, "19.1%", max_p - diff_p * 0.191),
+                (0.382, "38.2%", max_p - diff_p * 0.382),
+                (0.5, "50.0%", max_p - diff_p * 0.5),
+                (0.618, "61.8%", max_p - diff_p * 0.618),
+                (0.809, "80.9%", max_p - diff_p * 0.809),
+                (1.0, "100%", min_p)
+            ]
+            
+            for ratio_val, label_txt, price_val in fib_levels:
+                ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.8, alpha=0.7)
+                ax1.text(len(df) - 1, price_val, f" {price_val:.1f} ({label_txt})", color="#00E5FF", fontsize=7, va="center", ha="left", backgroundcolor="#0a0a0a")
+
+        ax1.set_title(f"[{stock_id}] {stock_name} - 專業多維度籌碼與黃金分割率", fontsize=10.5, fontweight="bold", color="white")
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=7, colors="#888888")
         ax1.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
+        ax1.legend(loc="upper left", fontsize=7, framealpha=0.3)
 
         # 層 2：MACD
         ax2.set_facecolor(PANEL_BG)
@@ -485,7 +547,7 @@ if stock_options:
             with col_l:
                 st.dataframe(df_display.iloc[:8], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
             with col_r:
-                st.dataframe(df_display.iloc[8:], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
+                st.dataframe(df_display.iloc[8:], column_config={"趨選圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
         else:
             st.warning("找不到總表檔案。")
 
