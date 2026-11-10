@@ -380,27 +380,27 @@ if stock_options:
                 ax1.plot(x, ma_series, linewidth=1.0, color=color, linestyle="-", alpha=0.9)
                 
                 # 計算扣抵方向箭頭 (與前一日比較)
-                val_now = ma_series.iloc[-1]
-                val_prev = ma_series.iloc[-2] if last_idx > 0 else val_now
+                val_now = float(ma_series.iloc[-1]) if not pd.isna(ma_series.iloc[-1]) else 0.0
+                val_prev = float(ma_series.iloc[-2]) if last_idx > 0 and not pd.isna(ma_series.iloc[-2]) else val_now
                 arrow = "▲" if val_now >= val_prev else "▼"
                 
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
                 legend_labels.append((label_str, color))
 
-        # 黃金分割率 (Fibonacci Retracement) 開關設置
+        # 黃金分割率 (Fibonacci Retracement) 開關設置（已加入 float 強制轉換確保安全）
         if show_fib and not df.empty:
-            max_p = df["high"].max()
-            min_p = df["low"].min()
+            max_p = float(df["high"].max())
+            min_p = float(df["low"].min())
             diff_p = max_p - min_p
             
             fib_levels = [
-                ("0%", max_p),
-                ("19.1%", max_p - diff_p * 0.191),
-                ("38.2%", max_p - diff_p * 0.382),
-                ("50.0%", max_p - diff_p * 0.5),
-                ("61.8%", max_p - diff_p * 0.618),
-                ("80.9%", max_p - diff_p * 0.809),
-                ("100%", min_p)
+                (0.0, "0%", max_p),
+                (0.191, "19.1%", max_p - diff_p * 0.191),
+                (0.382, "38.2%", max_p - diff_p * 0.382),
+                (0.5, "50.0%", max_p - diff_p * 0.5),
+                (0.618, "61.8%", max_p - diff_p * 0.618),
+                (0.809, "80.9%", max_p - diff_p * 0.809),
+                (1.0, "100%", min_p)
             ]
             
             for ratio_val, label_txt, price_val in fib_levels:
@@ -567,7 +567,7 @@ if stock_options:
             with col_l:
                 st.dataframe(df_display.iloc[:8], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
             with col_r:
-                st.dataframe(df_display.iloc[8:], column_config={"趨選圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
+                st.dataframe(df_display.iloc[8:], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
         else:
             st.warning("找不到總表檔案。")
 
