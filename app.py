@@ -109,7 +109,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取 (處理加權指數量補齊)
+# 5. 本地快取支援與資料抓取 (支援多週期: 60分、日、週、月)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -129,7 +129,7 @@ def load_local_cache_cached():
             pass
     return cache_dict
 
-def get_comprehensive_stock_data(stock_id, target_days=250):
+def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"):
     cache_dict = load_local_cache_cached()
     today_str = datetime.today().strftime("%Y-%m-%d")
 
@@ -143,9 +143,22 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
     else:
         tickers_to_try = [stock_id + ".TW", stock_id + ".TWO"]
 
+    # 根據選擇的週期設定 yfinance 的 interval 與抓取歷史長度
+    yf_interval = "1d"
+    yf_period = "1y"
+    if period_type == "60分鐘線":
+        yf_interval = "60m"
+        yf_period = "60d"  # yfinance 對 60m 限制歷史長度最多約 60 天
+    elif period_type == "週線":
+        yf_interval = "1wk"
+        yf_period = "2y"
+    elif period_type == "月線":
+        yf_interval = "1mo"
+        yf_period = "5y"
+
     for ticker in tickers_to_try:
         try:
-            temp_df = yf.download(ticker, period="1y", progress=False)
+            temp_df = yf.download(ticker, period=yf_period, interval=yf_interval, progress=False)
             if not temp_df.empty and "Close" in temp_df.columns:
                 df_yf = temp_df
                 break
@@ -174,6 +187,8 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
         
         k_records = []
         for idx, row in df_k.iterrows():
+            # 針對不同週期格式化時間字串
+            date_str = idx.strftime("%Y/%m/%d %H:%M") if period_type == "60分鐘線" else idx.strftime("%Y/%m/%d")
             o_val = float(row["Open"])
             h_val = float(row["High"])
             l_val = float(row["Low"])
@@ -182,7 +197,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
                 o_val = l_val if c_val > l_val else h_val
             
             k_records.append({
-                "date": idx.strftime("%Y/%m/%d"),
+                "date": date_str,
                 "open": o_val,
                 "high": h_val,
                 "low": l_val,
@@ -284,8 +299,14 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板 ---
+        # --- 控制面板 (新增週期切換選擇) ---
         with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
+            p_col1, p_col2 = st.columns([1, 2])
+            with p_col1:
+                chart_period = st.radio("週期切換", ["60分鐘線", "日線", "週線", "月線"], index=1, horizontal=True)
+            with p_col2:
+                pass
+
             ma_cols = st.columns(10)
             with ma_cols[0]:
                 show_ma5 = st.checkbox("5日", value=True)
@@ -309,7 +330,7 @@ if stock_options:
                 show_k120 = st.checkbox("120天", value=False)
 
         k_days_choice = 250 if show_k200 else (120 if show_k120 else 60)
-        k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id, target_days=k_days_choice)
+        k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id, target_days=k_days_choice, period_type=chart_period)
 
         df = pd.DataFrame(k_records)
         s_close = df["close"]
@@ -454,13 +475,12 @@ if stock_options:
         t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.7))
 
-        # --- 獨立渲染「季線趨勢狀態標籤」（放在量之後，並保有專屬顏色：多頭紅字 / 空頭綠字） ---
+        # --- 獨立渲染「季線趨勢狀態標籤」（放在量之後，保有專屬顏色：多頭紅字 / 空頭綠字） ---
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
-        trend_color = "#FF3B30" if is_bull else "#00C853"  # 多頭紅字 / 空頭綠字
+        trend_color = "#FF3B30" if is_bull else "#00C853"
 
-        # 利用基礎字串長度估算對應的放置 x 座標位置，將趨勢標籤精準接在量之後
         approx_x_pos = 0.01 + len(header_quote_str) * 0.0075
         t_trend_badge = ax1.text(approx_x_pos, 0.94, trend_status, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.6))
