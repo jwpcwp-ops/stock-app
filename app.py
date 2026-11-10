@@ -325,11 +325,11 @@ if stock_options:
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
         df["LongTrend"] = (cond3 & cond4).astype(int)
 
-        # 建立 Plotly 5 層子圖 (微調區塊比例，讓畫面更緊湊專業)
+        # 建立 Plotly 5 層子圖 (大幅增加間距與主圖空間，避免文字擠壓)
         fig = make_subplots(
             rows=5, cols=1, shared_xaxes=True,
-            vertical_spacing=0.02,
-            row_heights=[0.48, 0.11, 0.11, 0.15, 0.05]
+            vertical_spacing=0.04,
+            row_heights=[0.50, 0.11, 0.11, 0.14, 0.04]
         )
 
         bar_colors = ['#FF3B30' if c >= o else '#00C853' for o, c in zip(df["open"], df["close"])]
@@ -337,14 +337,16 @@ if stock_options:
         # 層 1：K線與均線
         fig.add_trace(go.Candlestick(
             x=df["date"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-            name="K線", increasing_line_color='#FF3B30', decreasing_line_color='#00C853'
+            name="K線", increasing_line_color='#FF3B30', decreasing_line_color='#00C853',
+            showlegend=False
         ), row=1, col=1)
 
         for ma_name, (period, is_show, color) in ma_config.items():
             if is_show:
                 fig.add_trace(go.Scatter(
                     x=df["date"], y=df[ma_name], name=ma_name,
-                    line=dict(color=color, width=1.2)
+                    line=dict(color=color, width=1.2),
+                    showlegend=True
                 ), row=1, col=1)
 
         # 黃金分割率水平線
@@ -370,39 +372,53 @@ if stock_options:
 
         # 層 2：MACD
         osc_colors = ['#FF3B30' if val >= 0 else '#00C853' for val in df["OSC"]]
-        fig.add_trace(go.Bar(x=df["date"], y=df["OSC"], marker_color=osc_colors, name="OSC"), row=2, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["DIF"], line=dict(color="#00E5FF", width=1), name="DIF"), row=2, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["DEA"], line=dict(color="#FFB300", width=1), name="DEA"), row=2, col=1)
+        fig.add_trace(go.Bar(x=df["date"], y=df["OSC"], marker_color=osc_colors, name="OSC", showlegend=False), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["DIF"], line=dict(color="#00E5FF", width=1), name="DIF", showlegend=False), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["DEA"], line=dict(color="#FFB300", width=1), name="DEA", showlegend=False), row=2, col=1)
 
         # 層 3：成交量
-        fig.add_trace(go.Bar(x=df["date"], y=df["vol"], marker_color=bar_colors, name="成交量"), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=df["VOL5"], line=dict(color="#00E5FF", width=1), name="VOL5"), row=3, col=1)
+        fig.add_trace(go.Bar(x=df["date"], y=df["vol"], marker_color=bar_colors, name="成交量", showlegend=False), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["VOL5"], line=dict(color="#00E5FF", width=1), name="VOL5", showlegend=False), row=3, col=1)
 
         # 層 4：大戶與羊群持股
         b_plot = big_holder[-len(df):]
         s_plot = sheep_holder[-len(df):]
-        fig.add_trace(go.Scatter(x=df["date"], y=b_plot, line=dict(color="#FF3B30", width=1.2), name="大戶(%)"), row=4, col=1)
-        fig.add_trace(go.Scatter(x=df["date"], y=s_plot, line=dict(color="#00C853", width=1.2), name="羊群(%)"), row=4, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=b_plot, line=dict(color="#FF3B30", width=1.2), name="大戶(%)", showlegend=False), row=4, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=s_plot, line=dict(color="#00C853", width=1.2), name="羊群(%)", showlegend=False), row=4, col=1)
 
         # 層 5：多空線色帶
         trend_colors = ['#FF3B30' if val == 1 else '#00C853' for val in df["LongTrend"]]
-        fig.add_trace(go.Bar(x=df["date"], y=[1]*len(df), marker_color=trend_colors, name="多空線"), row=5, col=1)
+        fig.add_trace(go.Bar(x=df["date"], y=[1]*len(df), marker_color=trend_colors, name="多空線", showlegend=False), row=5, col=1)
 
         # 十字查詢線互動開關設定
         hover_mode_setting = "x unified" if show_crosshair else "closest"
 
+        # 完美排版的 Layout 設定：將圖例移至上方左側，加大頂部空間避免標題重疊
         fig.update_layout(
-            title=dict(text=f"[{stock_id}] {stock_name} - 專業多維度籌碼技術圖表", font=dict(size=13, color="white")),
+            title=dict(
+                text=f"[{stock_id}] {stock_name} - 專業多維度籌碼技術圖表",
+                font=dict(size=13, color="white"),
+                x=0.01,
+                y=0.98
+            ),
             template="plotly_dark",
             paper_bgcolor="#000000",
             plot_bgcolor="#0a0a0a",
-            height=720,
-            margin=dict(l=10, r=45, t=30, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=8)),
+            height=750,
+            margin=dict(l=10, r=55, t=45, b=10),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.01,
+                xanchor="left",
+                x=0.15,
+                font=dict(size=8),
+                bgcolor="rgba(0,0,0,0)"
+            ),
             hovermode=hover_mode_setting
         )
 
-        # 設定格線、十字線與統一右側 Y 軸
+        # 統一格線與右側 Y 軸設定
         fig.update_xaxes(
             showgrid=True, gridcolor="#1a1a1a", zeroline=False,
             showspikes=show_crosshair, spikedash="solid", spikecolor="#888888", spikethickness=1
@@ -411,7 +427,7 @@ if stock_options:
             showgrid=True, gridcolor="#1a1a1a", zeroline=False, side="right",
             showspikes=show_crosshair, spikedash="solid", spikecolor="#888888", spikethickness=1
         )
-        # 隱藏多空線層的 Y 軸刻度
+        # 隱藏第 5 層多空線的 Y 軸刻度
         fig.update_yaxes(showticklabels=False, row=5, col=1)
 
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
