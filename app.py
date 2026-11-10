@@ -597,8 +597,8 @@ if stock_options:
             b_plot = big_holder[-len(df):]
             s_plot = sheep_holder[-len(df):]
             x_chip = x[-len(b_plot):]
-            ax4.plot(x_chip, b_plot, color="#FF3B30", linewidth=0.5, marker='o', markersize=2, label="大戶(%)")
-            ax4.plot(x_chip, s_plot, color="#00C853", linewidth=0.5, marker='s', markersize=2, label="羊群(%)")
+            ax4.plot(x_chip, b_plot, color="#FF3B30", linewidth=0.3, marker='o', markersize=2, label="大戶(%)")
+            ax4.plot(x_chip, s_plot, color="#00C853", linewidth=0.3, marker='s', markersize=2, label="羊群(%)")
             cur_big = float(b_plot[-1])
             cur_sheep = float(s_plot[-1])
 
