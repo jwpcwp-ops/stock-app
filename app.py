@@ -325,11 +325,11 @@ if stock_options:
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
         df["LongTrend"] = (cond3 & cond4).astype(int)
 
-        # 建立 Plotly 5 層子圖
+        # 建立 Plotly 5 層子圖 (微調區塊比例，讓畫面更緊湊專業)
         fig = make_subplots(
             rows=5, cols=1, shared_xaxes=True,
-            vertical_spacing=0.03,
-            row_heights=[0.45, 0.12, 0.12, 0.16, 0.05]
+            vertical_spacing=0.02,
+            row_heights=[0.48, 0.11, 0.11, 0.15, 0.05]
         )
 
         bar_colors = ['#FF3B30' if c >= o else '#00C853' for o, c in zip(df["open"], df["close"])]
@@ -396,13 +396,13 @@ if stock_options:
             template="plotly_dark",
             paper_bgcolor="#000000",
             plot_bgcolor="#0a0a0a",
-            height=680,
+            height=720,
             margin=dict(l=10, r=45, t=30, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=8)),
             hovermode=hover_mode_setting
         )
 
-        # 已完全排除不相容參數的 xaxes 與 yaxes 設定
+        # 設定格線、十字線與統一右側 Y 軸
         fig.update_xaxes(
             showgrid=True, gridcolor="#1a1a1a", zeroline=False,
             showspikes=show_crosshair, spikedash="solid", spikecolor="#888888", spikethickness=1
@@ -411,6 +411,7 @@ if stock_options:
             showgrid=True, gridcolor="#1a1a1a", zeroline=False, side="right",
             showspikes=show_crosshair, spikedash="solid", spikecolor="#888888", spikethickness=1
         )
+        # 隱藏多空線層的 Y 軸刻度
         fig.update_yaxes(showticklabels=False, row=5, col=1)
 
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
