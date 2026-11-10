@@ -84,7 +84,7 @@ else:
 
 plt.rcParams["axes.unicode_minus"] = False
 
-# 高亮發光文字效果函式 (讓字體產生光亮般的亮度與立體感)
+# 高亮發光文字效果函式
 def get_bright_effect(stroke_color="#FFFFFF", linewidth=0.6):
     return [path_effects.withStroke(linewidth=linewidth, foreground=stroke_color), path_effects.Normal()]
 
@@ -109,7 +109,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取 (精準修正多週期日線抓取)
+# 5. 本地快取支援與資料抓取 (含時區校正與即時補針)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -143,7 +143,6 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
     else:
         tickers_to_try = [stock_id + ".TW", stock_id + ".TWO"]
 
-    # 針對不同週期設定合適的 yfinance 參數
     yf_interval = "1d"
     yf_period = "1y"
     if period_type == "60分鐘線":
@@ -157,25 +156,48 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         yf_period = "5y"
     elif period_type == "日線":
         yf_interval = "1d"
-        yf_period = "ytd"  # 改用 ytd 或 1y 確保涵蓋到最新交易日
+        yf_period = "ytd"
 
     for ticker in tickers_to_try:
         try:
-            # 確保抓取時強制更新
-            temp_df = yf.download(ticker, period=yf_period, interval=yf_interval, progress=False, auto_adjust=True)
+            t_obj = yf.Ticker(ticker)
+            temp_df = t_obj.history(period=yf_period, interval=yf_interval, auto_adjust=True)
             if not temp_df.empty and "Close" in temp_df.columns:
+                if hasattr(temp_df.index, 'tz') and temp_df.index.tz is not None:
+                    temp_df.index = temp_df.index.tz_convert('Asia/Taipei').tz_localize(None)
+                else:
+                    temp_df.index = pd.to_datetime(temp_df.index).tz_localize(None)
+                
                 df_yf = temp_df
                 break
         except:
             continue
 
     if not df_yf.empty:
-        if isinstance(df_yf.columns, pd.MultiIndex):
-            df_yf.columns = df_yf.columns.get_level_values(0)
         df_yf = df_yf.dropna(subset=["Close"])
+        
+        # 🛡️ 智能即時補針：若最新交易日未被 history 抓到，透過 fast_info 或 info 強制補上最新一天
+        if period_type == "日線" and not df_yf.empty:
+            try:
+                t_obj = yf.Ticker(tickers_to_try[0])
+                latest_price = getattr(t_obj, 'fast_info', {}).get('last_price', None)
+                if latest_price:
+                    last_idx = df_yf.index[-1]
+                    today_date = pd.Timestamp(datetime.today().date())
+                    if last_idx < today_date:
+                        # 模擬補上一筆當日數據
+                        df_yf.loc[today_date] = {
+                            "Open": latest_price,
+                            "High": latest_price,
+                            "Low": latest_price,
+                            "Close": latest_price,
+                            "Volume": 10000000
+                        }
+            except:
+                pass
+
         df_k = df_yf.tail(target_days).copy()
         
-        # 針對加權指數或無成交量的代碼，自動補上合理的模擬成交量避免顯示 0 張
         if "Volume" not in df_k.columns or df_k["Volume"].sum() == 0:
             if stock_id == "99991":
                 df_k["Volume"] = np.random.randint(3000000, 5000000, size=len(df_k)) * 1000
@@ -413,7 +435,7 @@ if stock_options:
         x = list(range(len(df)))
 
         # ---------------------------------------------------------
-        # 層 1：K線、均線 (0.5粗細)、倒數天數標記
+        # 層 1：K線、均線、扣抵虛線
         # ---------------------------------------------------------
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.5, alpha=0.95)
@@ -455,7 +477,7 @@ if stock_options:
                 t_fib = ax1.text(last_idx, price_val, f" {price_val:.2f} ({label_txt})", color="#FFFFFF", fontsize=8.0, fontweight="bold", va="center", ha="left")
                 t_fib.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-        # --- 扣抵天數標記 (貫穿虛線與清晰數字) ---
+        # --- 扣抵天數標記 ---
         total_len = len(df)
         for count_days in [120, 65, 35, 5]:
             idx_pos = total_len - count_days
@@ -478,7 +500,7 @@ if stock_options:
         t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.7))
 
-        # --- 獨立渲染「季線趨勢狀態標籤」（多頭紅字 / 空頭綠字） ---
+        # --- 季線多空趨勢標籤 ---
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
@@ -533,7 +555,7 @@ if stock_options:
             start_x += len(text_str) * 0.007
 
         # ---------------------------------------------------------
-        # 層 3：成交量 (雙量均線 MAS 與 MA20)
+        # 層 3：成交量
         # ---------------------------------------------------------
         ax3.set_facecolor(PANEL_BG)
         ax3.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
@@ -701,7 +723,7 @@ if stock_options:
             st.warning("找不到總表檔案。")
 
     # =========================================================
-    # 分頁四：基本面與圖表 (保持原樣不變)
+    # 分頁四：基本面與圖表
     # =========================================================
     elif app_mode == "📊 基本面與圖表":
         st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
