@@ -312,8 +312,16 @@ if stock_options:
         df["osc"] = (df["dif"] - df["dem"]) * 2
 
         cur_dif = float(df["dif"].iloc[-1]) if not df.empty else 0.0
+        prev_dif = float(df["dif"].iloc[-2]) if len(df) > 1 else cur_dif
+        dif_arrow = "↑" if cur_dif >= prev_dif else "↓"
+
         cur_dem = float(df["dem"].iloc[-1]) if not df.empty else 0.0
+        prev_dem = float(df["dem"].iloc[-2]) if len(df) > 1 else cur_dem
+        dem_arrow = "↑" if cur_dem >= prev_dem else "↓"
+
         cur_osc = float(df["osc"].iloc[-1]) if not df.empty else 0.0
+        prev_osc = float(df["osc"].iloc[-2]) if len(df) > 1 else cur_osc
+        osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
 
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
 
@@ -355,7 +363,6 @@ if stock_options:
                 
                 val_now = float(ma_series.iloc[-1]) if not pd.isna(ma_series.iloc[-1]) else 0.0
                 val_prev = float(ma_series.iloc[-2]) if last_idx > 0 and not pd.isna(ma_series.iloc[-2]) else val_now
-                # 改為線條箭頭 ↑ / ↓
                 arrow = "↑" if val_now >= val_prev else "↓"
                 
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
@@ -391,7 +398,7 @@ if stock_options:
             
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # 頂部即時行情資訊：改為高亮度純白色（#FFFFFF）
+        # 頂部即時行情資訊：純白高亮
         header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
@@ -409,12 +416,12 @@ if stock_options:
                     text_y -= 0.08
 
         # ---------------------------------------------------------
-        # 層 2：MACD (爆亮純白數據)
+        # 層 2：MACD (加入方向箭頭 ↑ / ↓ 與爆亮純白數據)
         # ---------------------------------------------------------
         ax2.set_facecolor(PANEL_BG)
         ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.9)
-        ax2.plot(x, df["dif"], linewidth=0.8, color="#00E5FF", label="DIF")
-        ax2.plot(x, df["dem"], linewidth=0.8, color="#FFB300", label="DEA")
+        ax2.plot(x, df["dif"], linewidth=0.5, color="#00E5FF", label="DIF")
+        ax2.plot(x, df["dem"], linewidth=0.5, color="#FFB300", label="DEA")
         ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
         ax2.yaxis.tick_right()
         ax2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
@@ -423,7 +430,7 @@ if stock_options:
             t.set_path_effects(get_bright_effect("#FFFFFF", 0.3))
         ax2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        macd_info_text = f"MACD  DIF:{cur_dif:.2f} | DEA:{cur_dem:.2f} | OSC:{cur_osc:.2f}"
+        macd_info_text = f"MACD  DIF:{cur_dif:.2f}{dif_arrow} | DEA:{cur_dem:.2f}{dem_arrow} | OSC:{cur_osc:.2f}{osc_arrow}"
         t_macd = ax2.text(0.015, 0.78, macd_info_text, transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
         t_macd.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
@@ -432,7 +439,7 @@ if stock_options:
         # ---------------------------------------------------------
         ax3.set_facecolor(PANEL_BG)
         ax3.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
-        ax3.plot(x, df["vol_ma5"], linewidth=0.8, color="#00E5FF", label="VOL5")
+        ax3.plot(x, df["vol_ma5"], linewidth=0.5, color="#00E5FF", label="VOL5")
         ax3.yaxis.tick_right()
         ax3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
         for t in ax3.get_yticklabels():
@@ -453,8 +460,8 @@ if stock_options:
             b_plot = big_holder[-len(df):]
             s_plot = sheep_holder[-len(df):]
             x_chip = x[-len(b_plot):]
-            ax4.plot(x_chip, b_plot, color="#FF3B30", linewidth=1.2, marker='o', markersize=2, label="大戶(%)")
-            ax4.plot(x_chip, s_plot, color="#00C853", linewidth=1.2, marker='s', markersize=2, label="羊群(%)")
+            ax4.plot(x_chip, b_plot, color="#FF3B30", linewidth=0.8, marker='o', markersize=2, label="大戶(%)")
+            ax4.plot(x_chip, s_plot, color="#00C853", linewidth=0.8, marker='s', markersize=2, label="羊群(%)")
             cur_big = float(b_plot[-1])
             cur_sheep = float(s_plot[-1])
 
@@ -582,7 +589,7 @@ if stock_options:
             with col_l:
                 st.dataframe(df_display.iloc[:8], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
             with col_r:
-                st.dataframe(df_display.iloc[8:], column_config={"趨選圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
+                st.dataframe(df_display.iloc[8:], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
         else:
             st.warning("找不到總表檔案。")
 
