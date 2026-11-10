@@ -429,21 +429,26 @@ if stock_options:
                 t_fib = ax1.text(last_idx, price_val, f" {price_val:.2f} ({label_txt})", color="#FFFFFF", fontsize=8.0, fontweight="bold", va="center", ha="left")
                 t_fib.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-        # --- 新增：右上角季線趨勢狀態標籤 ---
+        # --- 1. 右上角季線趨勢狀態標籤 (多頭:紅字 / 空頭:綠字) ---
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
-        trend_status = "【季線多頭趨勢】" if last_close >= ma60_val else "【季線空頭趨勢】"
-        trend_color = "#00C853" if last_close >= ma60_val else "#FF3B30"
+        is_bull = last_close >= ma60_val
+        trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
+        trend_color = "#FF3B30" if is_bull else "#00C853"  # 多頭紅字 / 空頭綠字
         t_trend_top = ax1.text(0.98, 0.94, f"{trend_status}\n日期: {last_date}", transform=ax1.transAxes, 
                                fontsize=9.0, fontweight="bold", color=trend_color, ha="right", va="top")
         t_trend_top.set_path_effects(get_bright_effect(trend_color, 0.6))
 
-        # --- 新增：K線下方歷史天數倒數標記 (120, 65, 35, 5) ---
+        # --- 2. 扣抵天數標記 (貫穿虛線與清晰數字) ---
         total_len = len(df)
         for count_days in [120, 65, 35, 5]:
             idx_pos = total_len - count_days
             if idx_pos > 0:
-                ax1.text(idx_pos, df["low"].min(), f"{count_days}", color="#888888", 
-                         fontsize=7.5, ha="center", va="bottom")
+                # 繪製貫穿 K 線圖的藍灰色垂直虛線
+                ax1.axvline(x=idx_pos, color="#415A77", linestyle=":", linewidth=0.8, alpha=0.85)
+                # 繪製清晰且醒目的扣抵天數文字數字
+                t_num = ax1.text(idx_pos, df["low"].min(), f"{count_days}", color="#E0E0E0", 
+                                 fontsize=9.0, fontweight="bold", ha="center", va="bottom")
+                t_num.set_path_effects(get_bright_effect("#000000", 0.8))
 
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
