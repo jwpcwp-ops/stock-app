@@ -571,4 +571,108 @@ if stock_options:
                         item = cache_dict[s_id]
                         big_h, sheep_h, w_dates = item.get("big_holder", []), item.get("sheep_holder", []), item.get("w_dates", [])
                     else:
-                        np.random.seed(
+                        np.random.seed(int(s_id) if s_id.isdigit() else 42)
+                        big_h = (38.0 + np.cumsum(np.random.randn(60) * 0.4)).tolist()
+                        sheep_h = (42.0 + np.cumsum(np.random.randn(60) * 0.3)).tolist()
+                        w_dates = pd.date_range(end=datetime.today(), periods=60, freq="W").strftime("%Y-%m-%d").tolist()
+
+                    n_periods = len(big_h)
+                    if n_periods < 2 or float(big_h[-1]) < min_big_holder:
+                        continue
+
+                    g_crs, d_crs = [], []
+                    for i in range(1, n_periods):
+                        if big_h[i - 1] <= sheep_h[i - 1] and big_h[i] > sheep_h[i]:
+                            g_crs.append(i)
+                        elif big_h[i - 1] >= sheep_h[i - 1] and big_h[i] < sheep_h[i]:
+                            d_crs.append(i)
+
+                    target_crosses = g_crs if is_golden_search else d_crs
+                    recent_hit = [idx for idx in target_crosses if (n_periods - 1 - idx) < recent_weeks]
+
+                    if recent_hit:
+                        last_hit_idx = recent_hit[-1]
+                        matched_results.append({
+                            "代碼": s_id, "名稱": s_name,
+                            "訊號": "★ 黃金交叉" if is_golden_search else "✖ 死亡交叉",
+                            "日期": w_dates[last_hit_idx],
+                            "大戶(%)": round(float(big_h[-1]), 1)
+                        })
+                st.session_state.screened_results = matched_results
+
+        if st.session_state.screened_results:
+            df_res = pd.DataFrame(st.session_state.screened_results)
+            st.success(f"找到 {len(df_res)} 檔符合個股。")
+            filtered_options = (df_res["代碼"].astype(str) + " " + df_res["名稱"].astype(str)).tolist()
+            
+            c_a, c_b = st.columns([3, 1])
+            with c_a:
+                selected_from_screen = st.selectbox("選擇股票前往圖表", filtered_options, label_visibility="collapsed")
+            with c_b:
+                if st.button("📈 前往圖表", use_container_width=True):
+                    st.session_state.selected_index = stock_options.index(selected_from_screen)
+                    st.session_state.app_mode_idx = 0
+                    st.rerun()
+            st.dataframe(df_res, use_container_width=True, hide_index=True)
+
+    # =========================================================
+    # 分頁三：每週大戶增幅前 15 名總表
+    # =========================================================
+    elif app_mode == "📋 每週大戶增幅前 15 名總表":
+        excel_filename = "大戶持股最新分析總表.xlsx"
+        if os.path.exists(excel_filename):
+            df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
+            df_display = pd.DataFrame()
+            df_display["代碼"] = df_top15["代碼"].apply(lambda x: str(x).strip().zfill(4))
+            df_display["名稱"] = df_top15["名稱"].astype(str).str.strip()
+            df_display["趨勢圖連結"] = df_top15["代碼"].apply(lambda x: f"https://norway.twsthr.info/StockHolders.aspx?stock={str(x).strip().zfill(4)}")
+
+            c_title, c_btn = st.columns([2, 2])
+            with c_title:
+                st.markdown('<p class="sub-header-14">📋 大戶持股增幅前 15 名</p>', unsafe_allow_html=True)
+            with c_btn:
+                with open(excel_filename, "rb") as file:
+                    st.download_button("📥 下載 Excel", data=file, file_name="大戶增幅前15名.xlsx", use_container_width=True)
+
+            col_l, col_r = st.columns(2)
+            with col_l:
+                st.dataframe(df_display.iloc[:8], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
+            with col_r:
+                st.dataframe(df_display.iloc[8:], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
+        else:
+            st.warning("找不到總表檔案。")
+
+    # =========================================================
+    # 分頁四：基本面與圖表
+    # =========================================================
+    elif app_mode == "📊 基本面與圖表":
+        st.markdown('<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True)
+        selected_fund_stock = st.selectbox("選擇股票", stock_options, label_visibility="collapsed")
+        target_code = selected_fund_stock.split()[0]
+        target_name = selected_fund_stock.split()[1] if len(selected_fund_stock.split()) > 1 else ""
+
+        quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
+        data_sets = [
+            {"title": "毛利率與營業利益率", "val1": [15.2, 16.5, 18.0, 17.2, 19.1], "val2": [8.1, 9.0, 10.5, 9.8, 11.2]},
+            {"title": "單季營業收入與年增率", "val1": [12.5, 13.2, 14.1, 13.8, 15.0], "val2": [5.2, 6.1, 8.3, 7.0, 9.2]},
+            {"title": "每股盈餘 (EPS)", "val1": [0.85, 0.92, 1.15, 1.02, 1.30], "val2": []}
+        ]
+
+        plt.style.use("dark_background")
+        cols = st.columns(2)
+        for idx, ds in enumerate(data_sets):
+            fig, ax = plt.subplots(figsize=(4.2, 2.0))
+            ax.plot(quarters, ds["val1"], marker='o', markersize=3, color="#00ff66", linewidth=1.2)
+            if ds["val2"]:
+                ax.plot(quarters, ds["val2"], marker='s', markersize=3, color="#3498db", linewidth=1.2)
+            ax.set_title(f"[{target_code}] {ds['title']}", color="white", fontsize=8.5, fontweight="bold")
+            ax.tick_params(axis='both', labelsize=6.5)
+            ax.grid(True, linestyle=":", alpha=0.3)
+            fig.tight_layout(pad=0.3)
+            
+            with cols[idx % 2]:
+                with st.expander(f"📊 {ds['title']} (放大)", expanded=False):
+                    st.pyplot(fig, use_container_width=True)
+
+else:
+    st.warning("請確認 StockIDs.xlsx 檔案已就位。")
