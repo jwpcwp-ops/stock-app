@@ -109,7 +109,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取 (含時區校正與即時補針)
+# 5. 本地快取支援與資料抓取 (含時區校正與 60分轉日線智慧補針)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -173,29 +173,45 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         except:
             continue
 
+    # 🛡️ 智慧補針機制：如果目前是日線模式，但日K最後一天落後了，透過 60m 資料把最新一天補進來！
+    if period_type == "日線" and not df_yf.empty:
+        try:
+            t_obj = yf.Ticker(tickers_to_try[0])
+            temp_60m = t_obj.history(period="5d", interval="60m", auto_adjust=True)
+            if not temp_60m.empty:
+                if hasattr(temp_60m.index, 'tz') and temp_60m.index.tz is not None:
+                    temp_60m.index = temp_60m.index.tz_convert('Asia/Taipei').tz_localize(None)
+                else:
+                    temp_60m.index = pd.to_datetime(temp_60m.index).tz_localize(None)
+                
+                # 取得 60m 的最新日期
+                latest_60m_date = temp_60m.index[-1].normalize()
+                last_daily_date = df_yf.index[-1].normalize()
+
+                if latest_60m_date > last_daily_date:
+                    # 萃取當天 60m 的開高低收與總量合成一根日K
+                    day_data = temp_60m[temp_60m.index.normalize() == latest_60m_date]
+                    if not day_data.empty:
+                        syn_open = float(day_data["Open"].iloc[0])
+                        syn_high = float(day_data["High"].max())
+                        syn_low = float(day_data["Low"].min())
+                        syn_close = float(day_data["Close"].iloc[-1])
+                        syn_vol = float(day_data["Volume"].sum())
+
+                        # 新增到日K DataFrame
+                        df_yf.loc[latest_60m_date] = {
+                            "Open": syn_open,
+                            "High": syn_high,
+                            "Low": syn_low,
+                            "Close": syn_close,
+                            "Volume": syn_vol
+                        }
+                        df_yf = df_yf.sort_index()
+        except Exception as e:
+            print(f"自動補針失敗: {e}")
+
     if not df_yf.empty:
         df_yf = df_yf.dropna(subset=["Close"])
-        
-        # 🛡️ 智能即時補針：若最新交易日未被 history 抓到，透過 fast_info 或 info 強制補上最新一天
-        if period_type == "日線" and not df_yf.empty:
-            try:
-                t_obj = yf.Ticker(tickers_to_try[0])
-                latest_price = getattr(t_obj, 'fast_info', {}).get('last_price', None)
-                if latest_price:
-                    last_idx = df_yf.index[-1]
-                    today_date = pd.Timestamp(datetime.today().date())
-                    if last_idx < today_date:
-                        # 模擬補上一筆當日數據
-                        df_yf.loc[today_date] = {
-                            "Open": latest_price,
-                            "High": latest_price,
-                            "Low": latest_price,
-                            "Close": latest_price,
-                            "Volume": 10000000
-                        }
-            except:
-                pass
-
         df_k = df_yf.tail(target_days).copy()
         
         if "Volume" not in df_k.columns or df_k["Volume"].sum() == 0:
