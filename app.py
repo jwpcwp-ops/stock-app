@@ -402,14 +402,14 @@ if stock_options:
             hovermode=hover_mode_setting
         )
 
-        # 修正後的 xaxes 與 yaxes (已移除不支援的 spikesnap)
+        # 已完全排除不相容參數的 xaxes 與 yaxes 設定
         fig.update_xaxes(
             showgrid=True, gridcolor="#1a1a1a", zeroline=False,
-            showspikes=show_crosshair, spikemode="to axes", spikedash="solid", spikecolor="#888888", spikethickness=1
+            showspikes=show_crosshair, spikedash="solid", spikecolor="#888888", spikethickness=1
         )
         fig.update_yaxes(
             showgrid=True, gridcolor="#1a1a1a", zeroline=False, side="right",
-            showspikes=show_crosshair, spikemode="to axes", spikedash="solid", spikecolor="#888888", spikethickness=1
+            showspikes=show_crosshair, spikedash="solid", spikecolor="#888888", spikethickness=1
         )
         fig.update_yaxes(showticklabels=False, row=5, col=1)
 
