@@ -2,10 +2,10 @@ from datetime import datetime
 import json
 import os
 import urllib.request
-import matplotlib.font_manager as fm
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
 import yfinance as yf
 
@@ -81,30 +81,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# 3. 自動下載並載入繁體中文字型
-# ---------------------------------------------------------
-font_path = "NotoSansTC-Regular.ttf"
-if not os.path.exists(font_path):
-    font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf"
-    try:
-        urllib.request.urlretrieve(font_url, font_path)
-    except Exception as e:
-        print(f"字型下載失敗: {e}")
-
-if os.path.exists(font_path):
-    fm.fontManager.addfont(font_path)
-    plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
-else:
-    plt.rcParams["font.sans-serif"] = [
-        "Microsoft JhengHei",
-        "Arial Unicode MS",
-        "sans-serif",
-    ]
-
-plt.rcParams["axes.unicode_minus"] = False
-
-# ---------------------------------------------------------
-# 4. 讀取股票清單 (StockIDs.xlsx)
+# 3. 讀取股票清單 (StockIDs.xlsx)
 # ---------------------------------------------------------
 @st.cache_data
 def load_stock_list():
@@ -119,7 +96,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取
+# 4. 本地快取支援與資料抓取
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -169,7 +146,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
         k_records = []
         for idx, row in df_k.iterrows():
             k_records.append({
-                "date": idx.strftime("%Y%m%d"),
+                "date": idx.strftime("%Y-%m-%d"),
                 "open": float(row["Open"]),
                 "high": float(row["High"]),
                 "low": float(row["Low"]),
@@ -183,7 +160,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
         k_records = []
         for i, d in enumerate(dates):
             k_records.append({
-                "date": d.strftime("%Y%m%d"),
+                "date": d.strftime("%Y-%m-%d"),
                 "open": prices[i] - 0.5,
                 "high": prices[i] + 1.0,
                 "low": prices[i] - 1.0,
@@ -205,7 +182,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
     return k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio
 
 # ---------------------------------------------------------
-# 6. Session State 初始化
+# 5. Session State 初始化
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
     st.session_state.selected_index = 0
@@ -215,7 +192,7 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (4個分頁按鈕並排)
+# 6. 網頁主介面佈局 (4個分頁按鈕並排)
 # ---------------------------------------------------------
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統 (手機版)</p>', unsafe_allow_html=True)
 
@@ -249,7 +226,7 @@ if stock_options:
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
     # =========================================================
-    # 分頁一：單股圖表
+    # 分頁一：單股圖表 (Plotly 互動式引擎：支援十字查詢線、均線開關、K線根數、黃金分割率)
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
@@ -271,13 +248,15 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板：K線顯示數量與均線開關 ---
-        with st.expander("⚙️ K線數量與均線開關設定 (點擊展開)", expanded=True):
-            c_cnt1, c_cnt2 = st.columns([1, 2])
-            with c_cnt1:
+        # --- 控制面板：十字查詢開關、K線數量、均線開關 ---
+        with st.expander("⚙️ 互動設定 (十字查詢線、K線數量、均線開關)", expanded=True):
+            c_opt1, c_opt2, c_opt3 = st.columns([1.2, 1, 1.2])
+            with c_opt1:
                 k_days_choice = st.selectbox("顯示 K線數量", [60, 120, 200], index=0)
-            with c_cnt2:
-                show_fib = st.checkbox("📐 顯示黃金分割率線", value=True)
+            with c_opt2:
+                show_fib = st.checkbox("📐 黃金分割率", value=True)
+            with c_opt3:
+                show_crosshair = st.checkbox("➕ 十字查詢線", value=True)
 
             st.markdown("---")
             ma_cols = st.columns(7)
@@ -324,134 +303,114 @@ if stock_options:
 
         # 計算均線
         ma_config = {
-            "5日": (5, show_ma5, "#00E5FF"),
-            "10日": (10, show_ma10, "#FFD700"),
-            "20日": (20, show_ma20, "#FF00FF"),
-            "35日": (35, show_ma35, "#00FF66"),
-            "65日": (65, show_ma65, "#FFA500"),
-            "120日": (120, show_ma120, "#9D4EDD"),
-            "200日": (200, show_ma200, "#FFFFFF")
+            "MA5": (5, show_ma5, "#00E5FF"),
+            "MA10": (10, show_ma10, "#FFD700"),
+            "MA20": (20, show_ma20, "#FF00FF"),
+            "MA35": (35, show_ma35, "#00FF66"),
+            "MA65": (65, show_ma65, "#FFA500"),
+            "MA120": (120, show_ma120, "#9D4EDD"),
+            "MA200": (200, show_ma200, "#FFFFFF")
         }
-
         for ma_name, (period, is_show, color) in ma_config.items():
-            df[f"ma_{period}"] = s_close.rolling(window=period).mean()
+            df[ma_name] = s_close.rolling(window=period).mean()
 
         # MACD
-        df["dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
-        df["dem"] = df["dif"].ewm(span=9, adjust=False).mean()
-        df["osc"] = (df["dif"] - df["dem"]) * 2
+        df["DIF"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
+        df["DEA"] = df["DIF"].ewm(span=9, adjust=False).mean()
+        df["OSC"] = (df["DIF"] - df["DEA"]) * 2
 
-        df["vol_ma5"] = df["vol"].rolling(window=5).mean()
+        df["VOL5"] = df["vol"].rolling(window=5).mean()
 
         cond3 = ((s_close.ewm(span=15, adjust=False).mean() / s_close.ewm(span=30, adjust=False).mean() - 1) * 100) > 0
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
-        df["long_trend"] = cond3 & cond4
+        df["LongTrend"] = (cond3 & cond4).astype(int)
 
-        # 純黑配色 (擬真券商 App 風格)
-        BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#000000", "#0a0a0a", "#1a1a1a", "#2a2a2a"
-        BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3B30", "#00C853"
-        body_colors = [BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR for o, c in zip(df["open"], df["close"])]
-        osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
-
-        plt.style.use("dark_background")
-        fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(
-            5, 1, figsize=(10, 7.2), sharex=True,
-            gridspec_kw={"height_ratios": [3.5, 1.0, 1.0, 1.2, 0.22]}
+        # 建立 Plotly 5 層子圖
+        fig = make_subplots(
+            rows=5, cols=1, shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=[0.45, 0.12, 0.12, 0.16, 0.05]
         )
 
-        for ax in [fig, ax1, ax2, ax3, ax4, ax5]:
-            ax.set_facecolor(BG_COLOR)
-        fig.patch.set_facecolor(BG_COLOR)
-        x = list(range(len(df)))
+        bar_colors = ['#FF3B30' if c >= o else '#00C853' for o, c in zip(df["open"], df["close"])]
 
-        # 層 1：K線與均線、黃金分割率
-        ax1.set_facecolor(PANEL_BG)
-        ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.7, alpha=0.9)
-        body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
-        body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
-        ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
+        # 層 1：K線與均線
+        fig.add_trace(go.Candlestick(
+            x=df["date"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+            name="K線", increasing_line_color='#FF3B30', decreasing_line_color='#00C853'
+        ), row=1, col=1)
 
-        # 繪製均線 (實體線)
         for ma_name, (period, is_show, color) in ma_config.items():
             if is_show:
-                ax1.plot(x, df[f"ma_{period}"], linewidth=0.8, color=color, label=f"MA{period}", linestyle="-", alpha=0.9)
+                fig.add_trace(go.Scatter(
+                    x=df["date"], y=df[ma_name], name=ma_name,
+                    line=dict(color=color, width=1.2)
+                ), row=1, col=1)
 
-        # 黃金分割率 (Fibonacci Retracement) 繪製
+        # 黃金分割率水平線
         if show_fib and not df.empty:
             max_p = df["high"].max()
             min_p = df["low"].min()
             diff_p = max_p - min_p
-            
-            # 常見黃金分割比例
             fib_levels = [
-                (0.0, "0%", max_p),
-                (0.191, "19.1%", max_p - diff_p * 0.191),
-                (0.382, "38.2%", max_p - diff_p * 0.382),
-                (0.5, "50.0%", max_p - diff_p * 0.5),
-                (0.618, "61.8%", max_p - diff_p * 0.618),
-                (0.809, "80.9%", max_p - diff_p * 0.809),
-                (1.0, "100%", min_p)
+                ("0%", max_p),
+                ("19.1%", max_p - diff_p * 0.191),
+                ("38.2%", max_p - diff_p * 0.382),
+                ("50.0%", max_p - diff_p * 0.5),
+                ("61.8%", max_p - diff_p * 0.618),
+                ("80.9%", max_p - diff_p * 0.809),
+                ("100%", min_p)
             ]
-            
-            for ratio_val, label_txt, price_val in fib_levels:
-                ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.8, alpha=0.7)
-                ax1.text(len(df) - 1, price_val, f" {price_val:.1f} ({label_txt})", color="#00E5FF", fontsize=7, va="center", ha="left", backgroundcolor="#0a0a0a")
-
-        ax1.set_title(f"[{stock_id}] {stock_name} - 專業多維度籌碼與黃金分割率", fontsize=10.5, fontweight="bold", color="white")
-        ax1.yaxis.tick_right()
-        ax1.tick_params(axis="y", labelsize=7, colors="#888888")
-        ax1.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax1.legend(loc="upper left", fontsize=7, framealpha=0.3)
+            for label_txt, price_val in fib_levels:
+                fig.add_hline(
+                    y=price_val, line_dash="dot", line_color="#00E5FF", line_width=0.8,
+                    annotation_text=f"{price_val:.1f} ({label_txt})", annotation_position="top right",
+                    annotation_font_size=8, annotation_font_color="#00E5FF", row=1, col=1
+                )
 
         # 層 2：MACD
-        ax2.set_facecolor(PANEL_BG)
-        ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.85)
-        ax2.plot(x, df["dif"], linewidth=0.5, color="#00E5FF", label="DIF")
-        ax2.plot(x, df["dem"], linewidth=0.5, color="#FFB300", label="DEA")
-        ax2.axhline(0, color="#2a2a2a", linestyle=":", linewidth=1)
-        ax2.yaxis.tick_right()
-        ax2.tick_params(axis="y", labelsize=7, colors="#888888")
-        ax2.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax2.text(0.015, 0.80, "MACD", transform=ax2.transAxes, fontsize=7.5, fontweight="bold", color="#888888")
+        osc_colors = ['#FF3B30' if val >= 0 else '#00C853' for val in df["OSC"]]
+        fig.add_trace(go.Bar(x=df["date"], y=df["OSC"], marker_color=osc_colors, name="OSC"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["DIF"], line=dict(color="#00E5FF", width=1), name="DIF"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["DEA"], line=dict(color="#FFB300", width=1), name="DEA"), row=2, col=1)
 
         # 層 3：成交量
-        ax3.set_facecolor(PANEL_BG)
-        ax3.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.85)
-        ax3.plot(x, df["vol_ma5"], linewidth=0.5, color="#00E5FF", label="VOL5")
-        ax3.yaxis.tick_right()
-        ax3.tick_params(axis="y", labelsize=7, colors="#888888")
-        ax3.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax3.text(0.015, 0.80, "成交量(張)", transform=ax3.transAxes, fontsize=7.5, fontweight="bold", color="#888888")
+        fig.add_trace(go.Bar(x=df["date"], y=df["vol"], marker_color=bar_colors, name="成交量"), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=df["VOL5"], line=dict(color="#00E5FF", width=1), name="VOL5"), row=3, col=1)
 
         # 層 4：大戶與羊群持股
-        ax4.set_facecolor(PANEL_BG)
-        if len(big_holder) > 0 and len(sheep_holder) > 0:
-            b_plot = big_holder[-len(df):]
-            s_plot = sheep_holder[-len(df):]
-            x_chip = x[-len(b_plot):]
-            ax4.plot(x_chip, b_plot, color="#FF3B30", linewidth=1.0, marker='o', markersize=1.5, label="大戶(%)")
-            ax4.plot(x_chip, s_plot, color="#00C853", linewidth=1.0, marker='s', markersize=1.5, label="羊群(%)")
-        ax4.yaxis.tick_right()
-        ax4.tick_params(axis="y", labelsize=7, colors="#888888")
-        ax4.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax4.legend(loc="upper left", fontsize=6.5)
-        ax4.text(0.015, 0.80, "大戶與羊群", transform=ax4.transAxes, fontsize=7.5, fontweight="bold", color="#888888")
+        b_plot = big_holder[-len(df):]
+        s_plot = sheep_holder[-len(df):]
+        fig.add_trace(go.Scatter(x=df["date"], y=b_plot, line=dict(color="#FF3B30", width=1.2), name="大戶(%)"), row=4, col=1)
+        fig.add_trace(go.Scatter(x=df["date"], y=s_plot, line=dict(color="#00C853", width=1.2), name="羊群(%)"), row=4, col=1)
 
         # 層 5：多空線色帶
-        ax5.set_facecolor(PANEL_BG)
-        trend_colors = [BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR for is_bull in df["long_trend"]]
-        ax5.bar(x, [1] * len(df), width=1.0, color=trend_colors, edgecolor="none")
-        ax5.text(0.015, 0.5, "多空線", transform=ax5.transAxes, fontsize=7.5, color="#FFFFFF", ha="left", va="center")
-        ax5.set_yticks([])
+        trend_colors = ['#FF3B30' if val == 1 else '#00C853' for val in df["LongTrend"]]
+        fig.add_trace(go.Bar(x=df["date"], y=[1]*len(df), marker_color=trend_colors, name="多空線"), row=5, col=1)
 
-        for ax in [ax1, ax2, ax3, ax4, ax5]:
-            for spine in ax.spines.values():
-                spine.set_visible(True)
-                spine.set_color(SUB_BORDER)
-                spine.set_linewidth(0.7)
+        # 十字查詢線互動開關設定
+        cursor_mode = "x unified" if show_crosshair else False
+        hover_mode_setting = "x unified" if show_crosshair else "closest"
 
-        plt.subplots_adjust(left=0.01, right=0.98, top=0.96, bottom=0.05, hspace=0.06)
-        st.pyplot(fig, use_container_width=True, dpi=250)
+        fig.update_layout(
+            title=dict(text=f"[{stock_id}] {stock_name} - 專業多維度籌碼技術圖表", font=dict(size=13, color="white")),
+            template="plotly_dark",
+            paper_bgcolor="#000000",
+            plot_bgcolor="#0a0a0a",
+            height=680,
+            margin=dict(l=10, r=45, t=30, b=10),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=8)),
+            hovermode=hover_mode_setting,
+            xaxis_showspikes=show_crosshair,
+            yaxis_showspikes=show_crosshair,
+            spikemode="toapps"
+        )
+
+        fig.update_xaxes(showgrid=True, gridcolor="#1a1a1a", zeroline=False)
+        fig.update_yaxes(showgrid=True, gridcolor="#1a1a1a", zeroline=False, side="right")
+        fig.update_yaxes(showticklabels=False, row=5, col=1)
+
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     # =========================================================
     # 分頁二：秒速選股
@@ -547,7 +506,7 @@ if stock_options:
             with col_l:
                 st.dataframe(df_display.iloc[:8], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
             with col_r:
-                st.dataframe(df_display.iloc[8:], column_config={"趨選圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
+                st.dataframe(df_display.iloc[8:], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
         else:
             st.warning("找不到總表檔案。")
 
@@ -567,21 +526,24 @@ if stock_options:
             {"title": "每股盈餘 (EPS)", "val1": [0.85, 0.92, 1.15, 1.02, 1.30], "val2": []}
         ]
 
-        plt.style.use("dark_background")
         cols = st.columns(2)
         for idx, ds in enumerate(data_sets):
-            fig, ax = plt.subplots(figsize=(4.2, 2.0))
-            ax.plot(quarters, ds["val1"], marker='o', markersize=3, color="#00ff66", linewidth=1.2)
+            fig_f = go.Figure()
+            fig_f.add_trace(go.Scatter(x=quarters, y=ds["val1"], mode='lines+markers', name='主指標', line=dict(color='#00ff66', width=2)))
             if ds["val2"]:
-                ax.plot(quarters, ds["val2"], marker='s', markersize=3, color="#3498db", linewidth=1.2)
-            ax.set_title(f"[{target_code}] {ds['title']}", color="white", fontsize=8.5, fontweight="bold")
-            ax.tick_params(axis='both', labelsize=6.5)
-            ax.grid(True, linestyle=":", alpha=0.3)
-            fig.tight_layout(pad=0.3)
-            
+                fig_f.add_trace(go.Scatter(x=quarters, y=ds["val2"], mode='lines+markers', name='次指標', line=dict(color='#3498db', width=2)))
+            fig_f.update_layout(
+                title=dict(text=f"[{target_code}] {ds['title']}", font=dict(size=11, color="white")),
+                template="plotly_dark",
+                paper_bgcolor="#0a0a0a",
+                plot_bgcolor="#0a0a0a",
+                height=220,
+                margin=dict(l=10, r=10, t=30, b=10),
+                legend=dict(font=dict(size=8))
+            )
             with cols[idx % 2]:
                 with st.expander(f"📊 {ds['title']} (放大)", expanded=False):
-                    st.pyplot(fig, use_container_width=True)
+                    st.plotly_chart(fig_f, use_container_width=True)
 
 else:
     st.warning("請確認 StockIDs.xlsx 檔案已就位。")
