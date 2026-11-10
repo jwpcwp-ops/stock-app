@@ -1,14 +1,15 @@
-from datetime import datetime
-import json
 import os
+import json
 import urllib.request
+from datetime import datetime
+import pandas as pd
+import numpy as np
+import yfinance as yf
+import streamlit as st
+import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import matplotlib.patheffects as path_effects
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import streamlit as st
-import yfinance as yf
+import concurrent.futures
 
 # ---------------------------------------------------------
 # 1. 頁面基本設定 (針對手機極致緊湊優化)
@@ -108,7 +109,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 資料抓取與技術指標策略函數
+# 5. 高效能多執行緒資料抓取與策略函數
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -128,7 +129,7 @@ def load_local_cache_cached():
             pass
     return cache_dict
 
-def get_comprehensive_stock_data(stock_id, target_days=250):
+def fetch_single_stock_data(stock_id, target_days=250):
     cache_dict = load_local_cache_cached()
     today_str = datetime.today().strftime("%Y-%m-%d")
     df_yf = pd.DataFrame()
@@ -195,18 +196,20 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
         cached = cache_dict[stock_id]
         big_holder = np.array(cached.get("big_holder", [40.0]*len(k_records)))
         sheep_holder = np.array(cached.get("sheep_holder", [42.0]*len(k_records)))
+        w_dates = cached.get("w_dates", [])
     else:
         seed_val = int(stock_id) if stock_id.isdigit() else 42
         np.random.seed(seed_val)
         n_p = len(k_records)
         big_holder = 38.0 + np.cumsum(np.random.randn(n_p) * 0.4)
         sheep_holder = 42.0 + np.cumsum(np.random.randn(n_p) * 0.3)
+        w_dates = [r["date"] for r in k_records]
 
-    return k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio
+    return stock_id, k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio, w_dates
 
-# --- 您指定的三大策略選股邏輯函數 ---
+# --- 技術面與籌碼策略判斷函數 ---
 def check_kingkong_signal(k_records):
-    """【策略四 : 金剛指標】判斷邏輯"""
+    """【金剛指標】"""
     if len(k_records) < 200: return False
     closes = [i["close"] for i in k_records]
     volumes = [i["vol"] for i in k_records]
@@ -215,31 +218,23 @@ def check_kingkong_signal(k_records):
     ma200 = s_close.rolling(window=200).mean().iloc[idx]
     ma20_vol = s_vol.rolling(window=20).mean().iloc[idx]
     is_成立 = s_close.ewm(span=3, adjust=False).mean().iloc[idx] > s_close.ewm(span=15, adjust=False).mean().iloc[idx]
-    
-    is_pattern_ok = is_成立 and closes[idx] > ma200 and closes[idx] >= max(closes[idx-2:idx])
-    is_vol_ratio_ok = volumes[idx] > ma20_vol * 3.0 
-    is_min_vol_ok = volumes[idx] >= 10000                        
-    return is_pattern_ok and is_vol_ratio_ok and is_min_vol_ok
+    return (is_成立 and closes[idx] > ma200 and closes[idx] >= max(closes[idx-2:idx])) and (volumes[idx] > ma20_vol * 3.0) and (volumes[idx] >= 10000)
 
 def check_macd_signal(k_records):
-    """【策略三 : MACD 選股】判斷邏輯"""
+    """【MACD 選股】"""
     if len(k_records) < 50: return False
     closes = [i["close"] for i in k_records]
     volumes = [i["vol"] for i in k_records]
     s_close, s_vol = pd.Series(closes), pd.Series(volumes)
-    
     dif = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
     dem = dif.ewm(span=9, adjust=False).mean()
     vol_ma = s_vol.rolling(window=20).mean().iloc[-1]
     idx = len(k_records) - 1
-    
     is_macd_cross = dif.iloc[idx-1] <= dem.iloc[idx-1] and dif.iloc[idx] > dem.iloc[idx] and dif.iloc[idx] > 0
-    is_vol_ratio_ok = volumes[idx] > (vol_ma * 1.5) 
-    is_min_vol_ok = volumes[idx] >= 500                        
-    return is_macd_cross and is_vol_ratio_ok and is_min_vol_ok
+    return is_macd_cross and (volumes[idx] > vol_ma * 1.5) and (volumes[idx] >= 500)
 
 def check_bottom_surge_signal(k_records):
-    """【策略九 : 底部量大強漲】孫慶龍老師空頭底部選股邏輯"""
+    """【底部量大強漲】"""
     if len(k_records) < 60: return False
     highs = [i["high"] for i in k_records]
     lows = [i["low"] for i in k_records]
@@ -250,12 +245,12 @@ def check_bottom_surge_signal(k_records):
     
     period_high = max(highs[max(0, idx-59):idx])
     period_low = min(lows[max(0, idx-59):idx])
+    if period_low == 0: return False
     price_range_ratio = (period_high - period_low) / period_low
     is_consolidation_ok = price_range_ratio < 0.20
     
     max_prev_vol = max(volumes[max(0, idx-59):idx]) if idx >= 60 else max(volumes[:idx])
     is_volume_surge_ok = (volumes[idx] >= 100) and (volumes[idx] >= max_prev_vol * 1.4)
-    
     is_red_k = closes[idx] > opens[idx]
     is_close_highest = (highs[idx] - closes[idx]) / (highs[idx] - lows[idx] + 1e-6) < 0.15
     return is_consolidation_ok and is_volume_surge_ok and is_red_k and is_close_highest
@@ -263,12 +258,9 @@ def check_bottom_surge_signal(k_records):
 # ---------------------------------------------------------
 # 6. Session State 初始化
 # ---------------------------------------------------------
-if "selected_index" not in st.session_state:
-    st.session_state.selected_index = 0
-if "screened_results" not in st.session_state:
-    st.session_state.screened_results = []
-if "app_mode_idx" not in st.session_state:
-    st.session_state.app_mode_idx = 0
+if "selected_index" not in st.session_state: st.session_state.selected_index = 0
+if "screened_results" not in st.session_state: st.session_state.screened_results = []
+if "app_mode_idx" not in st.session_state: st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
 # 7. 網頁主介面佈局 (4個分頁按鈕並排)
@@ -281,24 +273,20 @@ if stock_options:
 
     with m_col1:
         if st.button(modes[0], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 0 else "secondary"):
-            st.session_state.app_mode_idx = 0
-            st.rerun()
+            st.session_state.app_mode_idx = 0; st.rerun()
     with m_col2:
         if st.button(modes[1], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 1 else "secondary"):
-            st.session_state.app_mode_idx = 1
-            st.rerun()
+            st.session_state.app_mode_idx = 1; st.rerun()
     with m_col3:
         if st.button(modes[2], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 2 else "secondary"):
-            st.session_state.app_mode_idx = 2
-            st.rerun()
+            st.session_state.app_mode_idx = 2; st.rerun()
     with m_col4:
         if st.button(modes[3], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 3 else "secondary"):
-            st.session_state.app_mode_idx = 3
-            st.rerun()
+            st.session_state.app_mode_idx = 3; st.rerun()
 
     app_mode_map = [
         "📈 單股籌碼圖表檢視",
-        "⚡ 秒速選股：技術面策略",
+        "⚡ 秒速選股：籌碼與技術策略",
         "📋 每週大戶增幅前 15 名總表",
         "📊 基本面與圖表",
     ]
@@ -308,17 +296,14 @@ if stock_options:
     # 分頁一：單股圖表
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
-        if st.session_state.selected_index >= len(stock_options):
-            st.session_state.selected_index = 0
+        if st.session_state.selected_index >= len(stock_options): st.session_state.selected_index = 0
 
         selected_stock = st.selectbox(
             "選擇股票", stock_options, index=st.session_state.selected_index,
             label_visibility="collapsed", key="stock_select_box"
         )
-        try:
-            st.session_state.selected_index = stock_options.index(selected_stock)
-        except:
-            st.session_state.selected_index = 0
+        try: st.session_state.selected_index = stock_options.index(selected_stock)
+        except: st.session_state.selected_index = 0
 
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
@@ -341,7 +326,7 @@ if stock_options:
             with ma_cols[9]: show_k120 = st.checkbox("120天", value=False)
 
         k_days_choice = 250 if show_k200 else (120 if show_k120 else 60)
-        k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id, target_days=k_days_choice)
+        _, k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio, _ = fetch_single_stock_data(stock_id, target_days=k_days_choice)
 
         df = pd.DataFrame(k_records)
         s_close = df["close"]
@@ -506,45 +491,77 @@ if stock_options:
         st.pyplot(fig, use_container_width=True, dpi=250)
 
     # =========================================================
-    # 分頁二：秒速選股（支援金剛指標、MACD選股、底部量大強漲）
+    # 分頁二：秒速選股（支援多執行緒平行高速掃描）
     # =========================================================
-    elif app_mode == "⚡ 秒速選股：技術面策略":
-        st.markdown('<p class="sub-header-14">⚡ 選擇技術面選股策略</p>', unsafe_allow_html=True)
-        strategy_choice = st.selectbox(
-            "選擇策略", 
-            ["📈 金剛指標", "📊 MACD 選股", "🚀 底部量大強漲"], 
-            label_visibility="collapsed"
-        )
+    elif app_mode == "⚡ 秒速選股：籌碼與技術策略":
+        st.markdown('<p class="sub-header-14">⚡ 選擇選股策略 (多執行緒高速掃描)</p>', unsafe_allow_html=True)
         
-        run_btn = st.button("🚀 執行策略選股", type="primary", use_container_width=True)
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            strategy_choice = st.selectbox(
+                "選擇策略", 
+                ["📊 大戶與羊群黃金交叉", "📉 大戶與羊群死亡交叉", "📈 金剛指標", "📊 MACD 選股", "🚀 底部量大強漲"], 
+                label_visibility="collapsed"
+            )
+        with col_s2:
+            if "大戶" in strategy_choice:
+                recent_weeks = st.slider("最近幾週內", 1, 8, 3, 1)
+                min_big_holder = st.slider("大戶持股最低 (%)", 30.0, 70.0, 40.0, 1.0)
+            else:
+                st.info("技術面策略自動套用預設條件")
+
+        run_btn = st.button("🚀 執行高速平行選股", type="primary", use_container_width=True)
 
         if run_btn:
-            with st.spinner(f"正在執行 [{strategy_choice}] 策略掃描..."):
+            with st.spinner(f"🚀 正在使用多執行緒高速掃描 [{strategy_choice}] 策略..."):
                 matched_results = []
+                all_stocks = [(str(row["代碼"]), str(row["名稱"])) for _, row in stock_df.iterrows()]
                 cache_dict = load_local_cache_cached()
+                is_golden_search = "黃金交叉" in strategy_choice
 
-                for _, row in stock_df.iterrows():
-                    s_id, s_name = str(row["代碼"]), str(row["名稱"])
-                    # 取得個股 K 線歷史資料
-                    k_records, _, _, _, _, _ = get_comprehensive_stock_data(s_id, target_days=250)
-                    if not k_records or len(k_records) < 50:
-                        continue
-                    
-                    is_matched = False
-                    if strategy_choice == "📈 金剛指標":
-                        is_matched = check_kingkong_signal(k_records)
-                    elif strategy_choice == "📊 MACD 選股":
-                        is_matched = check_macd_signal(k_records)
-                    elif strategy_choice == "🚀 底部量大強漲":
-                        is_matched = check_bottom_surge_signal(k_records)
+                def process_stock(stock_item):
+                    s_id, s_name = stock_item
+                    try:
+                        _, k_records, big_h, sheep_h, _, _, _, w_dates = fetch_single_stock_data(s_id, target_days=250)
+                        if not k_records or len(k_records) < 50:
+                            return None
 
-                    if is_matched:
-                        matched_results.append({
-                            "代碼": s_id, 
-                            "名稱": s_name,
-                            "策略": strategy_choice,
-                            "最新收盤": k_records[-1]["close"]
-                        })
+                        is_matched = False
+                        if "大戶與羊群" in strategy_choice:
+                            # 籌碼交叉判斷
+                            n_periods = len(big_h)
+                            if n_periods < 2 or float(big_h[-1]) < min_big_holder:
+                                return None
+                            g_crs, d_crs = [], []
+                            for i in range(1, n_periods):
+                                if big_h[i - 1] <= sheep_h[i - 1] and big_h[i] > sheep_h[i]: g_crs.append(i)
+                                elif big_h[i - 1] >= sheep_h[i - 1] and big_h[i] < sheep_h[i]: d_crs.append(i)
+                            target_crosses = g_crs if is_golden_search else d_crs
+                            recent_hit = [idx for idx in target_crosses if (n_periods - 1 - idx) < recent_weeks]
+                            if recent_hit:
+                                return {
+                                    "代碼": s_id, "名稱": s_name,
+                                    "訊號": "★ 黃金交叉" if is_golden_search else "✖ 死亡交叉",
+                                    "大戶(%)": round(float(big_h[-1]), 1)
+                                }
+                        elif strategy_choice == "📈 金剛指標":
+                            if check_kingkong_signal(k_records):
+                                return {"代碼": s_id, "名稱": s_name, "策略": strategy_choice, "最新收盤": k_records[-1]["close"]}
+                        elif strategy_choice == "📊 MACD 選股":
+                            if check_macd_signal(k_records):
+                                return {"代碼": s_id, "名稱": s_name, "策略": strategy_choice, "最新收盤": k_records[-1]["close"]}
+                        elif strategy_choice == "🚀 底部量大強漲":
+                            if check_bottom_surge_signal(k_records):
+                                return {"代碼": s_id, "名稱": s_name, "策略": strategy_choice, "最新收盤": k_records[-1]["close"]}
+                    except:
+                        pass
+                    return None
+
+                # 開啟 10 個執行緒同時平行跑
+                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                    results = list(executor.map(process_stock, all_stocks))
+                
+                matched_results = [r for r in results if r is not None]
                 st.session_state.screened_results = matched_results
 
         if st.session_state.screened_results:
