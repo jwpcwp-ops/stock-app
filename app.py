@@ -271,13 +271,13 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板：K線顯示數量與均線開關 ---
-        with st.expander("⚙️ K線數量與均線開關設定 (點擊展開)", expanded=True):
-            c_cnt1, c_cnt2 = st.columns([1, 2])
+        # --- 控制面板：K線顯示數量、黃金分割率、均線開關 (5, 10, 20, 30, 60, 120, 200) ---
+        with st.expander("⚙️ K線數量、黃金分割率與均線開關設定 (點擊展開)", expanded=True):
+            c_cnt1, c_cnt2 = st.columns([1, 1])
             with c_cnt1:
-                k_days_choice = st.selectbox("顯示 K線數量", [60, 120, 200], index=0)
+                k_days_choice = st.selectbox("顯示 K線數量基準", [60, 120, 200], index=0)
             with c_cnt2:
-                show_fib = st.checkbox("📐 顯示黃金分割率線", value=True)
+                show_fib = st.checkbox("📐 顯示黃金分割率開關", value=True)
 
             st.markdown("---")
             ma_cols = st.columns(7)
@@ -288,9 +288,9 @@ if stock_options:
             with ma_cols[2]:
                 show_ma20 = st.checkbox("20日", value=False)
             with ma_cols[3]:
-                show_ma35 = st.checkbox("35日", value=False)
+                show_ma30 = st.checkbox("30日", value=False)
             with ma_cols[4]:
-                show_ma65 = st.checkbox("65日", value=False)
+                show_ma60 = st.checkbox("60日", value=False)
             with ma_cols[5]:
                 show_ma120 = st.checkbox("120日", value=False)
             with ma_cols[6]:
@@ -322,13 +322,13 @@ if stock_options:
         df = pd.DataFrame(k_records)
         s_close = df["close"]
 
-        # 計算均線
+        # 計算均線 (5, 10, 20, 30, 60, 120, 200)
         ma_config = {
             "5日": (5, show_ma5, "#00E5FF"),
             "10日": (10, show_ma10, "#FFD700"),
             "20日": (20, show_ma20, "#FF00FF"),
-            "35日": (35, show_ma35, "#00FF66"),
-            "65日": (65, show_ma65, "#FFA500"),
+            "30日": (30, show_ma30, "#00FF66"),
+            "60日": (60, show_ma60, "#FFA500"),
             "120日": (120, show_ma120, "#9D4EDD"),
             "200日": (200, show_ma200, "#FFFFFF")
         }
@@ -347,8 +347,8 @@ if stock_options:
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
         df["long_trend"] = cond3 & cond4
 
-        # 純黑配色 (擬真券商 App 風格)
-        BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#000000", "#0a0a0a", "#1a1a1a", "#2a2a2a"
+        # 純黑配色 (券商專業圖 2 風格)
+        BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#000000", "#000000", "#222222", "#333333"
         BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3B30", "#00C853"
         body_colors = [BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR for o, c in zip(df["open"], df["close"])]
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
@@ -364,54 +364,74 @@ if stock_options:
         fig.patch.set_facecolor(BG_COLOR)
         x = list(range(len(df)))
 
-        # 層 1：K線與均線、黃金分割率
+        # 層 1：K線與實體均線、數值顯示、扣抵方向鍵、黃金分割率
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.7, alpha=0.9)
         body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
         body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
         ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
 
-        # 繪製均線 (實體線)
+        # 繪製均線 (實體線) 並帶有最新數值與扣抵方向箭頭提示
+        legend_labels = []
+        last_idx = len(df) - 1
         for ma_name, (period, is_show, color) in ma_config.items():
             if is_show:
-                ax1.plot(x, df[f"ma_{period}"], linewidth=0.8, color=color, label=f"MA{period}", linestyle="-", alpha=0.9)
+                ma_series = df[f"ma_{period}"]
+                ax1.plot(x, ma_series, linewidth=1.0, color=color, linestyle="-", alpha=0.9)
+                
+                # 計算扣抵方向箭頭 (與前一日比較)
+                val_now = ma_series.iloc[-1]
+                val_prev = ma_series.iloc[-2] if last_idx > 0 else val_now
+                arrow = "▲" if val_now >= val_prev else "▼"
+                
+                label_str = f"{ma_name}:{val_now:.1f}{arrow}"
+                legend_labels.append((label_str, color))
 
-        # 黃金分割率 (Fibonacci Retracement) 繪製
+        # 黃金分割率 (Fibonacci Retracement) 開關設置
         if show_fib and not df.empty:
             max_p = df["high"].max()
             min_p = df["low"].min()
             diff_p = max_p - min_p
             
-            # 常見黃金分割比例
             fib_levels = [
-                (0.0, "0%", max_p),
-                (0.191, "19.1%", max_p - diff_p * 0.191),
-                (0.382, "38.2%", max_p - diff_p * 0.382),
-                (0.5, "50.0%", max_p - diff_p * 0.5),
-                (0.618, "61.8%", max_p - diff_p * 0.618),
-                (0.809, "80.9%", max_p - diff_p * 0.809),
-                (1.0, "100%", min_p)
+                ("0%", max_p),
+                ("19.1%", max_p - diff_p * 0.191),
+                ("38.2%", max_p - diff_p * 0.382),
+                ("50.0%", max_p - diff_p * 0.5),
+                ("61.8%", max_p - diff_p * 0.618),
+                ("80.9%", max_p - diff_p * 0.809),
+                ("100%", min_p)
             ]
             
             for ratio_val, label_txt, price_val in fib_levels:
                 ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.8, alpha=0.7)
-                ax1.text(len(df) - 1, price_val, f" {price_val:.1f} ({label_txt})", color="#00E5FF", fontsize=7, va="center", ha="left", backgroundcolor="#0a0a0a")
+                ax1.text(last_idx, price_val, f" {price_val:.2f} ({label_txt})", color="#00E5FF", fontsize=7, va="center", ha="left", backgroundcolor="#000000")
 
-        ax1.set_title(f"[{stock_id}] {stock_name} - 專業多維度籌碼與黃金分割率", fontsize=10.5, fontweight="bold", color="white")
+        ax1.set_title(f"[{stock_id}] {stock_name} - 專業 K線與均線系統", fontsize=10.5, fontweight="bold", color="white")
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=7, colors="#888888")
-        ax1.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
-        ax1.legend(loc="upper left", fontsize=7, framealpha=0.3)
+        ax1.grid(True, linestyle=":", color=GRID_COLOR, alpha=0.8)
+
+        # 在圖表左上角顯示動態數值與扣抵方向
+        if legend_labels:
+            text_x = 0.01
+            text_y = 0.92
+            for l_str, l_col in legend_labels:
+                ax1.text(text_x, text_y, l_str, transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=l_col, backgroundcolor="#000000")
+                text_x += 0.13
+                if text_x > 0.85:
+                    text_x = 0.01
+                    text_y -= 0.08
 
         # 層 2：MACD
         ax2.set_facecolor(PANEL_BG)
         ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.85)
         ax2.plot(x, df["dif"], linewidth=0.5, color="#00E5FF", label="DIF")
         ax2.plot(x, df["dem"], linewidth=0.5, color="#FFB300", label="DEA")
-        ax2.axhline(0, color="#2a2a2a", linestyle=":", linewidth=1)
+        ax2.axhline(0, color="#333333", linestyle=":", linewidth=1)
         ax2.yaxis.tick_right()
         ax2.tick_params(axis="y", labelsize=7, colors="#888888")
-        ax2.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
+        ax2.grid(True, linestyle=":", color=GRID_COLOR, alpha=0.8)
         ax2.text(0.015, 0.80, "MACD", transform=ax2.transAxes, fontsize=7.5, fontweight="bold", color="#888888")
 
         # 層 3：成交量
@@ -420,7 +440,7 @@ if stock_options:
         ax3.plot(x, df["vol_ma5"], linewidth=0.5, color="#00E5FF", label="VOL5")
         ax3.yaxis.tick_right()
         ax3.tick_params(axis="y", labelsize=7, colors="#888888")
-        ax3.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
+        ax3.grid(True, linestyle=":", color=GRID_COLOR, alpha=0.8)
         ax3.text(0.015, 0.80, "成交量(張)", transform=ax3.transAxes, fontsize=7.5, fontweight="bold", color="#888888")
 
         # 層 4：大戶與羊群持股
@@ -433,7 +453,7 @@ if stock_options:
             ax4.plot(x_chip, s_plot, color="#00C853", linewidth=1.0, marker='s', markersize=1.5, label="羊群(%)")
         ax4.yaxis.tick_right()
         ax4.tick_params(axis="y", labelsize=7, colors="#888888")
-        ax4.grid(axis="y", linestyle=":", color=GRID_COLOR, alpha=0.8)
+        ax4.grid(True, linestyle=":", color=GRID_COLOR, alpha=0.8)
         ax4.legend(loc="upper left", fontsize=6.5)
         ax4.text(0.015, 0.80, "大戶與羊群", transform=ax4.transAxes, fontsize=7.5, fontweight="bold", color="#888888")
 
