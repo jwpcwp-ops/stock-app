@@ -84,7 +84,7 @@ else:
 
 plt.rcParams["axes.unicode_minus"] = False
 
-# 高亮發光文字效果函式 (讓字體產生光亮般的亮度)
+# 高亮發光文字效果函式 (讓字體產生光亮般的亮度與立體感)
 def get_bright_effect(stroke_color="#FFFFFF", linewidth=0.6):
     return [path_effects.withStroke(linewidth=linewidth, foreground=stroke_color), path_effects.Normal()]
 
@@ -396,7 +396,6 @@ if stock_options:
             
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # 頂部即時行情資訊 (緊湊格式 + 發光亮白)
         header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.7))
@@ -413,13 +412,18 @@ if stock_options:
                     text_y -= 0.08
 
         # ---------------------------------------------------------
-        # 層 2：MACD (改回乾淨、緊湊的一整串文字格式，並帶有跟線條對應的發光色彩)
+        # 層 2：MACD (修正：移除寫死刻度，讓 Y 軸自動根據數值縮放與圖形對應)
         # ---------------------------------------------------------
         ax2.set_facecolor(PANEL_BG)
         ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.9)
         ax2.plot(x, df["dif"], linewidth=0.5, color="#00E5FF", label="DIF")
         ax2.plot(x, df["dem"], linewidth=0.5, color="#FFB300", label="DEA")
         ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
+        
+        # 關鍵修正：讓 MACD 副圖根據實際數值自動縮放 Y 軸，徹底解決數值與圖形脫節問題
+        ax2.relim()
+        ax2.autoscale_view(scalex=False, scaley=True)
+
         ax2.yaxis.tick_right()
         ax2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
         for t in ax2.get_yticklabels():
@@ -427,24 +431,19 @@ if stock_options:
             t.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
         ax2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        # 緊湊乾淨的一整串文字，用色彩對應各別線條並加上發光效果
-        t_macd_label = ax2.text(0.015, 0.78, "MACD  ", transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_macd_label.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
-
-        t_dif = ax2.text(0.075, 0.78, f"DIF:{cur_dif:.2f}{dif_arrow}", transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#00E5FF")
-        t_dif.set_path_effects(get_bright_effect("#00E5FF", 0.6))
-
-        t_mid1 = ax2.text(0.20, 0.78, " | ", transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_mid1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
-
-        t_dea = ax2.text(0.22, 0.78, f"DEA:{cur_dem:.2f}{dem_arrow}", transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#FFB300")
-        t_dea.set_path_effects(get_bright_effect("#FFB300", 0.6))
-
-        t_mid2 = ax2.text(0.345, 0.78, " | ", transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_mid2.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
-
-        t_osc = ax2.text(0.365, 0.78, f"OSC:{cur_osc:.2f}{osc_arrow}", transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_osc.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+        macd_tokens = [
+            ("MACD  ", "#FFFFFF"),
+            (f"DIF:{cur_dif:.2f}{dif_arrow}", "#00E5FF"),
+            (" | ", "#FFFFFF"),
+            (f"DEA:{cur_dem:.2f}{dem_arrow}", "#FFB300"),
+            (" | ", "#FFFFFF"),
+            (f"OSC:{cur_osc:.2f}{osc_arrow}", "#FFFFFF")
+        ]
+        start_x = 0.015
+        for text_str, color_code in macd_tokens:
+            t_tok = ax2.text(start_x, 0.78, text_str, transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color=color_code)
+            t_tok.set_path_effects(get_bright_effect(color_code, 0.6))
+            start_x += len(text_str) * 0.0115
 
         # ---------------------------------------------------------
         # 層 3：成交量 (爆亮發光)
@@ -464,7 +463,7 @@ if stock_options:
         t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         # ---------------------------------------------------------
-        # 層 4：大戶與羊群持股 (線條粗細 0.5，緊湊一整串格式並帶有發光色彩)
+        # 層 4：大戶與羊群持股
         # ---------------------------------------------------------
         ax4.set_facecolor(PANEL_BG)
         cur_big, cur_sheep = 0.0, 0.0
@@ -484,18 +483,17 @@ if stock_options:
             t.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
         ax4.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        # 緊湊一整串格式，大戶紅、羊群綠並加上發光描邊
-        t_chip_label = ax4.text(0.015, 0.78, "大戶與羊群  ", transform=ax4.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_chip_label.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
-
-        t_big_text = ax4.text(0.105, 0.78, f"大戶:{cur_big:.1f}%", transform=ax4.transAxes, fontsize=8.5, fontweight="bold", color="#FF3B30")
-        t_big_text.set_path_effects(get_bright_effect("#FF3B30", 0.6))
-
-        t_chip_mid = ax4.text(0.195, 0.78, " | ", transform=ax4.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_chip_mid.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
-
-        t_sheep_text = ax4.text(0.215, 0.78, f"羊群:{cur_sheep:.1f}%", transform=ax4.transAxes, fontsize=8.5, fontweight="bold", color="#00C853")
-        t_sheep_text.set_path_effects(get_bright_effect("#00C853", 0.6))
+        chip_tokens = [
+            ("大戶與羊群  ", "#FFFFFF"),
+            (f"大戶:{cur_big:.1f}%", "#FF3B30"),
+            (" | ", "#FFFFFF"),
+            (f"羊群:{cur_sheep:.1f}%", "#00C853")
+        ]
+        start_x_chip = 0.015
+        for text_str, color_code in chip_tokens:
+            t_tok = ax4.text(start_x_chip, 0.78, text_str, transform=ax4.transAxes, fontsize=8.5, fontweight="bold", color=color_code)
+            t_tok.set_path_effects(get_bright_effect(color_code, 0.6))
+            start_x_chip += len(text_str) * 0.0115
 
         # ---------------------------------------------------------
         # 層 5：多空線色帶
