@@ -399,14 +399,18 @@ if stock_options:
             height=680,
             margin=dict(l=10, r=45, t=30, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=8)),
-            hovermode=hover_mode_setting,
-            xaxis_showspikes=show_crosshair,
-            yaxis_showspikes=show_crosshair,
-            spikemode="to axes"  # <--- 已在此處修正正確參數
+            hovermode=hover_mode_setting
         )
 
-        fig.update_xaxes(showgrid=True, gridcolor="#1a1a1a", zeroline=False)
-        fig.update_yaxes(showgrid=True, gridcolor="#1a1a1a", zeroline=False, side="right")
+        # 正確將 spike 設定放在 xaxes 與 yaxes 中
+        fig.update_xaxes(
+            showgrid=True, gridcolor="#1a1a1a", zeroline=False,
+            showspikes=show_crosshair, spikemode="to axes", spikesnap="cursor", spikedash="solid", spikecolor="#888888", spikethickness=1
+        )
+        fig.update_yaxes(
+            showgrid=True, gridcolor="#1a1a1a", zeroline=False, side="right",
+            showspikes=show_crosshair, spikemode="to axes", spikesnap="cursor", spikedash="solid", spikecolor="#888888", spikethickness=1
+        )
         fig.update_yaxes(showticklabels=False, row=5, col=1)
 
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
