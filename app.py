@@ -94,15 +94,15 @@ def get_bright_effect(stroke_color="#FFFFFF", linewidth=0.6):
 @st.cache_data
 def load_stock_list():
     try:
-        df = pd.read_excel("StockIDs.xlsx", sheet_name="StockIDs")
-        df["代碼"] = df["代碼"].astype(str).str.zfill(4)
+        df = pd.read_excel("StockIDs.xlsx", sheet_name="StockIDs", dtype={"代碼": str})
+        df["代碼"] = df["代碼"].astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
         options = df["代碼"] + " " + df["名稱"].astype(str)
         return options.tolist(), df
     except Exception as e:
-        # 若無 Excel 檔案或發生錯誤時的預設清單（包含大盤與期貨）
+        # 若無 Excel 檔案時的預設清單
         default_data = pd.DataFrame({
-            "代碼": ["0000", "0001", "0002", "2330"],
-            "名稱": ["加權指數", "櫃檯指數", "台指期", "台積電"]
+            "代碼": ["99991", "99992", "99993", "99994", "99995", "2330"],
+            "名稱": ["加權指數", "櫃檯指數", "台指期", "電子指數", "金融指數", "台積電"]
         })
         options = default_data["代碼"] + " " + default_data["名稱"]
         return options.tolist(), default_data
@@ -110,7 +110,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取 (支援大盤與期貨代號對應)
+# 5. 本地快取支援與資料抓取 (支援 9999 系列代號對應)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -136,11 +136,13 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
 
     df_yf = pd.DataFrame()
     
-    # 智慧對應加權指數、櫃檯指數與台指期代號
+    # 智慧對應 9999 系列代號至 Yahoo Finance 真實代號
     index_ticker_map = {
-        "0000": "^TWII",
-        "0001": "^TWOII",
-        "0002": "TX=F"
+        "99991": "^TWII",   # 加權指數
+        "99992": "^TWOII",  # 櫃檯指數
+        "99993": "TX=F",    # 台指期
+        "99994": "^TE",     # 電子指數
+        "99995": "^TF"      # 金融指數
     }
 
     if stock_id in index_ticker_map:
@@ -163,7 +165,6 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
         df_yf = df_yf.dropna(subset=["Close", "Volume"])
         df_k = df_yf.tail(target_days).copy()
         
-        # 針對期貨或大盤量能可能為 0 的防護
         vol_series = df_k["Volume"] if "Volume" in df_k.columns else pd.Series([0]*len(df_k), index=df_k.index)
         vol_daily = vol_series / 1000
         cur_vol = float(vol_daily.iloc[-1]) if len(vol_daily) > 0 else 0.0
@@ -432,7 +433,7 @@ if stock_options:
                     text_y -= 0.08
 
         # ---------------------------------------------------------
-        # 層 2：MACD (Y軸自動縮放 + 緊湊乾淨字距修正)
+        # 層 2：MACD (Y軸自動縮放 + 極致緊湊字距)
         # ---------------------------------------------------------
         ax2.set_facecolor(PANEL_BG)
         ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.9)
@@ -440,7 +441,6 @@ if stock_options:
         ax2.plot(x, df["dem"], linewidth=0.5, color="#FFB300", label="DEA")
         ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
         
-        # 讓 MACD 副圖根據實際數值自動縮放 Y 軸，完美解決數值與圖形脫節問題
         ax2.relim()
         ax2.autoscale_view(scalex=False, scaley=True)
 
@@ -451,7 +451,6 @@ if stock_options:
             t.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
         ax2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        # 使用極小的間距係數 (0.007)，確保文字緊密相連不散開
         macd_tokens = [
             ("MACD  ", "#FFFFFF"),
             (f"DIF:{cur_dif:.2f}{dif_arrow}", "#00E5FF"),
@@ -484,7 +483,7 @@ if stock_options:
         t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         # ---------------------------------------------------------
-        # 層 4：大戶與羊群持股 (線條 0.5粗細，極致緊湊單行字距修正)
+        # 層 4：大戶與羊群持股
         # ---------------------------------------------------------
         ax4.set_facecolor(PANEL_BG)
         cur_big, cur_sheep = 0.0, 0.0
