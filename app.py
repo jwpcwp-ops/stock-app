@@ -338,7 +338,7 @@ if stock_options:
         x = list(range(len(df)))
 
         # ---------------------------------------------------------
-        # 層 1：K線、均線、亮綠/亮白極致清晰即時資訊列
+        # 層 1：K線、均線、亮白資訊列
         # ---------------------------------------------------------
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.5, alpha=0.95)
@@ -355,7 +355,8 @@ if stock_options:
                 
                 val_now = float(ma_series.iloc[-1]) if not pd.isna(ma_series.iloc[-1]) else 0.0
                 val_prev = float(ma_series.iloc[-2]) if last_idx > 0 and not pd.isna(ma_series.iloc[-2]) else val_now
-                arrow = "▲" if val_now >= val_prev else "▼"
+                # 改為線條箭頭 ↑ / ↓
+                arrow = "↑" if val_now >= val_prev else "↓"
                 
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
                 legend_labels.append((label_str, color))
@@ -390,10 +391,10 @@ if stock_options:
             
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # 頂部即時行情資訊：擬真飛狐軟體「鮮綠高亮」字體霸氣呈現
+        # 頂部即時行情資訊：改為高亮度純白色（#FFFFFF）
         header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
-        t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#00FF00")
-        t_header.set_path_effects(get_bright_effect("#00FF00", 0.6))
+        t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#FFFFFF")
+        t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         # 左上角動態均線
         if legend_labels:
@@ -581,7 +582,7 @@ if stock_options:
             with col_l:
                 st.dataframe(df_display.iloc[:8], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
             with col_r:
-                st.dataframe(df_display.iloc[8:], column_config={"趨勢圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
+                st.dataframe(df_display.iloc[8:], column_config={"趨選圖連結": st.column_config.LinkColumn("🔗 連結", display_text="📈 金字塔")}, use_container_width=True, hide_index=True)
         else:
             st.warning("找不到總表檔案。")
 
