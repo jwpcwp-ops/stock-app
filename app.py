@@ -226,7 +226,7 @@ if stock_options:
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
     # =========================================================
-    # 分頁一：單股圖表 (Plotly 互動式引擎：支援十字查詢線、均線開關、K線根數、黃金分割率)
+    # 分頁一：單股圖表
     # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
@@ -389,7 +389,6 @@ if stock_options:
         fig.add_trace(go.Bar(x=df["date"], y=[1]*len(df), marker_color=trend_colors, name="多空線"), row=5, col=1)
 
         # 十字查詢線互動開關設定
-        cursor_mode = "x unified" if show_crosshair else False
         hover_mode_setting = "x unified" if show_crosshair else "closest"
 
         fig.update_layout(
@@ -403,7 +402,7 @@ if stock_options:
             hovermode=hover_mode_setting,
             xaxis_showspikes=show_crosshair,
             yaxis_showspikes=show_crosshair,
-            spikemode="toapps"
+            spikemode="to axes"  # <--- 已在此處修正正確參數
         )
 
         fig.update_xaxes(showgrid=True, gridcolor="#1a1a1a", zeroline=False)
