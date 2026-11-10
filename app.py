@@ -109,7 +109,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取 (支援多週期: 60分、日、週、月)
+# 5. 本地快取支援與資料抓取 (精準修正多週期日線抓取)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -143,22 +143,26 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
     else:
         tickers_to_try = [stock_id + ".TW", stock_id + ".TWO"]
 
-    # 根據選擇的週期設定 yfinance 的 interval 與抓取歷史長度
+    # 針對不同週期設定合適的 yfinance 參數
     yf_interval = "1d"
     yf_period = "1y"
     if period_type == "60分鐘線":
         yf_interval = "60m"
-        yf_period = "60d"  # yfinance 對 60m 限制歷史長度最多約 60 天
+        yf_period = "60d"
     elif period_type == "週線":
         yf_interval = "1wk"
         yf_period = "2y"
     elif period_type == "月線":
         yf_interval = "1mo"
         yf_period = "5y"
+    elif period_type == "日線":
+        yf_interval = "1d"
+        yf_period = "ytd"  # 改用 ytd 或 1y 確保涵蓋到最新交易日
 
     for ticker in tickers_to_try:
         try:
-            temp_df = yf.download(ticker, period=yf_period, interval=yf_interval, progress=False)
+            # 確保抓取時強制更新
+            temp_df = yf.download(ticker, period=yf_period, interval=yf_interval, progress=False, auto_adjust=True)
             if not temp_df.empty and "Close" in temp_df.columns:
                 df_yf = temp_df
                 break
@@ -187,7 +191,6 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         
         k_records = []
         for idx, row in df_k.iterrows():
-            # 針對不同週期格式化時間字串
             date_str = idx.strftime("%Y/%m/%d %H:%M") if period_type == "60分鐘線" else idx.strftime("%Y/%m/%d")
             o_val = float(row["Open"])
             h_val = float(row["High"])
@@ -299,7 +302,7 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板 (新增週期切換選擇) ---
+        # --- 控制面板 ---
         with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
             p_col1, p_col2 = st.columns([1, 2])
             with p_col1:
@@ -470,12 +473,12 @@ if stock_options:
             
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # --- 基礎資訊列 (不含趨勢字串) ---
+        # --- 基礎資訊列 ---
         header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.7))
 
-        # --- 獨立渲染「季線趨勢狀態標籤」（放在量之後，保有專屬顏色：多頭紅字 / 空頭綠字） ---
+        # --- 獨立渲染「季線趨勢狀態標籤」（多頭紅字 / 空頭綠字） ---
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
