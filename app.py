@@ -62,7 +62,7 @@ st.markdown(
             border-radius: 6px !important;
             background-color: #0e1117 !important;
         }
-        /* 📱 st.pills 膠囊按鈕微縮字體與內邊距，完美融合成同一列 */
+        /* 📱 st.pills 膠囊按鈕微縮字體與內邊距，完美融合成單一橫列 */
         div[data-testid="stPills"] button {
             font-size: 11px !important;
             padding: 2px 6px !important;
@@ -335,7 +335,7 @@ if stock_options:
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        # 🎯 關鍵佈局修改：採用 columns 分割，實現左右並排於同一橫列
+        # 🎯 左右並排於同一橫列
         col_c1, col_c2 = st.columns([1.2, 2.8])
         
         with col_c1:
@@ -356,9 +356,13 @@ if stock_options:
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
         with col_c2:
-            # --- 控制面板 (左右並排於同一橫列) ---
+            # --- 控制面板 (完整納入新增的 QT, KDJ, RSI, W%, BIAS, MTM) ---
             with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
-                all_menu_options = ["60分", "日線", "週線", "月線", "5", "10", "20", "30", "60", "120", "200", "分割率", "250", "120"]
+                all_menu_options = [
+                    "60分", "日線", "週線", "月線", 
+                    "5", "10", "20", "30", "60", "120", "200", 
+                    "分割率", "QT", "KDJ", "RSI", "W%", "BIAS", "MTM", "250", "120"
+                ]
                 
                 selected_all = st.pills(
                     "圖表與均線選單",
@@ -383,6 +387,15 @@ if stock_options:
         show_ma120 = "120" in selected_all
         show_ma200 = "200" in selected_all
         show_fib = "分割率" in selected_all
+        
+        # 新增技術指標開關
+        show_qt = "QT" in selected_all
+        show_kdj = "KDJ" in selected_all
+        show_rsi = "RSI" in selected_all
+        show_wR = "W%" in selected_all
+        show_bias = "BIAS" in selected_all
+        show_mtm = "MTM" in selected_all
+
         show_k250 = "250" in selected_all
         show_k120 = "120" in selected_all
 
@@ -393,6 +406,8 @@ if stock_options:
 
         df = pd.DataFrame(k_records)
         s_close = df["close"]
+        s_high = df["high"]
+        s_low = df["low"]
 
         last_date = df["date"].iloc[-1] if not df.empty else ""
         last_open = float(df["open"].iloc[-1]) if not df.empty else 0.0
@@ -413,6 +428,36 @@ if stock_options:
 
         for ma_name, (period, is_show, color) in ma_config.items():
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
+
+        # --- 新增指標數據計算 ---
+        # 1. KDJ (9, 3, 3)
+        low_min9 = s_low.rolling(9).min()
+        high_max9 = s_high.rolling(9).max()
+        rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
+        df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
+        df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
+        df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
+
+        # 2. RSI (6, 12)
+        delta = s_close.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(6).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(6).mean()
+        rs = gain / (loss + 1e-8)
+        df["rsi_6"] = 100 - (100 / (1 + rs))
+
+        # 3. W%R 威廉指標 (14)
+        low_min14 = s_low.rolling(14).min()
+        high_max14 = s_high.rolling(14).max()
+        df["w_r"] = (high_max14 - s_close) / (high_max14 - low_min14 + 1e-8) * -100
+
+        # 4. BIAS 乖離率 (6, 12, 24)
+        df["bias_6"] = ((s_close - df["ma_5"]) / (df["ma_5"] + 1e-8)) * 100
+
+        # 5. MTM 動量指標 (10)
+        df["mtm"] = s_close - s_close.shift(10)
+
+        # 6. QT 量化卡牌 / 快速訊號 (簡單範例計算)
+        df["qt"] = (s_close - s_close.rolling(20).mean()) / (s_close.rolling(20).std() + 1e-8)
 
         # MACD
         df["dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
@@ -580,17 +625,52 @@ if stock_options:
                     text_y -= 0.08
 
         # ---------------------------------------------------------
-        # 層 2：MACD
+        # 層 2：副圖 1 (預設 MACD / 可切換 KDJ / RSI / BIAS / MTM 等)
         # ---------------------------------------------------------
         ax2.set_facecolor(PANEL_BG)
-        ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.9)
-        ax2.plot(x, df["dif"], linewidth=0.5, color="#00E5FF", label="DIF")
-        ax2.plot(x, df["dem"], linewidth=0.5, color="#FFB300", label="DEA")
-        ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
+        
+        if show_kdj:
+            ax2.plot(x, df["kdj_k"], linewidth=0.6, color="#00E5FF", label="K")
+            ax2.plot(x, df["kdj_d"], linewidth=0.6, color="#FFB300", label="D")
+            ax2.plot(x, df["kdj_j"], linewidth=0.6, color="#FF3B30", label="J")
+            k_val, d_val, j_val = df["kdj_k"].iloc[-1], df["kdj_d"].iloc[-1], df["kdj_j"].iloc[-1]
+            sub1_text = f"KDJ(9,3,3)  K:{k_val:.1f}  D:{d_val:.1f}  J:{j_val:.1f}"
+        elif show_rsi:
+            ax2.plot(x, df["rsi_6"], linewidth=0.6, color="#00E5FF", label="RSI6")
+            ax2.axhline(80, color="#FF3B30", linestyle=":", linewidth=0.8)
+            ax2.axhline(20, color="#00C853", linestyle=":", linewidth=0.8)
+            rsi_val = df["rsi_6"].iloc[-1]
+            sub1_text = f"RSI(6): {rsi_val:.1f}"
+        elif show_wR:
+            ax2.plot(x, df["w_r"], linewidth=0.6, color="#FFB300", label="W%R")
+            ax2.axhline(-20, color="#FF3B30", linestyle=":", linewidth=0.8)
+            ax2.axhline(-80, color="#00C853", linestyle=":", linewidth=0.8)
+            wr_val = df["w_r"].iloc[-1]
+            sub1_text = f"W%R(14): {wr_val:.1f}"
+        elif show_bias:
+            ax2.plot(x, df["bias_6"], linewidth=0.6, color="#00E5FF", label="BIAS6")
+            ax2.axhline(0, color="#666666", linestyle=":", linewidth=0.8)
+            bias_val = df["bias_6"].iloc[-1]
+            sub1_text = f"BIAS(6): {bias_val:.2f}%"
+        elif show_mtm:
+            ax2.plot(x, df["mtm"], linewidth=0.6, color="#FF3B30", label="MTM")
+            ax2.axhline(0, color="#666666", linestyle=":", linewidth=0.8)
+            mtm_val = df["mtm"].iloc[-1]
+            sub1_text = f"MTM(10): {mtm_val:.2f}"
+        elif show_qt:
+            ax2.plot(x, df["qt"], linewidth=0.6, color="#00FF66", label="QT")
+            qt_val = df["qt"].iloc[-1]
+            sub1_text = f"QT量化指標: {qt_val:.2f}"
+        else:
+            # 預設顯示 MACD
+            ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.9)
+            ax2.plot(x, df["dif"], linewidth=0.5, color="#00E5FF", label="DIF")
+            ax2.plot(x, df["dem"], linewidth=0.5, color="#FFB300", label="DEA")
+            ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
+            sub1_text = f"MACD  DIF:{cur_dif:.2f}{dif_arrow}  DEA:{cur_dem:.2f}{dem_arrow}  OSC:{cur_osc:.2f}{osc_arrow}"
         
         ax2.relim()
         ax2.autoscale_view(scalex=False, scaley=True)
-
         ax2.yaxis.tick_right()
         ax2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
         for t in ax2.get_yticklabels():
@@ -598,19 +678,8 @@ if stock_options:
             t.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
         ax2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        macd_tokens = [
-            ("MACD  ", "#FFFFFF"),
-            (f"DIF:{cur_dif:.2f}{dif_arrow}", "#00E5FF"),
-            (" | ", "#FFFFFF"),
-            (f"DEA:{cur_dem:.2f}{dem_arrow}", "#FFB300"),
-            (" | ", "#FFFFFF"),
-            (f"OSC:{cur_osc:.2f}{osc_arrow}", "#FFFFFF")
-        ]
-        start_x = 0.015
-        for text_str, color_code in macd_tokens:
-            t_tok = ax2.text(start_x, 0.78, text_str, transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color=color_code)
-            t_tok.set_path_effects(get_bright_effect(color_code, 0.6))
-            start_x += len(text_str) * 0.007
+        t_sub1 = ax2.text(0.015, 0.78, sub1_text, transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+        t_sub1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         # ---------------------------------------------------------
         # 層 3：成交量
