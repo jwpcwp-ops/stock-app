@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (優化頂部選單，確保一頁看完不捲動)
+# 2. 注入自訂 CSS (確保一頁看完不捲動)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -436,16 +436,13 @@ if stock_options:
         # ---------------------------------------------------------
         deduct_periods = [5, 35, 65, 120]
         deduct_colors = {5: "#00E5FF", 35: "#00FF66", 65: "#FF00FF", 120: "#9D4EDD"}
-        deduct_vals = {}
         deduct_indices = {}
         n_len = len(df)
         for p in deduct_periods:
             idx_pos = n_len - p
             if idx_pos >= 0 and idx_pos < n_len:
-                deduct_vals[p] = float(s_close.iloc[idx_pos])
                 deduct_indices[p] = idx_pos
             else:
-                deduct_vals[p] = float(s_close.iloc[0]) if not s_close.empty else 0.0
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
@@ -598,24 +595,18 @@ if stock_options:
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
         # ---------------------------------------------------------
-        # 🎯 恢復原本在同一列整齊橫向顯示的頂部扣抵與資訊欄位
+        # 🎯 完整還原標準 K 線行情資訊列（符合您提供的截圖樣式）
         # ---------------------------------------------------------
-        header_parts = [f"[{stock_id}] {stock_name}"]
-        for p in deduct_periods:
-            val = deduct_vals[p]
-            col = deduct_colors[p]
-            header_parts.append(f"E{p}:{val:.2f} ▲")
-        
-        full_header_str = "     ".join(header_parts)
-        t_header = ax1.text(0.01, 0.93, full_header_str, transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+        standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
+        t_header = ax1.text(0.01, 0.93, standard_header_str, transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
-        # 右側日期與趨勢
+        # 右側季線趨勢狀態
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
         trend_color = "#FF3B30" if is_bull else "#00C853"
-        t_trend_badge = ax1.text(0.68, 0.93, f"{trend_status}   日期: {last_date}", transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=trend_color)
+        t_trend_badge = ax1.text(0.75, 0.93, trend_status, transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.5))
 
         t_period_badge = ax1.text(0.98, 0.06, f" {actual_chart_period} ", transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF", backgroundcolor="#333333", ha="right", va="bottom")
