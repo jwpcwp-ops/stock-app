@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (確保一頁看完不捲動)
+# 2. 注入自訂 CSS (進一步微調股票選單框框寬度與緊湊度)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -56,14 +56,18 @@ st.markdown(
             height: 19px !important;
             width: 100% !important;
         }
+        /* 🎯 圖2修正：縮小股票下拉選單的位置框框 */
         [data-testid="stSelectbox"] {
-            max-width: 100% !important;
+            max-width: 110px !important;
+            width: 110px !important;
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
             min-height: 19px !important;
             height: 19px !important;
             font-size: 8.5px !important;
+            padding-left: 2px !important;
+            padding-right: 2px !important;
         }
         div[data-testid="stPills"] button {
             font-size: 7.5px !important;
@@ -125,8 +129,8 @@ def load_stock_list():
         return options.tolist(), df
     except Exception as e:
         default_data = pd.DataFrame({
-            "代碼": ["99991", "1477"],
-            "名稱": ["加權指數", "聚陽"]
+            "代碼": ["99991", "1477", "2428"],
+            "名稱": ["加權指數", "聚陽", "興勤"]
         })
         options = default_data["代碼"] + " " + default_data["名稱"]
         return options.tolist(), default_data
@@ -160,7 +164,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 
     df_yf = pd.DataFrame()
     index_ticker_map = {
-        "99991": "^TWII"  # 加權指數
+        "99991": "^TWII"
     }
 
     if stock_id in index_ticker_map:
@@ -242,7 +246,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
                 df_k["Volume"] = np.random.randint(10000, 50000, size=len(df_k)) * 1000
 
         vol_series = df_k["Volume"]
-        vol_daily = vol_series / 1000  # 轉為張數
+        vol_daily = vol_series / 1000
         cur_vol = float(vol_daily.iloc[-1]) if len(vol_daily) > 0 else 0.0
         vol_20ma_daily = vol_daily.rolling(20).mean()
         cur_20ma = float(vol_20ma_daily.iloc[-1]) if len(vol_20ma_daily) > 0 else 0.0
@@ -264,7 +268,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
                 "high": h_val,
                 "low": l_val,
                 "close": c_val,
-                "vol": float(row["Volume"]) / 1000  # 單位：張
+                "vol": float(row["Volume"]) / 1000
             })
     else:
         cur_vol, cur_20ma, ratio = 12000.0, 10000.0, 1.2
@@ -308,7 +312,7 @@ if "app_mode_idx" not in st.session_state:
 # 7. 網頁主介面佈局
 # ---------------------------------------------------------
 if stock_options:
-    top_cols = st.columns([0.4, 0.4, 0.4, 0.4, 1.1, 0.9, 2.9, 2.8])
+    top_cols = st.columns([0.4, 0.4, 0.4, 0.4, 0.65, 0.9, 2.9, 2.8])
     modes = ["📈 個股", "⚡ 選股", "📋 大戶", "📊 基本"]
 
     with top_cols[0]:
@@ -492,9 +496,19 @@ if stock_options:
 
         df["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
 
+        # 🎯 MACD 數據計算與前後日比較箭頭
         cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
+        prev_dif = float(df["macd_dif"].iloc[-2]) if len(df) > 1 else cur_dif
+        dif_arrow = "↑" if cur_dif >= prev_dif else "↓"
+
         cur_dem = float(df["macd_dem"].iloc[-1]) if not df.empty else 0.0
+        prev_dem = float(df["macd_dem"].iloc[-2]) if len(df) > 1 else cur_dem
+        dem_arrow = "↑" if cur_dem >= prev_dem else "↓"
+
         cur_osc = float(df["macd_osc"].iloc[-1]) if not df.empty else 0.0
+        prev_osc = float(df["macd_osc"].iloc[-2]) if len(df) > 1 else cur_osc
+        osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
+
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
@@ -673,13 +687,23 @@ if stock_options:
             ax_sub1.set_facecolor(PANEL_BG)
             if selected_indicator == "MACD":
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
-                ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
-                ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
+                ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FF0000", label="DIF")
+                ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#FFFFFF", label="DEA")
                 
-                ax_sub1.text(0.015, 0.76, f"MACD(12,26,9) ", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                ax_sub1.text(0.18, 0.76, f"DIF:{cur_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFF00")
-                ax_sub1.text(0.28, 0.76, f"DEA:{cur_dem:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30")
-                ax_sub1.text(0.38, 0.76, f"MACD:{cur_osc:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30" if cur_osc >= 0 else "#00C853")
+                # 🎯 圖1修正：精確還原 MACD(長) DIF (紅色) DEA (白色/淡色) MACD (紫色) 標記與箭頭
+                macd_tokens = [
+                    ("MACD(長) ", "#FFFFFF"),
+                    (f"DIF:{cur_dif:.2f} {dif_arrow}", "#FF3B30"),
+                    ("  ", "#FFFFFF"),
+                    (f"DEA:{cur_dem:.2f} {dem_arrow}", "#CCCCCC"),
+                    ("  ", "#FFFFFF"),
+                    (f"MACD:{cur_osc:.2f} {osc_arrow}", "#FF00FF")
+                ]
+                start_x_m = 0.015
+                for m_txt, m_col in macd_tokens:
+                    t_m = ax_sub1.text(start_x_m, 0.76, m_txt, transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color=m_col)
+                    t_m.set_path_effects(get_bright_effect(m_col, 0.5))
+                    start_x_m += len(m_txt) * 0.007
 
             elif selected_indicator == "BIAS":
                 ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)")
