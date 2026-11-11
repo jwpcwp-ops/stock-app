@@ -446,7 +446,7 @@ if stock_options:
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 🎯 技術指標計算
+        # 🎯 技術指標計算 (RSI 改為 6, 12)
         # ---------------------------------------------------------
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
@@ -474,17 +474,18 @@ if stock_options:
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
         df["kdj_diff"] = df["kdj_k"] - df["kdj_d"]
 
+        # RSI 參數 6 與 12
         delta = s_close.diff()
-        gain3 = (delta.where(delta > 0, 0)).rolling(3).mean()
-        loss3 = (-delta.where(delta < 0, 0)).rolling(3).mean()
-        rs3 = gain3 / (loss3 + 1e-8)
-        df["rsi_3"] = 100 - (100 / (1 + rs3))
-
         gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
         loss6 = (-delta.where(delta < 0, 0)).rolling(6).mean()
         rs6 = gain6 / (loss6 + 1e-8)
         df["rsi_6"] = 100 - (100 / (1 + rs6))
-        df["rsi_diff"] = df["rsi_3"] - df["rsi_6"]
+
+        gain12 = (delta.where(delta > 0, 0)).rolling(12).mean()
+        loss12 = (-delta.where(delta < 0, 0)).rolling(12).mean()
+        rs12 = gain12 / (loss12 + 1e-8)
+        df["rsi_12"] = 100 - (100 / (1 + rs12))
+        df["rsi_diff"] = df["rsi_6"] - df["rsi_12"]
 
         low_min9_w = s_low.rolling(9).min()
         high_max9_w = s_high.rolling(9).max()
@@ -496,10 +497,24 @@ if stock_options:
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
+        # 成交量均線計算 (5MA 與 20MA)
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
-        v_ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
+        cur_vol_val = last_vol * 1000  # 轉回實際股數單位
+        cur_vol_ma5 = float(df["vol_ma5"].iloc[-1]) * 1000 if not pd.isna(df["vol_ma5"].iloc[-1]) else 0.0
+        cur_vol_ma20 = float(df["vol_ma20"].iloc[-1]) * 1000 if not pd.isna(df["vol_ma20"].iloc[-1]) else 0.0
+        
+        # 計算與前一日比較的增減箭頭
+        prev_vol_ma5 = float(df["vol_ma5"].iloc[-2]) * 1000 if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2]) else cur_vol_ma5
+        prev_vol_ma20 = float(df["vol_ma20"].iloc[-2]) * 1000 if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2]) else cur_vol_ma20
+        
+        v5_arrow = "↓" if cur_vol_ma5 < prev_vol_ma5 else "↑"
+        v20_arrow = "↓" if cur_vol_ma20 < prev_vol_ma20 else "↑"
+        vol_today_arrow = "↓" if last_vol < (float(df["vol"].iloc[-2]) if len(df) > 1 else last_vol) else "↑"
+
+        v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
+        v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
 
         cond3 = ((s_close.ewm(span=15, adjust=False).mean() / s_close.ewm(span=30, adjust=False).mean() - 1) * 100) > 0
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
@@ -594,14 +609,11 @@ if stock_options:
         ax1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # ---------------------------------------------------------
-        # 🎯 完整還原標準 K 線行情資訊列（符合您提供的截圖樣式）
-        # ---------------------------------------------------------
+        # 標準 K 線行情資訊列
         standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.93, standard_header_str, transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
-        # 右側季線趨勢狀態
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
@@ -684,16 +696,16 @@ if stock_options:
                 ax_sub1.text(0.36, 0.76, f"乖離數值(K-D):{cur_k_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
                 ind_title = ""
             elif selected_indicator == "RSI":
-                cur_r3 = float(df["rsi_3"].iloc[-1]) if not df.empty else 0.0
                 cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
+                cur_r12 = float(df["rsi_12"].iloc[-1]) if not df.empty else 0.0
                 cur_r_diff = float(df["rsi_diff"].iloc[-1]) if not df.empty else 0.0
-                ax_sub1.plot(x, df["rsi_3"], linewidth=0.6, color="#00E5FF", label="RSI3")
-                ax_sub1.plot(x, df["rsi_6"], linewidth=0.6, color="#FF3B30", label="RSI6")
+                ax_sub1.plot(x, df["rsi_6"], linewidth=0.6, color="#00E5FF", label="RSI6")
+                ax_sub1.plot(x, df["rsi_12"], linewidth=0.6, color="#FF3B30", label="RSI12")
                 
-                ax_sub1.text(0.015, 0.76, "RSI(3,6) ", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                ax_sub1.text(0.12, 0.76, f"RSI3:{cur_r3:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#00E5FF")
-                ax_sub1.text(0.23, 0.76, f"RSI6:{cur_r6:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30")
-                ax_sub1.text(0.35, 0.76, f"乖離數值(3-6):{cur_r_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+                ax_sub1.text(0.015, 0.76, "RSI(6,12) ", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+                ax_sub1.text(0.12, 0.76, f"RSI6:{cur_r6:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#00E5FF")
+                ax_sub1.text(0.23, 0.76, f"RSI12:{cur_r12:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30")
+                ax_sub1.text(0.35, 0.76, f"乖離數值(6-12):{cur_r_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
                 ind_title = ""
             elif selected_indicator == "W%":
                 cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
@@ -715,14 +727,36 @@ if stock_options:
                 t_s1 = ax_sub1.text(0.015, 0.76, ind_title, transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
                 t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
+            # ---------------------------------------------------------
+            # 🎯 成交量副圖與詳細標註（對齊您提供的圖片格式）
+            # ---------------------------------------------------------
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_vol = ax_sub2.text(0.015, 0.76, f"成交量:{int(last_vol):,}張   量比:{v_ratio:.2f}倍", transform=ax_sub2.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-            t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
+            
+            # 組合仿照圖片的詳細成交量字串：今日量、日5、值5、日20、值20
+            vol_str_parts = [
+                ("今日 ", "#888888"),
+                (f"量:{int(cur_vol_val)}", "#FF3B30"), (f"{vol_today_arrow}", "#FF3B30"),
+                ("  ", "#FFFFFF"),
+                ("日5:", "#FFD700"), (f"{int(cur_vol_ma5)}", "#FFD700"), (f"{v5_arrow}", "#FFD700"),
+                ("  ", "#FFFFFF"),
+                ("值5:", "#FFD700"), (f"{v5_val_ratio:.2f}", "#FFD700"), (f"{v5_arrow}", "#FFD700"),
+                ("  ", "#FFFFFF"),
+                ("日20:", "#FF8C00"), (f"{int(cur_vol_ma20)}", "#FF8C00"), (f"{v20_arrow}", "#FF8C00"),
+                ("  ", "#FFFFFF"),
+                ("值20:", "#FF8C00"), (f"{v20_val_ratio:.2f}", "#FF8C00"), (f"{v20_arrow}", "#FF8C00")
+            ]
+            
+            start_x_vol = 0.015
+            for v_txt, v_col in vol_str_parts:
+                t_v = ax_sub2.text(start_x_vol, 0.76, v_txt, transform=ax_sub2.transAxes, fontsize=7.5, fontweight="bold", color=v_col)
+                t_v.set_path_effects(get_bright_effect(v_col, 0.5))
+                start_x_vol += len(v_txt) * 0.0075
 
+            # 大戶與羊群副圖
             ax_chip = ax_sub3
             ax_chip.set_facecolor(PANEL_BG)
             cur_big, cur_sheep = 0.0, 0.0
