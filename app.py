@@ -378,17 +378,17 @@ if stock_options:
             )
 
         with top_cols[7]:
-            # 🎯 專為高低點設計的高低選單按鈕
+            # 🎯 依照您的要求：按鈕名稱叫「波段」
             selected_indicator = st.pills(
                 "技術指標",
-                ["🎯 高低點抓取(MACD+BIAS+MTM)", "MACD", "BIAS", "MTM", "KDJ", "RSI", "W%", "QT"],
-                default="🎯 高低點抓取(MACD+BIAS+MTM)",
+                ["波段", "MACD", "BIAS", "MTM", "KDJ", "RSI", "W%", "QT"],
+                default="波段",
                 selection_mode="single",
                 label_visibility="collapsed",
                 key="pills_ind"
             )
             if not selected_indicator:
-                selected_indicator = "🎯 高低點抓取(MACD+BIAS+MTM)"
+                selected_indicator = "波段"
 
         show_ma5 = "5" in selected_ma
         show_ma10 = "10" in selected_ma
@@ -433,19 +433,20 @@ if stock_options:
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
         # ---------------------------------------------------------
-        # 🎯 核心高低點指標參數計算 (MACD, 反向BIAS, MTM組合)
+        # 🎯 指標參數計算
         # ---------------------------------------------------------
-        # 1. MACD (5, 10, 5)
+        # 1. MACD(5, 10, 5)
         df["macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["macd_dem"] = df["macd_dif"].ewm(span=5, adjust=False).mean()
         df["macd_osc"] = (df["macd_dif"] - df["macd_dem"]) * 2
 
-        # 2. BIAS (20-5) 乖離率反向設計 (加負號使其與MACD線條結合呈現波段低，高點則與MTM聯動)
+        # 2. BIAS(20-5) 乖離率參數設計 (支援「波段」模式下的反向設計，讓線條能與MACD完美結合抓波段低點)
         df["bias_base"] = s_close.rolling(window=20).mean()
-        df["bias_val"] = -1.0 * (((s_close - df["bias_base"]) / (df["bias_base"] + 1e-8)) * 100)
-        df["bias_ma5"] = df["bias_val"].rolling(window=5).mean()
+        df["bias_val"] = ((s_close - df["bias_base"]) / (df["bias_base"] + 1e-8)) * 100
+        df["bias_val_rev"] = -1.0 * df["bias_val"]  # 波段低點專用反向設計
+        df["bias_ma1"] = df["bias_val"].rolling(window=1).mean()
 
-        # 3. MTM (10, 1) 動量指標
+        # 3. MTM(10, 1) 動量指標與均線
         df["mtm_val"] = s_close - s_close.shift(10)
         df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
 
@@ -496,13 +497,25 @@ if stock_options:
 
         plt.style.use("dark_background")
         
-        # 🎯 固定的經典 4 格圖表配置：主圖(K線) + 副圖1(高低點抓取/指標) + 成交量 + 大戶羊群持股
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(
-            4, 1, figsize=(10, 4.8), sharex=True,
-            gridspec_kw={"height_ratios": [3.0, 0.8, 0.75, 0.95]}
-        )
+        # ---------------------------------------------------------
+        # 🎯 關鍵佈局：當點擊「波段」按鈕時，展現 3 個獨立的副圖欄位！
+        # 總共 5 個子圖：[主圖K線, 副圖1(MACD), 副圖2(BIAS), 副圖3(MTM), 副圖4(大戶羊群)]
+        # ---------------------------------------------------------
+        if selected_indicator == "波段":
+            fig, axes = plt.subplots(
+                5, 1, figsize=(10, 6.2), sharex=True,
+                gridspec_kw={"height_ratios": [2.6, 0.75, 0.75, 0.75, 0.85]}
+            )
+            ax1, ax_sub1, ax_sub2, ax_sub3, ax_chip = axes
+        else:
+            # 一般預設 4 格模式 (K線主圖 + 單一副圖 + 成交量 + 大戶羊群)
+            fig, axes = plt.subplots(
+                4, 1, figsize=(10, 4.8), sharex=True,
+                gridspec_kw={"height_ratios": [3.0, 0.8, 0.75, 0.95]}
+            )
+            ax1, ax_sub1, ax_sub2, ax_chip = axes
 
-        for ax in [fig, ax1, ax2, ax3, ax4]:
+        for ax in [fig] + list(axes):
             ax.set_facecolor(BG_COLOR)
         fig.patch.set_facecolor(BG_COLOR)
         x = list(range(len(df)))
@@ -518,7 +531,7 @@ if stock_options:
 
         if not df.empty:
             p_max = float(df["high"].max())
-            p_min = float(df["(low)" if "(low)" in df.columns else "low"].min())
+            p_min = float(df["low"].min())
             p_range = p_max - p_min if p_max != p_min else 1.0
             ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
             ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
@@ -579,78 +592,74 @@ if stock_options:
                 text_x += 0.13
 
         # ---------------------------------------------------------
-        # 層 2：副圖 1 (高低點抓取組合或單一指標呈現)
+        # 🎯 渲染副圖欄位
         # ---------------------------------------------------------
-        ax2.set_facecolor(PANEL_BG)
-        if selected_indicator == "🎯 高低點抓取(MACD+BIAS+MTM)":
-            # 🎯 依照您的說明：MACD與反向BIAS結合抓波段低，BIAS與MTM結合抓波段高
-            ax2.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="MACD-DIF")  # 黃色線
-            ax2.plot(x, df["bias_val"], linewidth=0.6, color="#FFA500", label="BIAS(反向)")  # 橙色線對應結合
-            ax2.plot(x, df["mtm_val"], linewidth=0.6, color="#00FF66", label="MTM")        # 綠色線對應高點
-            ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
-            sub1_text = f"高低點組合 | MACD(5,10) | BIAS(20-5反向):{cur_bias:.2f}% | MTM(10,1):{cur_mtm:.2f}"
-        elif selected_indicator == "MACD":
-            ax2.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
-            ax2.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
-            ax2.plot(x, df["macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
-            ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
-            sub1_text = f"MACD(5,10,5)  DIF:{cur_dif:.2f}"
-        elif selected_indicator == "BIAS":
-            ax2.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS")
-            ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
-            sub1_text = f"BIAS(20,5) 乖離率"
-        elif selected_indicator == "MTM":
-            ax2.plot(x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM")
-            ax2.axhline(0, color="#666666", linestyle=":", linewidth=1)
-            sub1_text = f"MTM(10,1) 動量"
-        elif selected_indicator == "KDJ":
-            ax2.plot(x, df["kdj_k"], linewidth=0.6, color="#00E5FF", label="K")
-            ax2.plot(x, df["kdj_d"], linewidth=0.6, color="#FFB300", label="D")
-            ax2.plot(x, df["kdj_j"], linewidth=0.6, color="#FF3B30", label="J")
-            sub1_text = f"KDJ(9,3,3)"
-        elif selected_indicator == "RSI":
-            ax2.plot(x, df["rsi_6"], linewidth=0.6, color="#00E5FF", label="RSI")
-            sub1_text = f"RSI(6): {df['rsi_6'].iloc[-1]:.1f}"
+        if selected_indicator == "波段":
+            # --- 副圖 1：MACD (5, 10) ---
+            ax_sub1.set_facecolor(PANEL_BG)
+            ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
+            ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
+            ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
+            ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
+            ax_sub1.yaxis.tick_right()
+            ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            t_s1 = ax_sub1.text(0.015, 0.78, f"Macd(5,10)  DIF:{cur_dif:.2f}  Macd:{cur_macds:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+
+            # --- 副圖 2：BIAS (20-5，反向設計對應低點結合) ---
+            ax_sub2.set_facecolor(PANEL_BG)
+            ax_sub2.plot(x, df["bias_val_rev"], linewidth=0.6, color="#FFFF00", label="BIAS(反向)")
+            ax_sub2.axhline(0, color="#666666", linestyle=":", linewidth=1)
+            ax_sub2.yaxis.tick_right()
+            ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            t_s2 = ax_sub2.text(0.015, 0.78, f"BIAS(20-5)  {cur_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+
+            # --- 副圖 3：MTM (10, 1) ---
+            ax_sub3.set_facecolor(PANEL_BG)
+            ax_sub3.plot(x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM")
+            ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.6, color="#008080", label="Avg")
+            ax_sub3.axhline(0, color="#666666", linestyle=":", linewidth=1)
+            ax_sub3.yaxis.tick_right()
+            ax_sub3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            t_s3 = ax_sub3.text(0.015, 0.78, f"MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s3.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+
+            target_chip_ax = ax_chip
+
         else:
-            ax2.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
-            ax2.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
-            sub1_text = f"MACD指標"
-
-        ax2.yaxis.tick_right()
-        ax2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-        ax2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-        t_sub1 = ax2.text(0.015, 0.78, sub1_text, transform=ax2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_sub1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
-
-        # ---------------------------------------------------------
-        # 層 3：成交量 (固定呈現)
-        # ---------------------------------------------------------
-        ax3.set_facecolor(PANEL_BG)
-        ax3.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
-        ax3.yaxis.tick_right()
-        ax3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-        ax3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-        vol_info_text = f"成交量:{int(last_vol):,}張   MAS:{int(cur_mas):,}   量比:{v_ratio:.2f}倍"
-        t_vol = ax3.text(0.015, 0.78, vol_info_text, transform=ax3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+            # 一般單一指標副圖
+            ax_sub1.set_facecolor(PANEL_BG)
+            ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
+            ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
+            ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
+            ax_sub1.yaxis.tick_right()
+            ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            t_s1 = ax_sub1.text(0.015, 0.78, f"MACD指標", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+            target_chip_ax = ax_sub2
 
         # ---------------------------------------------------------
-        # 層 4：大戶與羊群持股 (固定呈現)
+        # 最後一層：大戶與羊群持股
         # ---------------------------------------------------------
-        ax4.set_facecolor(PANEL_BG)
+        target_chip_ax.set_facecolor(PANEL_BG)
         cur_big, cur_sheep = 0.0, 0.0
         if len(big_holder) > 0 and len(sheep_holder) > 0:
             b_plot = big_holder[-len(df):]
             s_plot = sheep_holder[-len(df):]
             x_chip = x[-len(b_plot):]
-            ax4.plot(x_chip, b_plot, color="#FF3B30", linewidth=0.3, marker='o', markersize=2, label="大戶(%)")
-            ax4.plot(x_chip, s_plot, color="#00C853", linewidth=0.3, marker='s', markersize=2, label="羊群(%)")
+            target_chip_ax.plot(x_chip, b_plot, color="#FF3B30", linewidth=0.3, marker='o', markersize=2, label="大戶(%)")
+            target_chip_ax.plot(x_chip, s_plot, color="#00C853", linewidth=0.3, marker='s', markersize=2, label="羊群(%)")
             cur_big = float(b_plot[-1])
             cur_sheep = float(s_plot[-1])
 
-        ax4.yaxis.tick_right()
-        ax4.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-        ax4.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+        target_chip_ax.yaxis.tick_right()
+        target_chip_ax.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+        target_chip_ax.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
         chip_tokens = [
             ("大戶持股: ", "#FFFFFF"), (f"{cur_big:.1f}%", "#FF3B30"),
@@ -659,11 +668,11 @@ if stock_options:
         ]
         start_x_chip = 0.015
         for text_str, color_code in chip_tokens:
-            t_tok = ax4.text(start_x_chip, 0.78, text_str, transform=ax4.transAxes, fontsize=8.5, fontweight="bold", color=color_code)
+            t_tok = target_chip_ax.text(start_x_chip, 0.78, text_str, transform=target_chip_ax.transAxes, fontsize=8.5, fontweight="bold", color=color_code)
             t_tok.set_path_effects(get_bright_effect(color_code, 0.6))
             start_x_chip += len(text_str) * 0.0065
 
-        for ax in [ax1, ax2, ax3, ax4]:
+        for ax in axes:
             for spine in ax.spines.values():
                 spine.set_visible(True)
                 spine.set_color(SUB_BORDER)
