@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (縮小上方選單框框、調整 pills 排版)
+# 2. 注入自訂 CSS (縮小上方選單框框、調整 pills 與橫向排版)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -46,17 +46,14 @@ st.markdown(
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            gap: 4px !important;
-        }
-        [data-testid="stHorizontalBlock"] > div {
-            flex: 1 !important;
-            min-width: 0 !important;
+            gap: 6px !important;
+            align-items: flex-start !important;
         }
         .stButton button {
             font-size: 12px !important;
             padding: 4px 8px !important;
         }
-        /* 🖥️ 縮小上方股票選擇輸入框與 expander 外框寬高 */
+        /* 🖥️ 縮小股票選擇輸入框與 expander 外框 */
         [data-testid="stSelectbox"] {
             max-width: 100% !important;
         }
@@ -338,9 +335,10 @@ if stock_options:
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        # 縮小版的股票選擇框
-        col_sel, col_space = st.columns([1.2, 2.8])
-        with col_sel:
+        # 🎯 關鍵佈局修改：採用 columns 分割，實現左右並排於同一橫列
+        col_c1, col_c2 = st.columns([1.2, 2.8])
+        
+        with col_c1:
             selected_stock = st.selectbox(
                 "選擇股票",
                 stock_options,
@@ -357,17 +355,18 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板 (將週期與均線選項整合成同一列橫向顯示，已移除除法率) ---
-        with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
-            all_menu_options = ["60分", "日線", "週線", "月線", "5", "10", "20", "30", "60", "120", "200", "分割率", "250", "120"]
-            
-            selected_all = st.pills(
-                "圖表與均線選單",
-                all_menu_options,
-                default=["日線"],
-                selection_mode="multi",
-                label_visibility="collapsed"
-            )
+        with col_c2:
+            # --- 控制面板 (左右並排於同一橫列) ---
+            with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
+                all_menu_options = ["60分", "日線", "週線", "月線", "5", "10", "20", "30", "60", "120", "200", "分割率", "250", "120"]
+                
+                selected_all = st.pills(
+                    "圖表與均線選單",
+                    all_menu_options,
+                    default=["日線"],
+                    selection_mode="multi",
+                    label_visibility="collapsed"
+                )
 
         # 解析選單狀態
         chart_period = "日線"
