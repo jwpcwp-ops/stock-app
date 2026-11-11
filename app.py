@@ -11,7 +11,7 @@ import streamlit as st
 import yfinance as yf
 
 # ---------------------------------------------------------
-# 1. 頁面基本設定
+# 1. 頁面基本設定 (極致滿版佈局)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="查詢籌碼系統",
@@ -20,66 +20,70 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (針對 4 欄位佈局與超薄頂部控制列極致優化)
+# 2. 注入自訂 CSS (100% 螢幕比例專用：極致壓縮高度與留白)
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
+        /* 全局減少 padding，使所有元件緊湊 */
         .block-container {
-            padding-top: 0.2rem;
-            padding-bottom: 0.1rem;
-            max-width: 98rem;
+            padding-top: 0.1rem !important;
+            padding-bottom: 0.0rem !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            max-width: 100% !important;
         }
         .mobile-title {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: bold;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
             color: #ffffff;
         }
         .sub-header-14 {
-            font-size: 13px !important;
+            font-size: 12px !important;
             font-weight: bold;
             color: #ffffff;
-            margin-top: 4px;
-            margin-bottom: 2px;
+            margin-top: 2px;
+            margin-bottom: 1px;
         }
+        /* 壓縮頂部分頁按鈕與 4 欄位列高度 */
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            gap: 4px !important;
+            gap: 2px !important;
             align-items: center !important;
+            margin-bottom: 2px !important;
         }
         .stButton button {
             font-size: 11px !important;
-            padding: 3px 6px !important;
+            padding: 2px 4px !important;
+            min-height: 26px !important;
         }
-        /* 🖥️ 4 欄位超緊湊元件樣式 */
+        /* 縮小股票選擇輸入框 */
         [data-testid="stSelectbox"] {
             max-width: 100% !important;
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 32px !important;
+            min-height: 26px !important;
+            font-size: 11px !important;
         }
-        /* 📱 st.pills 膠囊按鈕超薄微縮排版 */
+        /* st.pills 膠囊按鈕超薄微縮排版 */
         div[data-testid="stPills"] button {
-            font-size: 10.5px !important;
-            padding: 1px 5px !important;
+            font-size: 10px !important;
+            padding: 1px 4px !important;
             margin: 0px 1px !important;
-            min-height: 24px !important;
-            border-radius: 12px !important;
+            min-height: 22px !important;
+            border-radius: 10px !important;
         }
         div[data-testid="stPills"] {
             gap: 1px !important;
-            flex-wrap: nowrap !important; /* 確保絕不折行 */
-            overflow-x: auto !important;   /* 超出時可橫向微滑 */
+            flex-wrap: nowrap !important; /* 絕不折行 */
+            overflow-x: auto !important;   /* 超出時可橫向滑動 */
         }
-        /* 隱藏微小型標籤間距 */
-        .col-label {
-            font-size: 11px;
-            color: #888888;
-            margin-bottom: 2px;
-            font-weight: bold;
+        /* 隱藏 streamlit 元素之間的預設極大間距 */
+        [data-testid="stVerticalBlock"] {
+            gap: 2px !important;
         }
     </style>
 """,
@@ -306,8 +310,6 @@ if "app_mode_idx" not in st.session_state:
 # ---------------------------------------------------------
 # 7. 網頁主介面佈局 (4個主分頁按鈕並排)
 # ---------------------------------------------------------
-st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
-
 if stock_options:
     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
     modes = ["📈 選擇個股圖表", "⚡羊群秒速選股", "📋 大股東本周前15增幅", "📊 預備中-基本面"]
@@ -344,8 +346,8 @@ if stock_options:
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        # 🎯 關鍵升級：精心設計的【4 欄位超薄控制橫列】(完全不佔空間、絕不上移遮擋)
-        col1, col2, col3, col4 = st.columns([1.1, 1.1, 2.2, 1.6])
+        # 🎯 4 欄位超薄控制橫列 (垂直高度極致壓縮)
+        col1, col2, col3, col4 = st.columns([1.1, 1.0, 2.3, 1.6])
         
         # --- 欄位 1：股票代碼選擇 ---
         with col1:
@@ -515,9 +517,10 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
+        # 🎯 關鍵高度修正：將 figsize 改為 (10, 6.2)，確保 100% 電腦畫面不滾動就能看齊全部 4 個圖表！
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
-            4, 1, figsize=(10, 7.8), sharex=True,
-            gridspec_kw={"height_ratios": [3.6, 1.0, 1.0, 1.2]}
+            4, 1, figsize=(10, 6.2), sharex=True,
+            gridspec_kw={"height_ratios": [3.4, 0.9, 0.9, 1.1]}
         )
 
         for ax in [fig, ax1, ax2, ax3, ax4]:
@@ -637,7 +640,7 @@ if stock_options:
                     text_y -= 0.08
 
         # ---------------------------------------------------------
-        # 層 2：副圖 1 (動態根據第 4 欄選擇的指標繪製)
+        # 層 2：副圖 1 (動態繪製對應指標)
         # ---------------------------------------------------------
         ax2.set_facecolor(PANEL_BG)
         
@@ -750,7 +753,7 @@ if stock_options:
                 spine.set_color(SUB_BORDER)
                 spine.set_linewidth(1.0)
 
-        plt.subplots_adjust(left=0.01, right=0.98, top=0.97, bottom=0.03, hspace=0.06)
+        plt.subplots_adjust(left=0.01, right=0.98, top=0.98, bottom=0.02, hspace=0.05)
         st.pyplot(fig, use_container_width=True, dpi=250)
 
     # =========================================================
