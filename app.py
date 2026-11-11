@@ -11,7 +11,7 @@ import streamlit as st
 import yfinance as yf
 
 # ---------------------------------------------------------
-# 1. 頁面基本設定 (針對手機極致緊湊優化)
+# 1. 頁面基本設定
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="查詢籌碼系統",
@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (縮小 pills 按鈕間距與字型，強制壓縮為 2 列)
+# 2. 注入自訂 CSS (縮小上方選單框框、調整 pills 排版)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -56,7 +56,16 @@ st.markdown(
             font-size: 12px !important;
             padding: 4px 8px !important;
         }
-        /* 📱 針對 st.pills 膠囊按鈕微調，微縮字體與內邊距，完美縮成 2 列 */
+        /* 🖥️ 縮小上方股票選擇輸入框與 expander 外框寬高 */
+        [data-testid="stSelectbox"] {
+            max-width: 100% !important;
+        }
+        [data-testid="stExpander"] {
+            border: 1px solid #333333 !important;
+            border-radius: 6px !important;
+            background-color: #0e1117 !important;
+        }
+        /* 📱 st.pills 膠囊按鈕微縮字體與內邊距，完美融合成同一列 */
         div[data-testid="stPills"] button {
             font-size: 11px !important;
             padding: 2px 6px !important;
@@ -94,7 +103,6 @@ else:
 
 plt.rcParams["axes.unicode_minus"] = False
 
-# 高亮發光文字效果函式
 def get_bright_effect(stroke_color="#FFFFFF", linewidth=0.6):
     return [path_effects.withStroke(linewidth=linewidth, foreground=stroke_color), path_effects.Normal()]
 
@@ -119,7 +127,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取 (含時區校正與 60分轉日線智慧補針)
+# 5. 本地快取支援與資料抓取
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -183,7 +191,6 @@ def get_comprehensive_stock_data(stock_id, target_days=60, period_type="日線")
         except:
             continue
 
-    # 🛡️ 智慧補針機制：如果目前是日線模式，但日K最後一天落後了，透過 60m 資料把最新一天補進來！
     if period_type == "日線" and not df_yf.empty:
         try:
             t_obj = yf.Ticker(tickers_to_try[0])
@@ -194,12 +201,10 @@ def get_comprehensive_stock_data(stock_id, target_days=60, period_type="日線")
                 else:
                     temp_60m.index = pd.to_datetime(temp_60m.index).tz_localize(None)
                 
-                # 取得 60m 的最新日期
                 latest_60m_date = temp_60m.index[-1].normalize()
                 last_daily_date = df_yf.index[-1].normalize()
 
                 if latest_60m_date > last_daily_date:
-                    # 萃取當天 60m 的開高低收與總量合成一根日K
                     day_data = temp_60m[temp_60m.index.normalize() == latest_60m_date]
                     if not day_data.empty:
                         syn_open = float(day_data["Open"].iloc[0])
@@ -208,7 +213,6 @@ def get_comprehensive_stock_data(stock_id, target_days=60, period_type="日線")
                         syn_close = float(day_data["Close"].iloc[-1])
                         syn_vol = float(day_data["Volume"].sum())
 
-                        # 新增到日K DataFrame
                         df_yf.loc[latest_60m_date] = {
                             "Open": syn_open,
                             "High": syn_high,
@@ -296,7 +300,7 @@ if "app_mode_idx" not in st.session_state:
 # ---------------------------------------------------------
 # 7. 網頁主介面佈局 (4個分頁按鈕並排)
 # ---------------------------------------------------------
-st.markdown('<p class="mobile-title">📊 查詢籌碼系統 (手機版)</p>', unsafe_allow_html=True)
+st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
 if stock_options:
     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
@@ -334,13 +338,16 @@ if stock_options:
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        selected_stock = st.selectbox(
-            "選擇股票",
-            stock_options,
-            index=st.session_state.selected_index,
-            label_visibility="collapsed",
-            key="stock_select_box"
-        )
+        # 縮小版的股票選擇框
+        col_sel, col_space = st.columns([1.2, 2.8])
+        with col_sel:
+            selected_stock = st.selectbox(
+                "選擇股票",
+                stock_options,
+                index=st.session_state.selected_index,
+                label_visibility="collapsed",
+                key="stock_select_box"
+            )
         
         try:
             st.session_state.selected_index = stock_options.index(selected_stock)
@@ -350,33 +357,35 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板 (60分、預設不啟動任何指標、預設顯示 60 根 K 線) ---
+        # --- 控制面板 (將週期與均線選項整合成同一列橫向顯示，已移除除法率) ---
         with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
-            chart_period = st.pills(
-                "週期切換", 
-                ["60分", "日線", "週線", "月線"], 
-                default="日線",
-                label_visibility="collapsed"
-            )
+            all_menu_options = ["60分", "日線", "週線", "月線", "5", "10", "20", "30", "60", "120", "200", "分割率", "250", "120"]
             
-            selected_indicators = st.pills(
-                "均線選單",
-                ["5", "10", "20", "30", "60", "120", "200", "分割率", "250", "120"],
-                default=[],
+            selected_all = st.pills(
+                "圖表與均線選單",
+                all_menu_options,
+                default=["日線"],
                 selection_mode="multi",
                 label_visibility="collapsed"
             )
 
-        show_ma5 = "5" in selected_indicators
-        show_ma10 = "10" in selected_indicators
-        show_ma20 = "20" in selected_indicators
-        show_ma30 = "30" in selected_indicators
-        show_ma60 = "60" in selected_indicators
-        show_ma120 = "120" in selected_indicators
-        show_ma200 = "200" in selected_indicators
-        show_fib = "分割率" in selected_indicators
-        show_k250 = "250" in selected_indicators
-        show_k120 = "120" in selected_indicators
+        # 解析選單狀態
+        chart_period = "日線"
+        for p in ["60分", "日線", "週線", "月線"]:
+            if p in selected_all:
+                chart_period = p
+                break
+
+        show_ma5 = "5" in selected_all
+        show_ma10 = "10" in selected_all
+        show_ma20 = "20" in selected_all
+        show_ma30 = "30" in selected_all
+        show_ma60 = "60" in selected_all
+        show_ma120 = "120" in selected_all
+        show_ma200 = "200" in selected_all
+        show_fib = "分割率" in selected_all
+        show_k250 = "250" in selected_all
+        show_k120 = "120" in selected_all
 
         k_days_choice = 250 if show_k250 else (120 if show_k120 else 60)
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(
@@ -450,7 +459,6 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
-        # 4 個子圖：K線、MACD、成交量、大戶與羊群持股
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
             4, 1, figsize=(10, 7.5), sharex=True,
             gridspec_kw={"height_ratios": [3.6, 1.0, 1.0, 1.2]}
@@ -470,13 +478,12 @@ if stock_options:
         body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
         ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
 
-        # 🛡️ 關鍵修正 1：K線頂端與底部預留空間 (Margin)，右側預留 10% 空間給分割率數值
+        # 🛡️ K線上下留白與右側留白（確保分割率不遮擋 K 線）
         if not df.empty:
             p_max = float(df["high"].max())
             p_min = float(df["low"].min())
             p_range = p_max - p_min if p_max != p_min else 1.0
             ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
-            # 讓 X 軸右側自動多留出空白，分割率文字才不會壓到最新 K 線
             ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
 
         legend_labels = []
@@ -493,7 +500,7 @@ if stock_options:
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
                 legend_labels.append((label_str, color))
 
-        # --- 關鍵修正 2：分割率（黃金分割率）：數值與百分比完美安置在右側 Y 軸內側 ---
+        # --- 分割率（黃金分割率）：安置於右側內側，不遮擋 K 線 ---
         if show_fib and not df.empty:
             max_p = float(df["high"].max())
             min_p = float(df["low"].min())
@@ -509,15 +516,13 @@ if stock_options:
                 (1.0, "100%", min_p)
             ]
             
-            # 取得目前圖表右側 X 軸的邊界位置
             x_right_limit = ax1.get_xlim()[1]
             for ratio_val, label_txt, price_val in fib_levels:
                 ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.9, alpha=0.8)
-                # 將分割率文字精準貼齊右側內側 (x_right_limit - 0.5)，附帶黑色背景框，清晰不遮擋 K 線
                 t_fib = ax1.text(x_right_limit - 0.8, price_val, f" {price_val:.2f} ({label_txt}) ", color="#FFFFFF", fontsize=7.5, fontweight="bold", va="center", ha="right", backgroundcolor="#000000")
                 t_fib.set_path_effects(get_bright_effect("#000000", 0.5))
 
-        # --- 扣抵天數標記 (完整保留 120, 65, 35, 5) ---
+        # --- 扣抵天數標記 ---
         total_len = len(df)
         for count_days in [120, 65, 35, 5]:
             idx_pos = total_len - count_days
@@ -560,7 +565,7 @@ if stock_options:
         t_trend_badge = ax1.text(approx_x_pos, 0.94, trend_status, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.6))
 
-        # --- 關鍵修正 3：右下角獨立資訊框，完美顯示目前週期 (如：日線、60分等) ---
+        # --- 右下角獨立資訊框 (顯示目前週期) ---
         t_period_badge = ax1.text(0.98, 0.06, f" {chart_period} ", transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#333333", ha="right", va="bottom")
         t_period_badge.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
@@ -659,7 +664,6 @@ if stock_options:
             t_tok.set_path_effects(get_bright_effect(color_code, 0.6))
             start_x_chip += len(text_str) * 0.007
 
-        # 框線與邊距調整 (4個子圖)
         for ax in [ax1, ax2, ax3, ax4]:
             for spine in ax.spines.values():
                 spine.set_visible(True)
