@@ -448,7 +448,7 @@ if stock_options:
         df["mtm_val"] = s_close - s_close.shift(10)
         df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
 
-        # 4. KDJ 公式：RSV:=(CLOSE-LLV(LOW,9))/(HHV(HIGH,9)-LLV(LOW,9))*100; K:SMA(RSV,31,1); D:SMA(K,3,1); J:3*K-2*D
+        # 4. KDJ 公式：RSV:=(CLOSE-LLV(LOW,9))/(HHV(HIGH,9)-LLV(LOW,9))*100; K:SMA(RSV,3,1); D:SMA(K,3,1); J:3*K-2*D
         low_min9 = s_low.rolling(9).min()
         high_max9 = s_high.rolling(9).max()
         rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
