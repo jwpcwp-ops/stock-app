@@ -470,12 +470,14 @@ if stock_options:
         body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
         ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
 
-        # 🛡️ 設定 K 線主圖上下留白 (Margin)，避免 K 線擠壓到頂端
+        # 🛡️ 關鍵修正 1：K線頂端與底部預留空間 (Margin)，右側預留 10% 空間給分割率數值
         if not df.empty:
             p_max = float(df["high"].max())
             p_min = float(df["low"].min())
             p_range = p_max - p_min if p_max != p_min else 1.0
-            ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.12)
+            ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
+            # 讓 X 軸右側自動多留出空白，分割率文字才不會壓到最新 K 線
+            ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
 
         legend_labels = []
         last_idx = len(df) - 1
@@ -491,7 +493,7 @@ if stock_options:
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
                 legend_labels.append((label_str, color))
 
-        # --- 分割率（黃金分割率）：文字與數值改為緊貼在右側 Y 軸內側 ---
+        # --- 關鍵修正 2：分割率（黃金分割率）：數值與百分比完美安置在右側 Y 軸內側 ---
         if show_fib and not df.empty:
             max_p = float(df["high"].max())
             min_p = float(df["low"].min())
@@ -507,10 +509,12 @@ if stock_options:
                 (1.0, "100%", min_p)
             ]
             
+            # 取得目前圖表右側 X 軸的邊界位置
+            x_right_limit = ax1.get_xlim()[1]
             for ratio_val, label_txt, price_val in fib_levels:
                 ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.9, alpha=0.8)
-                # 靠右對齊放置於圖表右側內側，不佔畫面
-                t_fib = ax1.text(last_idx - 0.5, price_val, f" {price_val:.2f} ({label_txt}) ", color="#FFFFFF", fontsize=7.5, fontweight="bold", va="center", ha="right", backgroundcolor="#000000")
+                # 將分割率文字精準貼齊右側內側 (x_right_limit - 0.5)，附帶黑色背景框，清晰不遮擋 K 線
+                t_fib = ax1.text(x_right_limit - 0.8, price_val, f" {price_val:.2f} ({label_txt}) ", color="#FFFFFF", fontsize=7.5, fontweight="bold", va="center", ha="right", backgroundcolor="#000000")
                 t_fib.set_path_effects(get_bright_effect("#000000", 0.5))
 
         # --- 扣抵天數標記 (完整保留 120, 65, 35, 5) ---
@@ -556,7 +560,7 @@ if stock_options:
         t_trend_badge = ax1.text(approx_x_pos, 0.94, trend_status, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.6))
 
-        # --- 右下角顯示目前週期 (如：日線、60分等) ---
+        # --- 關鍵修正 3：右下角獨立資訊框，完美顯示目前週期 (如：日線、60分等) ---
         t_period_badge = ax1.text(0.98, 0.06, f" {chart_period} ", transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#333333", ha="right", va="bottom")
         t_period_badge.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
