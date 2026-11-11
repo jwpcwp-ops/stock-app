@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (100% 螢幕比例專用：極致壓縮高度與留白)
+# 2. 注入自訂 CSS (100% 螢幕比例專用：極致壓縮高度與排版)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -29,20 +29,14 @@ st.markdown(
         footer { display: none !important; }
         
         .block-container {
-            padding-top: 0.2rem !important;
+            padding-top: 0.1rem !important;
             padding-bottom: 0.0rem !important;
-            padding-left: 0.3rem !important;
-            padding-right: 0.3rem !important;
+            padding-left: 0.2rem !important;
+            padding-right: 0.2rem !important;
             max-width: 100% !important;
         }
-        .mobile-title {
-            font-size: 13px;
-            font-weight: bold;
-            margin-bottom: 1px;
-            color: #ffffff;
-        }
         .sub-header-14 {
-            font-size: 12px !important;
+            font-size: 11px !important;
             font-weight: bold;
             color: #ffffff;
             margin-top: 1px;
@@ -53,30 +47,30 @@ st.markdown(
             flex-direction: row !important;
             gap: 2px !important;
             align-items: center !important;
-            margin-bottom: 2px !important;
+            margin-bottom: 1px !important;
         }
         .stButton button {
-            font-size: 11px !important;
-            padding: 1px 4px !important;
-            min-height: 24px !important;
-            height: 24px !important;
+            font-size: 10.5px !important;
+            padding: 1px 3px !important;
+            min-height: 22px !important;
+            height: 22px !important;
         }
         [data-testid="stSelectbox"] {
             max-width: 100% !important;
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 24px !important;
-            height: 24px !important;
-            font-size: 11px !important;
-        }
-        div[data-testid="stPills"] button {
-            font-size: 10px !important;
-            padding: 1px 4px !important;
-            margin: 0px 1px !important;
             min-height: 22px !important;
             height: 22px !important;
-            border-radius: 8px !important;
+            font-size: 10.5px !important;
+        }
+        div[data-testid="stPills"] button {
+            font-size: 9.5px !important;
+            padding: 1px 3px !important;
+            margin: 0px 1px !important;
+            min-height: 20px !important;
+            height: 20px !important;
+            border-radius: 6px !important;
             line-height: 1 !important;
         }
         div[data-testid="stPills"] {
@@ -310,7 +304,7 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (4個主分頁按鈕並排)
+# 7. 網頁主介面佈局 (4個主分頁按鈕精準並排)
 # ---------------------------------------------------------
 if stock_options:
     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
@@ -348,10 +342,9 @@ if stock_options:
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        # 🎯 4 欄位超薄控制橫列 (乾淨無多餘雜字)
+        # 🎯 4 欄位超薄控制橫列 (徹底乾淨、無冗餘字體)
         col1, col2, col3, col4 = st.columns([1.2, 1.0, 2.2, 1.6])
         
-        # --- 欄位 1：股票代碼選擇 ---
         with col1:
             selected_stock = st.selectbox(
                 "股票選單",
@@ -367,7 +360,6 @@ if stock_options:
             stock_id = selected_stock.split()[0]
             stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 欄位 2：K線週期切換 (已清除多餘雜字) ---
         with col2:
             chart_period = st.pills(
                 "週期",
@@ -380,7 +372,6 @@ if stock_options:
             if not chart_period:
                 chart_period = "日線"
 
-        # --- 欄位 3：均線、分割率與天數 (已清除多餘雜字) ---
         with col3:
             selected_ma = st.pills(
                 "均線選單",
@@ -391,7 +382,6 @@ if stock_options:
                 key="pills_ma"
             )
 
-        # --- 欄位 4：副圖指標切換 (已清除多餘雜字) ---
         with col4:
             selected_indicator = st.pills(
                 "技術指標",
@@ -402,7 +392,6 @@ if stock_options:
                 key="pills_ind"
             )
 
-        # 解析控制選項
         show_ma5 = "5" in selected_ma
         show_ma10 = "10" in selected_ma
         show_ma20 = "20" in selected_ma
@@ -445,8 +434,6 @@ if stock_options:
         for ma_name, (period, is_show, color) in ma_config.items():
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
-        # --- 新增技術指標計算 ---
-        # 1. KDJ
         low_min9 = s_low.rolling(9).min()
         high_max9 = s_high.rolling(9).max()
         rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
@@ -454,28 +441,20 @@ if stock_options:
         df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
 
-        # 2. RSI
         delta = s_close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(6).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(6).mean()
         rs = gain / (loss + 1e-8)
         df["rsi_6"] = 100 - (100 / (1 + rs))
 
-        # 3. W%R
         low_min14 = s_low.rolling(14).min()
         high_max14 = s_high.rolling(14).max()
         df["w_r"] = (high_max14 - s_close) / (high_max14 - low_min14 + 1e-8) * -100
 
-        # 4. BIAS
         df["bias_6"] = ((s_close - df["ma_5"]) / (df["ma_5"] + 1e-8)) * 100
-
-        # 5. MTM
         df["mtm"] = s_close - s_close.shift(10)
-
-        # 6. QT
         df["qt"] = (s_close - s_close.rolling(20).mean()) / (s_close.rolling(20).std() + 1e-8)
 
-        # MACD
         df["dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
         df["dem"] = df["dif"].ewm(span=9, adjust=False).mean()
         df["osc"] = (df["dif"] - df["dem"]) * 2
@@ -492,7 +471,6 @@ if stock_options:
         prev_osc = float(df["osc"].iloc[-2]) if len(df) > 1 else cur_osc
         osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
 
-        # 成交量均線
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
@@ -519,7 +497,7 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
-        # 🎯 畫布高度維持 5.0 吋，完全貼合 100% 畫面
+        # 🎯 畫布高度維持 5.0 吋，完美貼合 100% 畫面
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
             4, 1, figsize=(10, 5.0), sharex=True,
             gridspec_kw={"height_ratios": [3.0, 0.8, 0.8, 1.0]}
@@ -610,12 +588,10 @@ if stock_options:
             
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # --- 基礎資訊列 ---
         header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.7))
 
-        # --- 季線多空趨勢標籤 ---
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
@@ -625,7 +601,6 @@ if stock_options:
         t_trend_badge = ax1.text(approx_x_pos, 0.94, trend_status, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.6))
 
-        # --- 右下角獨立資訊框 (顯示目前週期) ---
         t_period_badge = ax1.text(0.98, 0.06, f" {chart_period} ", transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#333333", ha="right", va="bottom")
         t_period_badge.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
@@ -678,7 +653,6 @@ if stock_options:
             qt_val = df["qt"].iloc[-1]
             sub1_text = f"QT量化指標: {qt_val:.2f}"
         else:
-            # 預設顯示 MACD
             ax2.bar(x, df["osc"], width=0.75, color=osc_colors, edgecolor="none", alpha=0.9)
             ax2.plot(x, df["dif"], linewidth=0.5, color="#00E5FF", label="DIF")
             ax2.plot(x, df["dem"], linewidth=0.5, color="#FFB300", label="DEA")
@@ -716,7 +690,7 @@ if stock_options:
         t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         # ---------------------------------------------------------
-        # 層 4：大戶與羊群持股 (🎯 優化文字顯示，防止重疊)
+        # 層 4：大戶與羊群持股
         # ---------------------------------------------------------
         ax4.set_facecolor(PANEL_BG)
         cur_big, cur_sheep = 0.0, 0.0
@@ -736,7 +710,6 @@ if stock_options:
             t.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
         ax4.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        # 🎯 乾淨排版的大戶與羊群文字列
         chip_tokens = [
             ("大戶持股: ", "#FFFFFF"),
             (f"{cur_big:.1f}%", "#FF3B30"),
