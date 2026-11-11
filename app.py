@@ -20,21 +20,29 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (100% 螢幕比例專用：極致壓縮高度與留白)
+# 2. 注入自訂 CSS (針對 1920x1080 螢幕 100% 比例極致壓縮高度)
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
-        /* 全局減少 padding，使所有元件緊湊 */
+        /* 隱藏 Streamlit 預設頂部 Header 與 Footer 留白 */
+        header[data-testid="stHeader"] {
+            display: none !important;
+        }
+        footer {
+            display: none !important;
+        }
+        
+        /* 全局邊距極致壓縮 */
         .block-container {
-            padding-top: 0.1rem !important;
+            padding-top: 0.2rem !important;
             padding-bottom: 0.0rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
+            padding-left: 0.3rem !important;
+            padding-right: 0.3rem !important;
             max-width: 100% !important;
         }
         .mobile-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             margin-bottom: 1px;
             color: #ffffff;
@@ -43,10 +51,11 @@ st.markdown(
             font-size: 12px !important;
             font-weight: bold;
             color: #ffffff;
-            margin-top: 2px;
+            margin-top: 1px;
             margin-bottom: 1px;
         }
-        /* 壓縮頂部分頁按鈕與 4 欄位列高度 */
+        
+        /* 橫向區塊與按鈕高度壓縮 */
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
@@ -56,34 +65,41 @@ st.markdown(
         }
         .stButton button {
             font-size: 11px !important;
-            padding: 2px 4px !important;
-            min-height: 26px !important;
+            padding: 1px 4px !important;
+            min-height: 24px !important;
+            height: 24px !important;
         }
-        /* 縮小股票選擇輸入框 */
+        
+        /* 縮小股票選擇下拉框 */
         [data-testid="stSelectbox"] {
             max-width: 100% !important;
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 26px !important;
+            min-height: 24px !important;
+            height: 24px !important;
             font-size: 11px !important;
         }
+        
         /* st.pills 膠囊按鈕超薄微縮排版 */
         div[data-testid="stPills"] button {
             font-size: 10px !important;
             padding: 1px 4px !important;
             margin: 0px 1px !important;
             min-height: 22px !important;
-            border-radius: 10px !important;
+            height: 22px !important;
+            border-radius: 8px !important;
+            line-height: 1 !important;
         }
         div[data-testid="stPills"] {
             gap: 1px !important;
             flex-wrap: nowrap !important; /* 絕不折行 */
-            overflow-x: auto !important;   /* 超出時可橫向滑動 */
+            overflow-x: auto !important;   /* 超出可橫向滑動 */
         }
+        
         /* 隱藏 streamlit 元素之間的預設極大間距 */
         [data-testid="stVerticalBlock"] {
-            gap: 2px !important;
+            gap: 1px !important;
         }
     </style>
 """,
@@ -346,8 +362,8 @@ if stock_options:
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        # 🎯 4 欄位超薄控制橫列 (垂直高度極致壓縮)
-        col1, col2, col3, col4 = st.columns([1.1, 1.0, 2.3, 1.6])
+        # 🎯 4 欄位超薄控制橫列 (重新精準對齊，徹底避免被隱藏)
+        col1, col2, col3, col4 = st.columns([1.2, 1.0, 2.2, 1.6])
         
         # --- 欄位 1：股票代碼選擇 ---
         with col1:
@@ -517,10 +533,10 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
-        # 🎯 關鍵高度修正：將 figsize 改為 (10, 6.2)，確保 100% 電腦畫面不滾動就能看齊全部 4 個圖表！
+        # 🎯 關鍵高度修正：將 figsize 改為 (10, 5.0)，高比重縮至 [3.0, 0.8, 0.8, 1.0]，保證 100% 顯示全部 4 個格子！
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
-            4, 1, figsize=(10, 6.2), sharex=True,
-            gridspec_kw={"height_ratios": [3.4, 0.9, 0.9, 1.1]}
+            4, 1, figsize=(10, 5.0), sharex=True,
+            gridspec_kw={"height_ratios": [3.0, 0.8, 0.8, 1.0]}
         )
 
         for ax in [fig, ax1, ax2, ax3, ax4]:
@@ -753,8 +769,8 @@ if stock_options:
                 spine.set_color(SUB_BORDER)
                 spine.set_linewidth(1.0)
 
-        plt.subplots_adjust(left=0.01, right=0.98, top=0.98, bottom=0.02, hspace=0.05)
-        st.pyplot(fig, use_container_width=True, dpi=250)
+        plt.subplots_adjust(left=0.01, right=0.98, top=0.98, bottom=0.02, hspace=0.04)
+        st.pyplot(fig, use_container_width=True, dpi=150)
 
     # =========================================================
     # 分頁二：秒速選股
