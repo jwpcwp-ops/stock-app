@@ -415,7 +415,7 @@ if stock_options:
         last_open = float(df["open"].iloc[-1]) if not df.empty else 0.0
         last_high = float(df["high"].iloc[-1]) if not df.empty else 0.0
         last_low = float(df["low"].iloc[-1]) if not df.empty else 0.0
-        last_close = float(df["close"].iloc(-1]) if not df.empty else 0.0
+        last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
         last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
         ma_config = {
