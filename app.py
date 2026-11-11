@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (100% 螢幕比例專用：極致壓縮高度與排版)
+# 2. 注入自訂 CSS (單行工具列極致壓縮排版)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -50,10 +50,11 @@ st.markdown(
             margin-bottom: 1px !important;
         }
         .stButton button {
-            font-size: 10.5px !important;
-            padding: 1px 3px !important;
+            font-size: 9.5px !important;
+            padding: 1px 2px !important;
             min-height: 22px !important;
             height: 22px !important;
+            width: 100% !important;
         }
         [data-testid="stSelectbox"] {
             max-width: 100% !important;
@@ -62,15 +63,15 @@ st.markdown(
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
             min-height: 22px !important;
             height: 22px !important;
-            font-size: 10.5px !important;
+            font-size: 9.5px !important;
         }
         div[data-testid="stPills"] button {
-            font-size: 9.5px !important;
-            padding: 1px 3px !important;
+            font-size: 9.0px !important;
+            padding: 1px 2px !important;
             margin: 0px 1px !important;
             min-height: 20px !important;
             height: 20px !important;
-            border-radius: 6px !important;
+            border-radius: 5px !important;
             line-height: 1 !important;
         }
         div[data-testid="stPills"] {
@@ -304,29 +305,31 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (4個主分頁按鈕精準並排)
+# 7. 網頁主介面佈局 (終極單行整合工具列)
 # ---------------------------------------------------------
 if stock_options:
-    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-    modes = ["📈 選擇個股圖表", "⚡羊群秒速選股", "📋 大股東本周前15增幅", "📊 預備中-基本面"]
+    # 將 4 個分頁按鈕與控制項完美並排在同一列中 (透過 8 欄位彈性配置)
+    top_cols = st.columns([1.1, 1.1, 1.3, 1.1, 1.3, 0.9, 2.0, 1.3])
+    modes = ["📈 個股圖表", "⚡ 秒速選股", "📋 大戶前15", "📊 基本面"]
 
-    with m_col1:
+    with top_cols[0]:
         if st.button(modes[0], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 0 else "secondary"):
             st.session_state.app_mode_idx = 0
             st.rerun()
-    with m_col2:
+    with top_cols[1]:
         if st.button(modes[1], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 1 else "secondary"):
             st.session_state.app_mode_idx = 1
             st.rerun()
-    with m_col3:
+    with top_cols[2]:
         if st.button(modes[2], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 2 else "secondary"):
             st.session_state.app_mode_idx = 2
             st.rerun()
-    with m_col4:
+    with top_cols[3]:
         if st.button(modes[3], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 3 else "secondary"):
             st.session_state.app_mode_idx = 3
             st.rerun()
 
+    # 如果當前是「單股籌碼圖表檢視」，在同一列後面直接接續圖表控制項
     app_mode_map = [
         "📈 單股籌碼圖表檢視",
         "⚡ 秒速選股：黃金交叉 / 死亡交叉",
@@ -335,17 +338,11 @@ if stock_options:
     ]
     app_mode = app_mode_map[st.session_state.app_mode_idx]
 
-    # =========================================================
-    # 分頁一：單股圖表
-    # =========================================================
     if app_mode == "📈 單股籌碼圖表檢視":
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        # 🎯 4 欄位超薄控制橫列 (徹底乾淨、無冗餘字體)
-        col1, col2, col3, col4 = st.columns([1.2, 1.0, 2.2, 1.6])
-        
-        with col1:
+        with top_cols[4]:
             selected_stock = st.selectbox(
                 "股票選單",
                 stock_options,
@@ -360,7 +357,7 @@ if stock_options:
             stock_id = selected_stock.split()[0]
             stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        with col2:
+        with top_cols[5]:
             chart_period = st.pills(
                 "週期",
                 ["60分", "日線", "週線", "月線"],
@@ -372,7 +369,7 @@ if stock_options:
             if not chart_period:
                 chart_period = "日線"
 
-        with col3:
+        with top_cols[6]:
             selected_ma = st.pills(
                 "均線選單",
                 ["5", "10", "20", "30", "60", "120", "200", "分割率", "120", "250"],
@@ -382,7 +379,7 @@ if stock_options:
                 key="pills_ma"
             )
 
-        with col4:
+        with top_cols[7]:
             selected_indicator = st.pills(
                 "技術指標",
                 ["QT", "KDJ", "RSI", "W%", "BIAS", "MTM"],
@@ -497,7 +494,7 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
-        # 🎯 畫布高度維持 5.0 吋，完美貼合 100% 畫面
+        # 🎯 畫布高度設定為 5.0 吋，保證 4 個子圖一眼全覽不需滾動
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
             4, 1, figsize=(10, 5.0), sharex=True,
             gridspec_kw={"height_ratios": [3.0, 0.8, 0.8, 1.0]}
