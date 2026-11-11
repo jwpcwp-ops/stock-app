@@ -242,7 +242,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
                 df_k["Volume"] = np.random.randint(10000, 50000, size=len(df_k)) * 1000
 
         vol_series = df_k["Volume"]
-        vol_daily = vol_series / 1000
+        vol_daily = vol_series / 1000  # 轉為張數
         cur_vol = float(vol_daily.iloc[-1]) if len(vol_daily) > 0 else 0.0
         vol_20ma_daily = vol_daily.rolling(20).mean()
         cur_20ma = float(vol_20ma_daily.iloc[-1]) if len(vol_20ma_daily) > 0 else 0.0
@@ -264,7 +264,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
                 "high": h_val,
                 "low": l_val,
                 "close": c_val,
-                "vol": float(row["Volume"]) / 1000
+                "vol": float(row["Volume"]) / 1000  # 單位：張
             })
     else:
         cur_vol, cur_20ma, ratio = 12000.0, 10000.0, 1.2
@@ -278,7 +278,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
                 "high": prices[i] + 1.0,
                 "low": prices[i] - 1.0,
                 "close": prices[i],
-                "vol": np.random.randint(5000, 30000)
+                "vol": np.random.randint(1000, 5000)
             })
 
     if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
@@ -401,7 +401,7 @@ if stock_options:
         show_fib = "分割" in selected_ma
         show_k250 = "250" in selected_ma
 
-        k_days_choice = 250  # 預設直接使用 250 日
+        k_days_choice = 250
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(
             stock_id, target_days=k_days_choice, period_type=actual_chart_period
         )
@@ -416,7 +416,7 @@ if stock_options:
         last_high = float(df["high"].iloc[-1]) if not df.empty else 0.0
         last_low = float(df["low"].iloc[-1]) if not df.empty else 0.0
         last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
-        last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0  # 這裡的 vol 已經是張數單位
+        last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
         ma_config = {
             "5": (5, show_ma5, "#00E5FF"),
@@ -446,7 +446,7 @@ if stock_options:
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 🎯 技術指標計算 (RSI 6, 12)
+        # 🎯 技術指標計算 (含 MACD, KDJ, RSI 6,12)
         # ---------------------------------------------------------
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
@@ -493,6 +493,8 @@ if stock_options:
         df["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
 
         cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
+        cur_dem = float(df["macd_dem"].iloc[-1]) if not df.empty else 0.0
+        cur_osc = float(df["macd_osc"].iloc[-1]) if not df.empty else 0.0
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
@@ -500,7 +502,7 @@ if stock_options:
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
-        cur_vol_val = last_vol  # 這是正確的張數
+        cur_vol_val = last_vol
         cur_vol_ma5 = float(df["vol_ma5"].iloc[-1]) if not pd.isna(df["vol_ma5"].iloc[-1]) else 0.0
         cur_vol_ma20 = float(df["vol_ma20"].iloc[-1]) if not pd.isna(df["vol_ma20"].iloc[-1]) else 0.0
         
@@ -607,7 +609,6 @@ if stock_options:
         ax1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # 標準 K 線行情資訊列（精確對齊您的看盤軟體格式）
         standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.93, standard_header_str, transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
@@ -674,10 +675,17 @@ if stock_options:
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
                 ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
                 ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
-                ind_title = f"MACD(12,26,9)  DIF:{cur_dif:.2f}"
+                
+                ax_sub1.text(0.015, 0.76, f"MACD(12,26,9) ", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+                ax_sub1.text(0.18, 0.76, f"DIF:{cur_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFF00")
+                ax_sub1.text(0.28, 0.76, f"DEA:{cur_dem:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30")
+                ax_sub1.text(0.38, 0.76, f"MACD:{cur_osc:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30" if cur_osc >= 0 else "#00C853")
+
             elif selected_indicator == "BIAS":
                 ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)")
-                ind_title = f"BIAS(60)  {cur_bias:.2f}%"
+                t_s1 = ax_sub1.text(0.015, 0.76, f"BIAS(60)  {cur_bias:.2f}%", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+                t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
+                
             elif selected_indicator == "KDJ":
                 cur_k = float(df["kdj_k"].iloc[-1]) if not df.empty else 0.0
                 cur_d = float(df["kdj_d"].iloc[-1]) if not df.empty else 0.0
@@ -691,8 +699,8 @@ if stock_options:
                 ax_sub1.text(0.12, 0.76, f"K:{cur_k:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#00E5FF")
                 ax_sub1.text(0.20, 0.76, f"D:{cur_d:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFB300")
                 ax_sub1.text(0.28, 0.76, f"J:{cur_j:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30")
-                ax_sub1.text(0.36, 0.76, f"乖離(K-D):{cur_k_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                ind_title = ""
+                ax_sub1.text(0.36, 0.76, f"乖離數值(K-D):{cur_k_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+
             elif selected_indicator == "RSI":
                 cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
                 cur_r12 = float(df["rsi_12"].iloc[-1]) if not df.empty else 0.0
@@ -703,27 +711,24 @@ if stock_options:
                 ax_sub1.text(0.015, 0.76, "RSI(6,12) ", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
                 ax_sub1.text(0.12, 0.76, f"RSI6:{cur_r6:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#00E5FF")
                 ax_sub1.text(0.23, 0.76, f"RSI12:{cur_r12:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30")
-                ax_sub1.text(0.35, 0.76, f"乖離(6-12):{cur_r_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                ind_title = ""
+                ax_sub1.text(0.35, 0.76, f"乖離數值(6-12):{cur_r_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+
             elif selected_indicator == "W%":
                 cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.plot(x, df["w_r"], linewidth=0.6, color="#FFD700", label="W%")
-                ind_title = f"W%(9): {cur_wr:.1f}"
+                t_s1 = ax_sub1.text(0.015, 0.76, f"W%(9): {cur_wr:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+                t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
+
             elif selected_indicator == "QT":
                 cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.bar(x, df["qt"], width=0.75, color=qt_bar_colors, edgecolor="none", alpha=0.9)
-                ind_title = f"QT(每筆均量): {cur_qt:.2f}"
-            else:
-                ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
-                ind_title = f"指標"
+                t_s1 = ax_sub1.text(0.015, 0.76, f"QT(每筆均量): {cur_qt:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+                t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            if ind_title:
-                t_s1 = ax_sub1.text(0.015, 0.76, ind_title, transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             # ---------------------------------------------------------
             # 🎯 成交量副圖與詳細標註（完美對齊您的看盤軟體格式）
