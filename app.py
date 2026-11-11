@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (擬真券商 App 黑底風格與精簡排版)
+# 2. 注入自訂 CSS (縮小 pills 按鈕間距與字型，強制壓縮為 2 列)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -55,6 +55,16 @@ st.markdown(
         .stButton button {
             font-size: 12px !important;
             padding: 4px 8px !important;
+        }
+        /* 📱 針對 st.pills 膠囊按鈕微調，微縮字體與內邊距，完美縮成 2 列 */
+        div[data-testid="stPills"] button {
+            font-size: 11px !important;
+            padding: 2px 6px !important;
+            margin: 1px !important;
+            min-height: 26px !important;
+        }
+        div[data-testid="stPills"] {
+            gap: 2px !important;
         }
     </style>
 """,
@@ -129,7 +139,7 @@ def load_local_cache_cached():
             pass
     return cache_dict
 
-def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"):
+def get_comprehensive_stock_data(stock_id, target_days=60, period_type="日線"):
     cache_dict = load_local_cache_cached()
     today_str = datetime.today().strftime("%Y-%m-%d")
 
@@ -145,7 +155,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 
     yf_interval = "1d"
     yf_period = "1y"
-    if period_type == "60分鐘線":
+    if period_type in ["60分", "60分鐘線"]:
         yf_interval = "60m"
         yf_period = "60d"
     elif period_type == "週線":
@@ -229,7 +239,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         
         k_records = []
         for idx, row in df_k.iterrows():
-            date_str = idx.strftime("%Y/%m/%d %H:%M") if period_type == "60分鐘線" else idx.strftime("%Y/%m/%d")
+            date_str = idx.strftime("%Y/%m/%d %H:%M") if period_type in ["60分", "60分鐘線"] else idx.strftime("%Y/%m/%d")
             o_val = float(row["Open"])
             h_val = float(row["High"])
             l_val = float(row["Low"])
@@ -340,19 +350,20 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板 (改為點擊文字直接切換的 pills 設計，精簡手機版面) ---
+        # --- 控制面板 (60分鐘改寫為「60分」、不啟動任何指標顯示、預設顯示 60 根 K 線) ---
         with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
             chart_period = st.pills(
                 "週期切換", 
-                ["60分鐘線", "日線", "週線", "月線"], 
+                ["60分", "日線", "週線", "月線"], 
                 default="日線",
                 label_visibility="collapsed"
             )
             
+            # 預設不勾選任何指標 (default=[])，開啟畫面不顯示任何均線與指標
             selected_indicators = st.pills(
                 "均線選單",
                 ["5", "10", "20", "30", "60", "120", "200", "分割率", "250", "120"],
-                default=["5", "分割率", "250"],
+                default=[],
                 selection_mode="multi",
                 label_visibility="collapsed"
             )
@@ -365,11 +376,14 @@ if stock_options:
         show_ma120 = "120" in selected_indicators
         show_ma200 = "200" in selected_indicators
         show_fib = "分割率" in selected_indicators
-        show_k200 = "250" in selected_indicators
+        show_k250 = "250" in selected_indicators
         show_k120 = "120" in selected_indicators
 
-        k_days_choice = 250 if show_k200 else (120 if show_k120 else 60)
-        k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id, target_days=k_days_choice, period_type=chart_period)
+        # 預設顯示 60 根 K線，只有點選 250 或 120 時才調整 K線天數
+        k_days_choice = 250 if show_k250 else (120 if show_k120 else 60)
+        k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(
+            stock_id, target_days=k_days_choice, period_type=chart_period
+        )
 
         df = pd.DataFrame(k_records)
         s_close = df["close"]
@@ -438,7 +452,7 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
-        # 改為 4 個子圖：K線、MACD、成交量、大戶與羊群持股
+        # 4 個子圖：K線、MACD、成交量、大戶與羊群持股
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
             4, 1, figsize=(10, 7.5), sharex=True,
             gridspec_kw={"height_ratios": [3.6, 1.0, 1.0, 1.2]}
