@@ -378,7 +378,6 @@ if stock_options:
             )
 
         with top_cols[7]:
-            # 🎯 移除多餘的 MTM 獨立按鈕，保留「波段」與其他單一技術指標按鈕
             selected_indicator = st.pills(
                 "技術指標",
                 ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT"],
@@ -433,28 +432,28 @@ if stock_options:
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
         # ---------------------------------------------------------
-        # 🎯 各項技術指標計算
+        # 🎯 各項技術指標計算 (依照您的最新參數與公式)
         # ---------------------------------------------------------
-        # 1. MACD(5, 10, 5)
-        df["macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
-        df["macd_dem"] = df["macd_dif"].ewm(span=5, adjust=False).mean()
+        # 1. MACD 標準參數 (12, 26, 9)
+        df["macd_dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
+        df["macd_dem"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
         df["macd_osc"] = (df["macd_dif"] - df["macd_dem"]) * 2
 
-        # 2. BIAS(20-5) 乖離率 (含波段專用反向設計)
-        df["bias_base"] = s_close.rolling(window=20).mean()
-        df["bias_val"] = ((s_close - df["bias_base"]) / (df["bias_base"] + 1e-8)) * 100
-        df["bias_val_rev"] = -1.0 * df["bias_val"]
+        # 2. BIAS 參數為 60 日：(CLOSE-MA(CLOSE,60))/MA(CLOSE,60)*100
+        df["bias_ma60"] = s_close.rolling(window=60).mean()
+        df["bias_val"] = ((s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)) * 100
+        df["bias_val_rev"] = -1.0 * df["bias_val"]  # 波段低點專用反向設計
 
         # 3. MTM(10, 1) 動量指標 (波段組合內建)
         df["mtm_val"] = s_close - s_close.shift(10)
         df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
 
-        # 4. KDJ(9, 3, 3)
+        # 4. KDJ 公式：RSV:=(CLOSE-LLV(LOW,9))/(HHV(HIGH,9)-LLV(LOW,9))*100; K:SMA(RSV,31,1); D:SMA(K,3,1); J:3*K-2*D
         low_min9 = s_low.rolling(9).min()
         high_max9 = s_high.rolling(9).max()
         rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
-        df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
-        df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
+        df["kdj_k"] = rsv.ewm(alpha=1/31, adjust=False).mean()
+        df["kdj_d"] = df["kdj_k"].ewm(alpha=1/3, adjust=False).mean()
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
 
         # 5. RSI(6)
@@ -599,7 +598,7 @@ if stock_options:
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             # --- 模式 1：「波段」專屬 3 個獨立高低點副圖 ---
-            # 副圖 1：MACD (5, 10)
+            # 副圖 1：MACD (12, 26, 9)
             ax_sub1.set_facecolor(PANEL_BG)
             ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
             ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
@@ -608,17 +607,17 @@ if stock_options:
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s1 = ax_sub1.text(0.015, 0.78, f"Macd(5,10)  DIF:{cur_dif:.2f}  Macd:{cur_macds:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s1 = ax_sub1.text(0.015, 0.78, f"MACD(12,26,9)  DIF:{cur_dif:.2f}  MACD:{cur_macds:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-            # 副圖 2：BIAS (20-5，反向設計)
+            # 副圖 2：BIAS (60日反向)
             ax_sub2.set_facecolor(PANEL_BG)
-            ax_sub2.plot(x, df["bias_val_rev"], linewidth=0.6, color="#FFFF00", label="BIAS(反向)")
+            ax_sub2.plot(x, df["bias_val_rev"], linewidth=0.6, color="#FFFF00", label="BIAS(60反向)")
             ax_sub2.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s2 = ax_sub2.text(0.015, 0.78, f"BIAS(20-5)  {cur_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s2 = ax_sub2.text(0.015, 0.78, f"BIAS(60)  {cur_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
             # 副圖 3：MTM (10, 1)
@@ -641,15 +640,15 @@ if stock_options:
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
                 ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
                 ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
-                ind_title = f"MACD(5,10,5)  DIF:{cur_dif:.2f}"
+                ind_title = f"MACD(12,26,9)  DIF:{cur_dif:.2f}"
             elif selected_indicator == "BIAS":
-                ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS")
-                ind_title = f"BIAS(20,5)  {cur_bias:.2f}%"
+                ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)")
+                ind_title = f"BIAS(60)  {cur_bias:.2f}%"
             elif selected_indicator == "KDJ":
                 ax_sub1.plot(x, df["kdj_k"], linewidth=0.6, color="#00E5FF", label="K")
                 ax_sub1.plot(x, df["kdj_d"], linewidth=0.6, color="#FFB300", label="D")
                 ax_sub1.plot(x, df["kdj_j"], linewidth=0.6, color="#FF3B30", label="J")
-                ind_title = f"KDJ(9,3,3)"
+                ind_title = f"KDJ(9, 31, 3)"
             elif selected_indicator == "RSI":
                 cur_rsi = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.plot(x, df["rsi_6"], linewidth=0.6, color="#00E5FF", label="RSI")
