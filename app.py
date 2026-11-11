@@ -432,23 +432,31 @@ if stock_options:
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
         # ---------------------------------------------------------
-        # 🎯 各項技術指標計算 (依照您的最新參數與公式)
+        # 🎯 參數嚴格獨立：波段歸波段、指標歸指標
         # ---------------------------------------------------------
-        # 1. MACD 標準參數 (12, 26, 9)
+        # A. 【波段專用參數】(專門給波段組合使用)
+        df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
+        df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
+        df["band_macd_osc"] = (df["band_macd_dif"] - df["band_macd_dem"]) * 2
+        
+        df["band_bias_base"] = s_close.rolling(window=20).mean()
+        df["band_bias_val"] = ((s_close - df["band_bias_base"]) / (df["band_bias_base"] + 1e-8)) * 100
+        df["band_bias_val_rev"] = -1.0 * df["band_bias_val"]  # 波段低點專用反向設計
+
+        df["mtm_val"] = s_close - s_close.shift(10)
+        df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
+
+        # B. 【一般技術指標選單參數】(正規標準數據，絕不混淆)
+        # 1. 標準 MACD (12, 26, 9)
         df["macd_dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
         df["macd_dem"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
         df["macd_osc"] = (df["macd_dif"] - df["macd_dem"]) * 2
 
-        # 2. BIAS 參數為 60 日：(CLOSE-MA(CLOSE,60))/MA(CLOSE,60)*100
+        # 2. 標準 BIAS 60日：(CLOSE-MA(CLOSE,60))/MA(CLOSE,60)*100
         df["bias_ma60"] = s_close.rolling(window=60).mean()
         df["bias_val"] = ((s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)) * 100
-        df["bias_val_rev"] = -1.0 * df["bias_val"]  # 波段低點專用反向設計
 
-        # 3. MTM(10, 1) 動量指標 (波段組合內建)
-        df["mtm_val"] = s_close - s_close.shift(10)
-        df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
-
-        # 4. KDJ 公式：RSV:=(CLOSE-LLV(LOW,9))/(HHV(HIGH,9)-LLV(LOW,9))*100; K:SMA(RSV,3,1); D:SMA(K,3,1); J:3*K-2*D
+        # 3. KDJ 專屬公式：K:SMA(RSV,31,1), D:SMA(K,3,1), J:3*K-2*D
         low_min9 = s_low.rolling(9).min()
         high_max9 = s_high.rolling(9).max()
         rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
@@ -456,19 +464,19 @@ if stock_options:
         df["kdj_d"] = df["kdj_k"].ewm(alpha=1/3, adjust=False).mean()
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
 
-        # 5. RSI(6)
+        # 4. RSI(6)
         delta = s_close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(6).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(6).mean()
         rs = gain / (loss + 1e-8)
         df["rsi_6"] = 100 - (100 / (1 + rs))
 
-        # 6. W% (威廉指標 14)
+        # 5. W% (威廉指標 14)
         low_min14 = s_low.rolling(14).min()
         high_max14 = s_high.rolling(14).max()
         df["w_r"] = (high_max14 - s_close) / (high_max14 - low_min14 + 1e-8) * -100
 
-        # 7. QT (乖離標準差指標)
+        # 6. QT (乖離標準差指標)
         df["qt"] = (s_close - s_close.rolling(20).mean()) / (s_close.rolling(20).std() + 1e-8)
 
         cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -496,13 +504,14 @@ if stock_options:
             for o, c, pc in zip(df["open"], df["close"], prev_closes)
         ]
         macd_bar_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["macd_osc"]]
+        band_macd_bar_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["band_macd_osc"]]
 
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
         # 🎯 繪圖畫分布局：
-        # - 「波段」模式：4 個子圖 [主圖K線, 副圖1(MACD), 副圖2(BIAS反向), 副圖3(MTM)]
-        # - 其他指標模式：標準 4 個子圖 [主圖K線, 副圖1(選擇指標), 副圖2(成交量), 副圖3(大戶羊群)]
+        # - 「波段」模式：4 個子圖 [主圖K線, 副圖1(波段MACD 5,10), 副圖2(波段BIAS反向), 副圖3(MTM)]
+        # - 其他指標模式：標準 4 個子圖 [主圖K線, 副圖1(正規指標), 副圖2(成交量), 副圖3(大戶羊群)]
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             fig, axes = plt.subplots(
@@ -594,33 +603,37 @@ if stock_options:
                 text_x += 0.13
 
         # ---------------------------------------------------------
-        # 🎯 渲染副圖欄位 (依據選中的指標按鈕動態呈現)
+        # 🎯 渲染副圖欄位 (波段 vs 正規技術指標 嚴格區隔)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
-            # --- 模式 1：「波段」專屬 3 個獨立高低點副圖 ---
-            # 副圖 1：MACD (12, 26, 9)
+            # --- 模式 1：「波段」專屬 3 個獨立高低點副圖 (使用波段專用參數) ---
+            cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
+            cur_band_dem = float(df["band_macd_dem"].iloc[-1]) if not df.empty else 0.0
+            cur_band_bias = float(df["band_bias_val"].iloc[-1]) if not df.empty else 0.0
+
+            # 副圖 1：波段專用 MACD (5, 10, 5)
             ax_sub1.set_facecolor(PANEL_BG)
-            ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
-            ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
-            ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
+            ax_sub1.bar(x, df["band_macd_osc"], width=0.75, color=band_macd_bar_colors, edgecolor="none", alpha=0.9)
+            ax_sub1.plot(x, df["band_macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
+            ax_sub1.plot(x, df["band_macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
             ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s1 = ax_sub1.text(0.015, 0.78, f"MACD(12,26,9)  DIF:{cur_dif:.2f}  MACD:{cur_macds:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s1 = ax_sub1.text(0.015, 0.78, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-            # 副圖 2：BIAS (60日反向)
+            # 副圖 2：波段專用 BIAS (反向設計)
             ax_sub2.set_facecolor(PANEL_BG)
-            ax_sub2.plot(x, df["bias_val_rev"], linewidth=0.6, color="#FFFF00", label="BIAS(60反向)")
+            ax_sub2.plot(x, df["band_bias_val_rev"], linewidth=0.6, color="#FFFF00", label="BIAS(反向)")
             ax_sub2.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s2 = ax_sub2.text(0.015, 0.78, f"BIAS(60)  {cur_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s2 = ax_sub2.text(0.015, 0.78, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-            # 副圖 3：MTM (10, 1)
+            # 副圖 3：波段專用 MTM (10, 1)
             ax_sub3.set_facecolor(PANEL_BG)
             ax_sub3.plot(x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM")
             ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.6, color="#008080", label="Avg")
@@ -628,13 +641,13 @@ if stock_options:
             ax_sub3.yaxis.tick_right()
             ax_sub3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s3 = ax_sub3.text(0.015, 0.78, f"MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
+            t_s3 = ax_sub3.text(0.015, 0.78, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         else:
-            # --- 模式 2：標準單一指標檢視 (副圖1=所選指標, 副圖2=成交量, 副圖3=大戶羊群) ---
+            # --- 模式 2：標準技術指標選單 (正規參數：MACD 12,26,9 / BIAS 60 / KDJ 31 等) ---
             
-            # 副圖 1：動態渲染選中的指標
+            # 副圖 1：正規技術指標呈現
             ax_sub1.set_facecolor(PANEL_BG)
             if selected_indicator == "MACD":
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
