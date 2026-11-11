@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (優化頂部選單，確保 120, 250 完整顯示不擠壓)
+# 2. 注入自訂 CSS (針對 125% 縮放與 1080p 進行最佳化，確保一頁看完不捲動)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -134,7 +134,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取
+# 5. 本地快取支援與資料抓取 (預設 250 日)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -305,7 +305,7 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (調整欄位比例與選單文字，確保 120, 250 完整出現)
+# 7. 網頁主介面佈局
 # ---------------------------------------------------------
 if stock_options:
     top_cols = st.columns([0.4, 0.4, 0.4, 0.4, 0.7, 0.9, 2.9, 2.8])
@@ -432,23 +432,24 @@ if stock_options:
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
         # ---------------------------------------------------------
-        # 🎯 均線扣抵計算 (支援 5, 35, 65, 120, 200)
+        # 🎯 恢復舊版精準的扣抵計算邏輯 (5, 35, 65, 120)
         # ---------------------------------------------------------
-        deduct_periods = [5, 35, 65, 120, 200]
-        deduct_colors = {5: "#00E5FF", 35: "#00FF66", 65: "#FF00FF", 120: "#9D4EDD", 200: "#FFFFFF"}
+        deduct_periods = [5, 35, 65, 120]
+        deduct_colors = {5: "#00E5FF", 35: "#00FF66", 65: "#FF00FF", 120: "#9D4EDD"}
         deduct_vals = {}
         deduct_indices = {}
         n_len = len(df)
         for p in deduct_periods:
-            if n_len >= p:
-                deduct_vals[p] = float(s_close.iloc[-p])
-                deduct_indices[p] = n_len - p
+            idx_pos = n_len - p
+            if idx_pos >= 0 and idx_pos < n_len:
+                deduct_vals[p] = float(s_close.iloc[idx_pos])
+                deduct_indices[p] = idx_pos
             else:
                 deduct_vals[p] = float(s_close.iloc[0]) if not s_close.empty else 0.0
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 🎯 各項技術指標與波段參數獨立計算
+        # 🎯 技術指標與波段參數計算
         # ---------------------------------------------------------
         # A. 【波段專用參數】
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
@@ -462,7 +463,7 @@ if stock_options:
         df["mtm_val"] = s_close - s_close.shift(10)
         df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
 
-        # B. 【一般技術指標選單參數】
+        # B. 【一般技術指標】
         # 1. MACD (12, 26, 9)
         df["macd_dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
         df["macd_dem"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
@@ -472,7 +473,7 @@ if stock_options:
         df["bias_ma60"] = s_close.rolling(window=60).mean()
         df["bias_val"] = ((s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)) * 100
 
-        # 3. KDJ 標準參數 (9, 3, 3) 加上乖離 (K - D) 與 J 值
+        # 3. KDJ (9,3,3) + 乖離 (K - D)
         low_min9 = s_low.rolling(9).min()
         high_max9 = s_high.rolling(9).max()
         rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
@@ -481,7 +482,7 @@ if stock_options:
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
         df["kdj_diff"] = df["kdj_k"] - df["kdj_d"]
 
-        # 4. RSI 參數 3 與 6 雙線，計算乖離 (RSI3 - RSI6)
+        # 4. RSI (3, 6) + 乖離 (RSI3 - RSI6)
         delta = s_close.diff()
         gain3 = (delta.where(delta > 0, 0)).rolling(3).mean()
         loss3 = (-delta.where(delta < 0, 0)).rolling(3).mean()
@@ -494,12 +495,12 @@ if stock_options:
         df["rsi_6"] = 100 - (100 / (1 + rs6))
         df["rsi_diff"] = df["rsi_3"] - df["rsi_6"]
 
-        # 5. W% 參數改為 9
+        # 5. W% (9)
         low_min9_w = s_low.rolling(9).min()
         high_max9_w = s_high.rolling(9).max()
         df["w_r"] = (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
 
-        # 6. QT 改為每筆均量柱狀體 (無負數，依漲跌上色)
+        # 6. QT (每筆均量柱狀體)
         df["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
 
         cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -532,7 +533,7 @@ if stock_options:
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
-        # 🎯 畫布尺寸設定
+        # 🎯 畫布尺寸設定 (一頁看完不捲動)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             fig, axes = plt.subplots(
@@ -553,7 +554,7 @@ if stock_options:
         x = list(range(len(df)))
 
         # ---------------------------------------------------------
-        # 層 1：K線、均線、分割率、多空線、扣抵虛線
+        # 層 1：K線、均線、分割率、多空線、扣抵垂直虛線與底部標記
         # ---------------------------------------------------------
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.5, alpha=0.95)
@@ -568,12 +569,15 @@ if stock_options:
             ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
             ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
 
-        # 繪製均線扣抵垂直虛線
-        for p in deduct_periods:
-            if p in deduct_indices:
-                idx_pos = deduct_indices[p]
-                col = deduct_colors[p]
-                ax1.axvline(idx_pos, color=col, linestyle=":", linewidth=0.8, alpha=0.7)
+        # --- 還原舊版精準的扣抵垂直虛線與底部文字標記 ---
+        for count_days in [120, 65, 35, 5]:
+            if count_days in deduct_indices:
+                idx_pos = deduct_indices[count_days]
+                col = deduct_colors[count_days]
+                ax1.axvline(x=idx_pos, color=col, linestyle=":", linewidth=0.8, alpha=0.85)
+                t_num = ax1.text(idx_pos, df["low"].min(), f"{count_days}", color=col, 
+                                 fontsize=8.5, fontweight="bold", ha="center", va="bottom")
+                t_num.set_path_effects(get_bright_effect("#000000", 0.8))
 
         legend_labels = []
         last_idx = len(df) - 1
@@ -608,21 +612,17 @@ if stock_options:
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
         # 頂部上標欄位 (如圖1：帶有各均線扣抵數值與收盤價)
-        deduct_str_parts = []
-        for p in deduct_periods:
-            val = deduct_vals[p]
-            col = deduct_colors[p]
-            deduct_str_parts.append((f"E{p}:{val:.2f} ▲", col))
-
-        # 組合顯示標題
         header_text_x = 0.01
         t_stock = ax1.text(header_text_x, 0.93, f"[{stock_id}] {stock_name}", transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
         t_stock.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
         header_text_x += 0.11
 
-        for d_txt, d_col in deduct_str_parts:
-            t_d = ax1.text(header_text_x, 0.93, d_txt, transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=d_col)
-            t_d.set_path_effects(get_bright_effect(d_col, 0.5))
+        for p in deduct_periods:
+            val = deduct_vals[p]
+            col = deduct_colors[p]
+            d_txt = f"E{p}:{val:.2f} ▲"
+            t_d = ax1.text(header_text_x, 0.93, d_txt, transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=col)
+            t_d.set_path_effects(get_bright_effect(col, 0.5))
             header_text_x += len(d_txt) * 0.013
 
         t_close_badge = ax1.text(header_text_x, 0.93, f"收:{last_close:.2f} ▲", transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color="#FF3B30")
