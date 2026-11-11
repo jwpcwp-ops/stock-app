@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (針對 125% 縮放與 1080p 進行最佳化，確保一頁看完不捲動)
+# 2. 注入自訂 CSS (精準調整頂部選單寬度與字型，解決未顯示問題)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -45,15 +45,15 @@ st.markdown(
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            gap: 2px !important;
+            gap: 1px !important;
             align-items: center !important;
             margin-bottom: 1px !important;
         }
         .stButton button {
-            font-size: 9.0px !important;
+            font-size: 8.5px !important;
             padding: 1px 2px !important;
-            min-height: 20px !important;
-            height: 20px !important;
+            min-height: 19px !important;
+            height: 19px !important;
             width: 100% !important;
         }
         [data-testid="stSelectbox"] {
@@ -61,21 +61,21 @@ st.markdown(
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 20px !important;
-            height: 20px !important;
-            font-size: 9.0px !important;
+            min-height: 19px !important;
+            height: 19px !important;
+            font-size: 8.5px !important;
         }
         div[data-testid="stPills"] button {
-            font-size: 8.5px !important;
-            padding: 1px 2px !important;
-            margin: 0px 1px !important;
+            font-size: 8.0px !important;
+            padding: 0px 1px !important;
+            margin: 0px 0.5px !important;
             min-height: 18px !important;
             height: 18px !important;
-            border-radius: 4px !important;
+            border-radius: 3px !important;
             line-height: 1 !important;
         }
         div[data-testid="stPills"] {
-            gap: 1px !important;
+            gap: 0.5px !important;
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
         }
@@ -154,7 +154,7 @@ def load_local_cache_cached():
             pass
     return cache_dict
 
-def get_comprehensive_stock_data(stock_id, target_days=60, period_type="日線"):
+def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"):
     cache_dict = load_local_cache_cached()
     today_str = datetime.today().strftime("%Y-%m-%d")
 
@@ -169,19 +169,19 @@ def get_comprehensive_stock_data(stock_id, target_days=60, period_type="日線")
         tickers_to_try = [stock_id + ".TW", stock_id + ".TWO"]
 
     yf_interval = "1d"
-    yf_period = "1y"
+    yf_period = "2y"
     if period_type in ["60分", "60分鐘線"]:
         yf_interval = "60m"
         yf_period = "60d"
     elif period_type == "週線":
         yf_interval = "1wk"
-        yf_period = "2y"
+        yf_period = "5y"
     elif period_type == "月線":
         yf_interval = "1mo"
-        yf_period = "5y"
+        yf_period = "10y"
     elif period_type == "日線":
         yf_interval = "1d"
-        yf_period = "ytd"
+        yf_period = "2y"
 
     for ticker in tickers_to_try:
         try:
@@ -305,10 +305,10 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局
+# 7. 網頁主介面佈局 (調整欄位比例，讓所有按鈕完美顯示)
 # ---------------------------------------------------------
 if stock_options:
-    top_cols = st.columns([0.5, 0.5, 0.5, 0.5, 0.8, 1.1, 2.7, 2.4])
+    top_cols = st.columns([0.45, 0.45, 0.45, 0.45, 0.75, 1.0, 2.7, 2.8])
     modes = ["📈 個股", "⚡ 選股", "📋 大戶", "📊 基本"]
 
     with top_cols[0]:
@@ -370,8 +370,8 @@ if stock_options:
         with top_cols[6]:
             selected_ma = st.pills(
                 "均線選單",
-                ["5", "10", "20", "30", "60", "120", "200", "分割率", "120", "250"],
-                default=["60"],
+                ["5", "10", "20", "30", "60", "120", "200", "分割率", "250"],
+                default=["60", "250"],
                 selection_mode="multi",
                 label_visibility="collapsed",
                 key="pills_ma"
@@ -381,13 +381,13 @@ if stock_options:
             selected_indicator = st.pills(
                 "技術指標",
                 ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT"],
-                default="波段",
+                default="MACD",
                 selection_mode="single",
                 label_visibility="collapsed",
                 key="pills_ind"
             )
             if not selected_indicator:
-                selected_indicator = "波段"
+                selected_indicator = "MACD"
 
         show_ma5 = "5" in selected_ma
         show_ma10 = "10" in selected_ma
@@ -397,11 +397,9 @@ if stock_options:
         show_ma120 = "120" in selected_ma
         show_ma200 = "200" in selected_ma
         show_fib = "分割率" in selected_ma
-
         show_k250 = "250" in selected_ma
-        show_k120 = "120" in selected_ma
 
-        k_days_choice = 250 if show_k250 else (120 if show_k120 else 60)
+        k_days_choice = 250 if show_k250 else 250  # 預設直接使用 250 日
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(
             stock_id, target_days=k_days_choice, period_type=chart_period
         )
@@ -432,7 +430,7 @@ if stock_options:
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
         # ---------------------------------------------------------
-        # 🎯 恢復均線扣抵計算 (支援 5, 35, 65, 120, 200)
+        # 🎯 恢復 5, 35, 65, 120, 200 均線扣抵數值計算
         # ---------------------------------------------------------
         deduct_periods = [5, 35, 65, 120, 200]
         deduct_colors = {5: "#00E5FF", 35: "#FFD700", 65: "#FF00FF", 120: "#00FF66", 200: "#FFA500"}
@@ -444,7 +442,7 @@ if stock_options:
                 deduct_vals[p] = float(s_close.iloc[0]) if not s_close.empty else 0.0
 
         # ---------------------------------------------------------
-        # 🎯 參數嚴格獨立：波段歸波段、指標歸指標
+        # 🎯 各項技術指標與波段參數獨立計算
         # ---------------------------------------------------------
         # A. 【波段專用參數】
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
@@ -468,31 +466,37 @@ if stock_options:
         df["bias_ma60"] = s_close.rolling(window=60).mean()
         df["bias_val"] = ((s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)) * 100
 
-        # 3. KDJ 標準參數 (9, 3, 3)
+        # 3. KDJ 標準參數 (9, 3, 3) 加上乖離 (K - D) 與 J 值
         low_min9 = s_low.rolling(9).min()
         high_max9 = s_high.rolling(9).max()
         rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
         df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
         df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
+        df["kdj_diff"] = df["kdj_k"] - df["kdj_d"]
 
-        # 4. RSI(6)
+        # 4. RSI 參數改為 3 與 6 雙線，並計算乖離 (RSI3 - RSI6)
         delta = s_close.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(6).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(6).mean()
-        rs = gain / (loss + 1e-8)
-        df["rsi_6"] = 100 - (100 / (1 + rs))
+        gain3 = (delta.where(delta > 0, 0)).rolling(3).mean()
+        loss3 = (-delta.where(delta < 0, 0)).rolling(3).mean()
+        rs3 = gain3 / (loss3 + 1e-8)
+        df["rsi_3"] = 100 - (100 / (1 + rs3))
 
-        # 5. W% (威廉指標 14)
-        low_min14 = s_low.rolling(14).min()
-        high_max14 = s_high.rolling(14).max()
-        df["w_r"] = (high_max14 - s_close) / (high_max14 - low_min14 + 1e-8) * -100
+        gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
+        loss6 = (-delta.where(delta < 0, 0)).rolling(6).mean()
+        rs6 = gain6 / (loss6 + 1e-8)
+        df["rsi_6"] = 100 - (100 / (1 + rs6))
+        df["rsi_diff"] = df["rsi_3"] - df["rsi_6"]
 
-        # 6. QT
+        # 5. W% 參數改為 9
+        low_min9_w = s_low.rolling(9).min()
+        high_max9_w = s_high.rolling(9).max()
+        df["w_r"] = (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
+
+        # 6. QT 改為柱狀 (標準差乖離)
         df["qt"] = (s_close - s_close.rolling(20).mean()) / (s_close.rolling(20).std() + 1e-8)
 
         cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
-        cur_macds = float(df["macd_dem"].iloc[-1]) if not df.empty else 0.0
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
@@ -517,11 +521,12 @@ if stock_options:
         ]
         macd_bar_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["macd_osc"]]
         band_macd_bar_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["band_macd_osc"]]
+        qt_bar_colors = [BAR_UP_COLOR if qt_val >= 0 else BAR_DOWN_COLOR for qt_val in df["qt"]]
 
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
-        # 🎯 調整畫布尺寸 (針對 125% 縮放最佳化，總高度縮小以避免捲動)
+        # 🎯 畫布尺寸設定 (確保一頁看完不捲動)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             fig, axes = plt.subplots(
@@ -613,17 +618,17 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 🎯 恢復均線扣抵數值顯示於圖表上方
+        # 🎯 恢復 5, 35, 65, 120, 200 均線扣抵數值顯示於圖表上方
         # ---------------------------------------------------------
         deduct_x_start = 0.01
         deduct_y_pos = 0.75
         for p in deduct_periods:
             val = deduct_vals[p]
             col = deduct_colors[p]
-            d_str = f"{p}:{val:.1f}"
+            d_str = f"{p}扣:{val:.1f}"
             t_deduct = ax1.text(deduct_x_start, deduct_y_pos, d_str, transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=col)
             t_deduct.set_path_effects(get_bright_effect(col, 0.5))
-            deduct_x_start += len(d_str) * 0.013
+            deduct_x_start += len(d_str) * 0.0135
 
         # ---------------------------------------------------------
         # 🎯 渲染副圖欄位
@@ -678,23 +683,29 @@ if stock_options:
                 ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)")
                 ind_title = f"BIAS(60)  {cur_bias:.2f}%"
             elif selected_indicator == "KDJ":
+                cur_k = float(df["kdj_k"].iloc[-1]) if not df.empty else 0.0
+                cur_d = float(df["kdj_d"].iloc[-1]) if not df.empty else 0.0
+                cur_j = float(df["kdj_j"].iloc[-1]) if not df.empty else 0.0
+                cur_k_diff = float(df["kdj_diff"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.plot(x, df["kdj_k"], linewidth=0.6, color="#00E5FF", label="K")
                 ax_sub1.plot(x, df["kdj_d"], linewidth=0.6, color="#FFB300", label="D")
                 ax_sub1.plot(x, df["kdj_j"], linewidth=0.6, color="#FF3B30", label="J")
-                ind_title = f"KDJ(9, 3, 3)"
+                ind_title = f"KDJ(9,3,3)  K:{cur_k:.1f} D:{cur_d:.1f} J:{cur_j:.1f}  乖離數值:{cur_k_diff:.1f}"
             elif selected_indicator == "RSI":
-                cur_rsi = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
-                ax_sub1.plot(x, df["rsi_6"], linewidth=0.6, color="#00E5FF", label="RSI")
-                ind_title = f"RSI(6): {cur_rsi:.1f}"
+                cur_r3 = float(df["rsi_3"].iloc[-1]) if not df.empty else 0.0
+                cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
+                cur_r_diff = float(df["rsi_diff"].iloc[-1]) if not df.empty else 0.0
+                ax_sub1.plot(x, df["rsi_3"], linewidth=0.6, color="#00E5FF", label="RSI3")
+                ax_sub1.plot(x, df["rsi_6"], linewidth=0.6, color="#FF3B30", label="RSI6")
+                ind_title = f"RSI(3,6)  RSI3:{cur_r3:.1f} RSI6:{cur_r6:.1f}  乖離數值:{cur_r_diff:.1f}"
             elif selected_indicator == "W%":
                 cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.plot(x, df["w_r"], linewidth=0.6, color="#FFD700", label="W%")
-                ind_title = f"W%(14): {cur_wr:.1f}"
+                ind_title = f"W%(9): {cur_wr:.1f}"
             elif selected_indicator == "QT":
                 cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
-                ax_sub1.plot(x, df["qt"], linewidth=0.6, color="#FF00FF", label="QT")
-                ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
-                ind_title = f"QT: {cur_qt:.2f}"
+                ax_sub1.bar(x, df["qt"], width=0.75, color=qt_bar_colors, edgecolor="none", alpha=0.9)
+                ind_title = f"QT(柱狀): {cur_qt:.2f}"
             else:
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
                 ind_title = f"指標"
