@@ -20,15 +20,15 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (縮小上方選單框框、調整 pills 與橫向排版)
+# 2. 注入自訂 CSS (針對 4 欄位佈局與超薄頂部控制列極致優化)
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         .block-container {
-            padding-top: 0.3rem;
-            padding-bottom: 0.2rem;
-            max-width: 95rem;
+            padding-top: 0.2rem;
+            padding-bottom: 0.1rem;
+            max-width: 98rem;
         }
         .mobile-title {
             font-size: 15px;
@@ -40,37 +40,46 @@ st.markdown(
             font-size: 13px !important;
             font-weight: bold;
             color: #ffffff;
-            margin-top: 6px;
-            margin-bottom: 3px;
+            margin-top: 4px;
+            margin-bottom: 2px;
         }
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            gap: 6px !important;
-            align-items: flex-start !important;
+            gap: 4px !important;
+            align-items: center !important;
         }
         .stButton button {
-            font-size: 12px !important;
-            padding: 4px 8px !important;
+            font-size: 11px !important;
+            padding: 3px 6px !important;
         }
-        /* 🖥️ 縮小股票選擇輸入框與 expander 外框 */
+        /* 🖥️ 4 欄位超緊湊元件樣式 */
         [data-testid="stSelectbox"] {
             max-width: 100% !important;
+            margin-bottom: 0px !important;
         }
-        [data-testid="stExpander"] {
-            border: 1px solid #333333 !important;
-            border-radius: 6px !important;
-            background-color: #0e1117 !important;
+        [data-testid="stSelectbox"] div[data-baseweb="select"] {
+            min-height: 32px !important;
         }
-        /* 📱 st.pills 膠囊按鈕微縮字體與內邊距，完美融合成單一橫列 */
+        /* 📱 st.pills 膠囊按鈕超薄微縮排版 */
         div[data-testid="stPills"] button {
-            font-size: 11px !important;
-            padding: 2px 6px !important;
-            margin: 1px !important;
-            min-height: 26px !important;
+            font-size: 10.5px !important;
+            padding: 1px 5px !important;
+            margin: 0px 1px !important;
+            min-height: 24px !important;
+            border-radius: 12px !important;
         }
         div[data-testid="stPills"] {
-            gap: 2px !important;
+            gap: 1px !important;
+            flex-wrap: nowrap !important; /* 確保絕不折行 */
+            overflow-x: auto !important;   /* 超出時可橫向微滑 */
+        }
+        /* 隱藏微小型標籤間距 */
+        .col-label {
+            font-size: 11px;
+            color: #888888;
+            margin-bottom: 2px;
+            font-weight: bold;
         }
     </style>
 """,
@@ -295,7 +304,7 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (4個分頁按鈕並排)
+# 7. 網頁主介面佈局 (4個主分頁按鈕並排)
 # ---------------------------------------------------------
 st.markdown('<p class="mobile-title">📊 查詢籌碼系統</p>', unsafe_allow_html=True)
 
@@ -335,69 +344,72 @@ if stock_options:
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        # 🎯 左右並排於同一橫列
-        col_c1, col_c2 = st.columns([1.2, 2.8])
+        # 🎯 關鍵升級：精心設計的【4 欄位超薄控制橫列】(完全不佔空間、絕不上移遮擋)
+        col1, col2, col3, col4 = st.columns([1.1, 1.1, 2.2, 1.6])
         
-        with col_c1:
+        # --- 欄位 1：股票代碼選擇 ---
+        with col1:
             selected_stock = st.selectbox(
-                "選擇股票",
+                "股票選單",
                 stock_options,
                 index=st.session_state.selected_index,
                 label_visibility="collapsed",
                 key="stock_select_box"
             )
-        
-        try:
-            st.session_state.selected_index = stock_options.index(selected_stock)
-        except:
-            st.session_state.selected_index = 0
+            try:
+                st.session_state.selected_index = stock_options.index(selected_stock)
+            except:
+                st.session_state.selected_index = 0
+            stock_id = selected_stock.split()[0]
+            stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        stock_id = selected_stock.split()[0]
-        stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
+        # --- 欄位 2：K線週期切換 ---
+        with col2:
+            chart_period = st.pills(
+                "週期",
+                ["60分", "日線", "週線", "月線"],
+                default="日線",
+                selection_mode="single",
+                label_visibility="collapsed",
+                key="pills_period"
+            )
+            if not chart_period:
+                chart_period = "日線"
 
-        with col_c2:
-            # --- 控制面板 (完整納入新增的 QT, KDJ, RSI, W%, BIAS, MTM) ---
-            with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
-                all_menu_options = [
-                    "60分", "日線", "週線", "月線", 
-                    "5", "10", "20", "30", "60", "120", "200", 
-                    "分割率", "QT", "KDJ", "RSI", "W%", "BIAS", "MTM", "250", "120"
-                ]
-                
-                selected_all = st.pills(
-                    "圖表與均線選單",
-                    all_menu_options,
-                    default=["日線"],
-                    selection_mode="multi",
-                    label_visibility="collapsed"
-                )
+        # --- 欄位 3：均線、分割率與天數 ---
+        with col3:
+            selected_ma = st.pills(
+                "均線選單",
+                ["5", "10", "20", "30", "60", "120", "200", "分割率", "120", "250"],
+                default=["60"],
+                selection_mode="multi",
+                label_visibility="collapsed",
+                key="pills_ma"
+            )
 
-        # 解析選單狀態
-        chart_period = "日線"
-        for p in ["60分", "日線", "週線", "月線"]:
-            if p in selected_all:
-                chart_period = p
-                break
+        # --- 欄位 4：副圖指標切換 ---
+        with col4:
+            selected_indicator = st.pills(
+                "技術指標",
+                ["QT", "KDJ", "RSI", "W%", "BIAS", "MTM"],
+                default=[],
+                selection_mode="single",
+                label_visibility="collapsed",
+                key="pills_ind"
+            )
 
-        show_ma5 = "5" in selected_all
-        show_ma10 = "10" in selected_all
-        show_ma20 = "20" in selected_all
-        show_ma30 = "30" in selected_all
-        show_ma60 = "60" in selected_all
-        show_ma120 = "120" in selected_all
-        show_ma200 = "200" in selected_all
-        show_fib = "分割率" in selected_all
-        
-        # 新增技術指標開關
-        show_qt = "QT" in selected_all
-        show_kdj = "KDJ" in selected_all
-        show_rsi = "RSI" in selected_all
-        show_wR = "W%" in selected_all
-        show_bias = "BIAS" in selected_all
-        show_mtm = "MTM" in selected_all
+        # 解析控制選項
+        show_ma5 = "5" in selected_ma
+        show_ma10 = "10" in selected_ma
+        show_ma20 = "20" in selected_ma
+        show_ma30 = "30" in selected_ma
+        show_ma60 = "60" in selected_ma
+        show_ma120 = "120" in selected_ma
+        show_ma200 = "200" in selected_ma
+        show_fib = "分割率" in selected_ma
 
-        show_k250 = "250" in selected_all
-        show_k120 = "120" in selected_all
+        show_k250 = "250" in selected_ma
+        show_k120 = "120" in selected_ma
 
         k_days_choice = 250 if show_k250 else (120 if show_k120 else 60)
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(
@@ -429,8 +441,8 @@ if stock_options:
         for ma_name, (period, is_show, color) in ma_config.items():
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
-        # --- 新增指標數據計算 ---
-        # 1. KDJ (9, 3, 3)
+        # --- 新增技術指標計算 ---
+        # 1. KDJ
         low_min9 = s_low.rolling(9).min()
         high_max9 = s_high.rolling(9).max()
         rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
@@ -438,25 +450,25 @@ if stock_options:
         df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
 
-        # 2. RSI (6, 12)
+        # 2. RSI
         delta = s_close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(6).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(6).mean()
         rs = gain / (loss + 1e-8)
         df["rsi_6"] = 100 - (100 / (1 + rs))
 
-        # 3. W%R 威廉指標 (14)
+        # 3. W%R
         low_min14 = s_low.rolling(14).min()
         high_max14 = s_high.rolling(14).max()
         df["w_r"] = (high_max14 - s_close) / (high_max14 - low_min14 + 1e-8) * -100
 
-        # 4. BIAS 乖離率 (6, 12, 24)
+        # 4. BIAS
         df["bias_6"] = ((s_close - df["ma_5"]) / (df["ma_5"] + 1e-8)) * 100
 
-        # 5. MTM 動量指標 (10)
+        # 5. MTM
         df["mtm"] = s_close - s_close.shift(10)
 
-        # 6. QT 量化卡牌 / 快速訊號 (簡單範例計算)
+        # 6. QT
         df["qt"] = (s_close - s_close.rolling(20).mean()) / (s_close.rolling(20).std() + 1e-8)
 
         # MACD
@@ -476,7 +488,7 @@ if stock_options:
         prev_osc = float(df["osc"].iloc[-2]) if len(df) > 1 else cur_osc
         osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
 
-        # 成交量均線 MAS (5MA) 與 MA20
+        # 成交量均線
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
@@ -504,7 +516,7 @@ if stock_options:
 
         plt.style.use("dark_background")
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
-            4, 1, figsize=(10, 7.5), sharex=True,
+            4, 1, figsize=(10, 7.8), sharex=True,
             gridspec_kw={"height_ratios": [3.6, 1.0, 1.0, 1.2]}
         )
 
@@ -522,7 +534,7 @@ if stock_options:
         body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
         ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
 
-        # 🛡️ K線上下留白與右側留白（確保分割率不遮擋 K 線）
+        # 🛡️ K線上下留白與右側留白
         if not df.empty:
             p_max = float(df["high"].max())
             p_min = float(df["low"].min())
@@ -544,7 +556,7 @@ if stock_options:
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
                 legend_labels.append((label_str, color))
 
-        # --- 分割率（黃金分割率）：安置於右側內側，不遮擋 K 線 ---
+        # --- 分割率 (黃金分割率) ---
         if show_fib and not df.empty:
             max_p = float(df["high"].max())
             min_p = float(df["low"].min())
@@ -576,7 +588,7 @@ if stock_options:
                                  fontsize=9.0, fontweight="bold", ha="center", va="bottom")
                 t_num.set_path_effects(get_bright_effect("#000000", 0.8))
 
-        # --- 多空線色帶移至 K 線主圖最底部內側 ---
+        # --- 多空線色帶 ---
         ymin_lim, ymax_lim = ax1.get_ylim()
         band_height = (ymax_lim - ymin_lim) * 0.035
         trend_colors = [BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR for is_bull in df["long_trend"]]
@@ -625,39 +637,39 @@ if stock_options:
                     text_y -= 0.08
 
         # ---------------------------------------------------------
-        # 層 2：副圖 1 (預設 MACD / 可切換 KDJ / RSI / BIAS / MTM 等)
+        # 層 2：副圖 1 (動態根據第 4 欄選擇的指標繪製)
         # ---------------------------------------------------------
         ax2.set_facecolor(PANEL_BG)
         
-        if show_kdj:
+        if selected_indicator == "KDJ":
             ax2.plot(x, df["kdj_k"], linewidth=0.6, color="#00E5FF", label="K")
             ax2.plot(x, df["kdj_d"], linewidth=0.6, color="#FFB300", label="D")
             ax2.plot(x, df["kdj_j"], linewidth=0.6, color="#FF3B30", label="J")
             k_val, d_val, j_val = df["kdj_k"].iloc[-1], df["kdj_d"].iloc[-1], df["kdj_j"].iloc[-1]
             sub1_text = f"KDJ(9,3,3)  K:{k_val:.1f}  D:{d_val:.1f}  J:{j_val:.1f}"
-        elif show_rsi:
+        elif selected_indicator == "RSI":
             ax2.plot(x, df["rsi_6"], linewidth=0.6, color="#00E5FF", label="RSI6")
             ax2.axhline(80, color="#FF3B30", linestyle=":", linewidth=0.8)
             ax2.axhline(20, color="#00C853", linestyle=":", linewidth=0.8)
             rsi_val = df["rsi_6"].iloc[-1]
             sub1_text = f"RSI(6): {rsi_val:.1f}"
-        elif show_wR:
+        elif selected_indicator == "W%":
             ax2.plot(x, df["w_r"], linewidth=0.6, color="#FFB300", label="W%R")
             ax2.axhline(-20, color="#FF3B30", linestyle=":", linewidth=0.8)
             ax2.axhline(-80, color="#00C853", linestyle=":", linewidth=0.8)
             wr_val = df["w_r"].iloc[-1]
             sub1_text = f"W%R(14): {wr_val:.1f}"
-        elif show_bias:
+        elif selected_indicator == "BIAS":
             ax2.plot(x, df["bias_6"], linewidth=0.6, color="#00E5FF", label="BIAS6")
             ax2.axhline(0, color="#666666", linestyle=":", linewidth=0.8)
             bias_val = df["bias_6"].iloc[-1]
             sub1_text = f"BIAS(6): {bias_val:.2f}%"
-        elif show_mtm:
+        elif selected_indicator == "MTM":
             ax2.plot(x, df["mtm"], linewidth=0.6, color="#FF3B30", label="MTM")
             ax2.axhline(0, color="#666666", linestyle=":", linewidth=0.8)
             mtm_val = df["mtm"].iloc[-1]
             sub1_text = f"MTM(10): {mtm_val:.2f}"
-        elif show_qt:
+        elif selected_indicator == "QT":
             ax2.plot(x, df["qt"], linewidth=0.6, color="#00FF66", label="QT")
             qt_val = df["qt"].iloc[-1]
             sub1_text = f"QT量化指標: {qt_val:.2f}"
@@ -738,7 +750,7 @@ if stock_options:
                 spine.set_color(SUB_BORDER)
                 spine.set_linewidth(1.0)
 
-        plt.subplots_adjust(left=0.01, right=0.98, top=0.96, bottom=0.03, hspace=0.06)
+        plt.subplots_adjust(left=0.01, right=0.98, top=0.97, bottom=0.03, hspace=0.06)
         st.pyplot(fig, use_container_width=True, dpi=250)
 
     # =========================================================
