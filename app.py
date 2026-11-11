@@ -125,8 +125,8 @@ def load_stock_list():
         return options.tolist(), df
     except Exception as e:
         default_data = pd.DataFrame({
-            "代碼": ["99991", "2330"],
-            "名稱": ["加權指數", "台積電"]
+            "代碼": ["99991", "1477"],
+            "名稱": ["加權指數", "聚陽"]
         })
         options = default_data["代碼"] + " " + default_data["名稱"]
         return options.tolist(), default_data
@@ -308,7 +308,7 @@ if "app_mode_idx" not in st.session_state:
 # 7. 網頁主介面佈局
 # ---------------------------------------------------------
 if stock_options:
-    top_cols = st.columns([0.4, 0.4, 0.4, 0.4, 0.7, 0.9, 2.9, 2.8])
+    top_cols = st.columns([0.4, 0.4, 0.4, 0.4, 1.1, 0.9, 2.9, 2.8])
     modes = ["📈 個股", "⚡ 選股", "📋 大戶", "📊 基本"]
 
     with top_cols[0]:
@@ -416,7 +416,7 @@ if stock_options:
         last_high = float(df["high"].iloc[-1]) if not df.empty else 0.0
         last_low = float(df["low"].iloc[-1]) if not df.empty else 0.0
         last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
-        last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
+        last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0  # 這裡的 vol 已經是張數單位
 
         ma_config = {
             "5": (5, show_ma5, "#00E5FF"),
@@ -446,7 +446,7 @@ if stock_options:
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 🎯 技術指標計算 (RSI 改為 6, 12)
+        # 🎯 技術指標計算 (RSI 6, 12)
         # ---------------------------------------------------------
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
@@ -474,7 +474,6 @@ if stock_options:
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
         df["kdj_diff"] = df["kdj_k"] - df["kdj_d"]
 
-        # RSI 參數 6 與 12
         delta = s_close.diff()
         gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
         loss6 = (-delta.where(delta < 0, 0)).rolling(6).mean()
@@ -497,17 +496,16 @@ if stock_options:
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
-        # 成交量均線計算 (5MA 與 20MA)
+        # 成交量均線計算 (5MA 與 20MA，單位為張)
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
-        cur_vol_val = last_vol * 1000  # 轉回實際股數單位
-        cur_vol_ma5 = float(df["vol_ma5"].iloc[-1]) * 1000 if not pd.isna(df["vol_ma5"].iloc[-1]) else 0.0
-        cur_vol_ma20 = float(df["vol_ma20"].iloc[-1]) * 1000 if not pd.isna(df["vol_ma20"].iloc[-1]) else 0.0
+        cur_vol_val = last_vol  # 這是正確的張數
+        cur_vol_ma5 = float(df["vol_ma5"].iloc[-1]) if not pd.isna(df["vol_ma5"].iloc[-1]) else 0.0
+        cur_vol_ma20 = float(df["vol_ma20"].iloc[-1]) if not pd.isna(df["vol_ma20"].iloc[-1]) else 0.0
         
-        # 計算與前一日比較的增減箭頭
-        prev_vol_ma5 = float(df["vol_ma5"].iloc[-2]) * 1000 if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2]) else cur_vol_ma5
-        prev_vol_ma20 = float(df["vol_ma20"].iloc[-2]) * 1000 if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2]) else cur_vol_ma20
+        prev_vol_ma5 = float(df["vol_ma5"].iloc[-2]) if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2]) else cur_vol_ma5
+        prev_vol_ma20 = float(df["vol_ma20"].iloc[-2]) if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2]) else cur_vol_ma20
         
         v5_arrow = "↓" if cur_vol_ma5 < prev_vol_ma5 else "↑"
         v20_arrow = "↓" if cur_vol_ma20 < prev_vol_ma20 else "↑"
@@ -609,7 +607,7 @@ if stock_options:
         ax1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-        # 標準 K 線行情資訊列
+        # 標準 K 線行情資訊列（精確對齊您的看盤軟體格式）
         standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.93, standard_header_str, transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
         t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
@@ -693,7 +691,7 @@ if stock_options:
                 ax_sub1.text(0.12, 0.76, f"K:{cur_k:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#00E5FF")
                 ax_sub1.text(0.20, 0.76, f"D:{cur_d:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFB300")
                 ax_sub1.text(0.28, 0.76, f"J:{cur_j:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30")
-                ax_sub1.text(0.36, 0.76, f"乖離數值(K-D):{cur_k_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+                ax_sub1.text(0.36, 0.76, f"乖離(K-D):{cur_k_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
                 ind_title = ""
             elif selected_indicator == "RSI":
                 cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
@@ -705,7 +703,7 @@ if stock_options:
                 ax_sub1.text(0.015, 0.76, "RSI(6,12) ", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
                 ax_sub1.text(0.12, 0.76, f"RSI6:{cur_r6:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#00E5FF")
                 ax_sub1.text(0.23, 0.76, f"RSI12:{cur_r12:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3B30")
-                ax_sub1.text(0.35, 0.76, f"乖離數值(6-12):{cur_r_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+                ax_sub1.text(0.35, 0.76, f"乖離(6-12):{cur_r_diff:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
                 ind_title = ""
             elif selected_indicator == "W%":
                 cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
@@ -728,7 +726,7 @@ if stock_options:
                 t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             # ---------------------------------------------------------
-            # 🎯 成交量副圖與詳細標註（對齊您提供的圖片格式）
+            # 🎯 成交量副圖與詳細標註（完美對齊您的看盤軟體格式）
             # ---------------------------------------------------------
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
@@ -736,7 +734,6 @@ if stock_options:
             ax_sub2.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
             
-            # 組合仿照圖片的詳細成交量字串：今日量、日5、值5、日20、值20
             vol_str_parts = [
                 ("今日 ", "#888888"),
                 (f"量:{int(cur_vol_val)}", "#FF3B30"), (f"{vol_today_arrow}", "#FF3B30"),
