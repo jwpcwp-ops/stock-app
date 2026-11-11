@@ -378,7 +378,6 @@ if stock_options:
             )
 
         with top_cols[7]:
-            # 🎯 包含「波段」與其他技術指標按鈕
             selected_indicator = st.pills(
                 "技術指標",
                 ["波段", "MACD", "BIAS", "MTM", "KDJ", "RSI", "W%", "QT"],
@@ -499,8 +498,8 @@ if stock_options:
         
         # ---------------------------------------------------------
         # 🎯 關鍵佈局：
-        # - 當點擊「波段」按鈕時：顯示 4 個子圖 [主圖K線, 副圖1(MACD), 副圖2(BIAS反向), 副圖3(MTM)]，完全移除大戶與羊群！
-        # - 其他指標按鈕：維持原本的 4 格標準檢視
+        # - 當點擊「波段」按鈕時：顯示 4 個子圖 [主圖K線, 副圖1(MACD), 副圖2(BIAS反向), 副圖3(MTM)]
+        # - 其他指標按鈕：標準 4 格檢視 [主圖K線, 副圖1(指標), 副圖2(成交量), 副圖3(大戶羊群)]
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             fig, axes = plt.subplots(
@@ -513,7 +512,7 @@ if stock_options:
                 4, 1, figsize=(10, 4.8), sharex=True,
                 gridspec_kw={"height_ratios": [3.0, 0.8, 0.75, 0.95]}
             )
-            ax1, ax_sub1, ax_sub2, ax_chip = axes
+            ax1, ax_sub1, ax_sub2, ax_sub3 = axes
 
         for ax in [fig] + list(axes):
             ax.set_facecolor(BG_COLOR)
@@ -595,7 +594,7 @@ if stock_options:
         # 🎯 渲染副圖欄位
         # ---------------------------------------------------------
         if selected_indicator == "波段":
-            # --- 副圖 1：MACD (5, 10) ---
+            # --- 波段模式：副圖1(MACD) ---
             ax_sub1.set_facecolor(PANEL_BG)
             ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
             ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
@@ -607,7 +606,7 @@ if stock_options:
             t_s1 = ax_sub1.text(0.015, 0.78, f"Macd(5,10)  DIF:{cur_dif:.2f}  Macd:{cur_macds:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-            # --- 副圖 2：BIAS (20-5，反向設計) ---
+            # --- 波段模式：副圖2(BIAS反向) ---
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.plot(x, df["bias_val_rev"], linewidth=0.6, color="#FFFF00", label="BIAS(反向)")
             ax_sub2.axhline(0, color="#666666", linestyle=":", linewidth=1)
@@ -617,7 +616,7 @@ if stock_options:
             t_s2 = ax_sub2.text(0.015, 0.78, f"BIAS(20-5)  {cur_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-            # --- 副圖 3：MTM (10, 1) ---
+            # --- 波段模式：副圖3(MTM) ---
             ax_sub3.set_facecolor(PANEL_BG)
             ax_sub3.plot(x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM")
             ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.6, color="#008080", label="Avg")
@@ -629,7 +628,7 @@ if stock_options:
             t_s3.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         else:
-            # 一般預設 4 格模式 (MACD + 成交量 + 大戶羊群)
+            # --- 標準模式：副圖1(MACD) ---
             ax_sub1.set_facecolor(PANEL_BG)
             ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
             ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
@@ -640,7 +639,7 @@ if stock_options:
             t_s1 = ax_sub1.text(0.015, 0.78, f"MACD指標", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-            # 成交量
+            # --- 標準模式：副圖2(成交量) ---
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
             ax_sub2.yaxis.tick_right()
@@ -649,7 +648,7 @@ if stock_options:
             t_vol = ax_sub2.text(0.015, 0.78, f"成交量:{int(last_vol):,}張   量比:{v_ratio:.2f}倍", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-            # 大戶與羊群持股
+            # --- 標準模式：副圖3(大戶與羊群持股) ---
             ax_chip = ax_sub3
             ax_chip.set_facecolor(PANEL_BG)
             cur_big, cur_sheep = 0.0, 0.0
