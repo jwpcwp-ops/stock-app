@@ -340,35 +340,33 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板 ---
+        # --- 控制面板 (改為點擊文字直接切換的 pills 設計，精簡手機版面) ---
         with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
-            p_col1, p_col2 = st.columns([1, 2])
-            with p_col1:
-                chart_period = st.radio("週期切換", ["60分鐘線", "日線", "週線", "月線"], index=1, horizontal=True)
-            with p_col2:
-                pass
+            chart_period = st.pills(
+                "週期切換", 
+                ["60分鐘線", "日線", "週線", "月線"], 
+                default="日線",
+                label_visibility="collapsed"
+            )
+            
+            selected_indicators = st.pills(
+                "均線選單",
+                ["5", "10", "20", "30", "60", "120", "200", "分割率", "250", "120"],
+                default=["5", "分割率", "250"],
+                selection_mode="multi",
+                label_visibility="collapsed"
+            )
 
-            ma_cols = st.columns(10)
-            with ma_cols[0]:
-                show_ma5 = st.checkbox("5日", value=True)
-            with ma_cols[1]:
-                show_ma10 = st.checkbox("10日", value=False)
-            with ma_cols[2]:
-                show_ma20 = st.checkbox("20日", value=False)
-            with ma_cols[3]:
-                show_ma30 = st.checkbox("30日", value=False)
-            with ma_cols[4]:
-                show_ma60 = st.checkbox("60日", value=False)
-            with ma_cols[5]:
-                show_ma120 = st.checkbox("120日", value=False)
-            with ma_cols[6]:
-                show_ma200 = st.checkbox("200日", value=False)
-            with ma_cols[7]:
-                show_fib = st.checkbox("黃金分割率", value=True)
-            with ma_cols[8]:
-                show_k200 = st.checkbox("250天", value=True)
-            with ma_cols[9]:
-                show_k120 = st.checkbox("120天", value=False)
+        show_ma5 = "5" in selected_indicators
+        show_ma10 = "10" in selected_indicators
+        show_ma20 = "20" in selected_indicators
+        show_ma30 = "30" in selected_indicators
+        show_ma60 = "60" in selected_indicators
+        show_ma120 = "120" in selected_indicators
+        show_ma200 = "200" in selected_indicators
+        show_fib = "分割率" in selected_indicators
+        show_k200 = "250" in selected_indicators
+        show_k120 = "120" in selected_indicators
 
         k_days_choice = 250 if show_k200 else (120 if show_k120 else 60)
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(stock_id, target_days=k_days_choice, period_type=chart_period)
@@ -384,13 +382,13 @@ if stock_options:
         last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
         ma_config = {
-            "5日": (5, show_ma5, "#00E5FF"),
-            "10日": (10, show_ma10, "#FFD700"),
-            "20日": (20, show_ma20, "#FF00FF"),
-            "30日": (30, show_ma30, "#00FF66"),
-            "60日": (60, show_ma60, "#FFA500"),
-            "120日": (120, show_ma120, "#9D4EDD"),
-            "200日": (200, show_ma200, "#FFFFFF")
+            "5": (5, show_ma5, "#00E5FF"),
+            "10": (10, show_ma10, "#FFD700"),
+            "20": (20, show_ma20, "#FF00FF"),
+            "30": (30, show_ma30, "#00FF66"),
+            "60": (60, show_ma60, "#FFA500"),
+            "120": (120, show_ma120, "#9D4EDD"),
+            "200": (200, show_ma200, "#FFFFFF")
         }
 
         for ma_name, (period, is_show, color) in ma_config.items():
@@ -440,18 +438,19 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
-        fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(
-            5, 1, figsize=(10, 7.5), sharex=True,
-            gridspec_kw={"height_ratios": [3.5, 1.0, 1.0, 1.2, 0.22]}
+        # 改為 4 個子圖：K線、MACD、成交量、大戶與羊群持股
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(
+            4, 1, figsize=(10, 7.5), sharex=True,
+            gridspec_kw={"height_ratios": [3.6, 1.0, 1.0, 1.2]}
         )
 
-        for ax in [fig, ax1, ax2, ax3, ax4, ax5]:
+        for ax in [fig, ax1, ax2, ax3, ax4]:
             ax.set_facecolor(BG_COLOR)
         fig.patch.set_facecolor(BG_COLOR)
         x = list(range(len(df)))
 
         # ---------------------------------------------------------
-        # 層 1：K線、均線、扣抵虛線
+        # 層 1：K線、均線、扣抵虛線、多空線色帶
         # ---------------------------------------------------------
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.5, alpha=0.95)
@@ -493,7 +492,7 @@ if stock_options:
                 t_fib = ax1.text(last_idx, price_val, f" {price_val:.2f} ({label_txt})", color="#FFFFFF", fontsize=8.0, fontweight="bold", va="center", ha="left")
                 t_fib.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
-        # --- 扣抵天數標記 ---
+        # --- 扣抵天數標記 (完整保留 120, 65, 35, 5) ---
         total_len = len(df)
         for count_days in [120, 65, 35, 5]:
             idx_pos = total_len - count_days
@@ -502,6 +501,16 @@ if stock_options:
                 t_num = ax1.text(idx_pos, df["low"].min(), f"{count_days}", color="#E0E0E0", 
                                  fontsize=9.0, fontweight="bold", ha="center", va="bottom")
                 t_num.set_path_effects(get_bright_effect("#000000", 0.8))
+
+        # --- 多空線色帶移至 K 線主圖最底部內側 ---
+        ymin_lim, ymax_lim = ax1.get_ylim()
+        band_height = (ymax_lim - ymin_lim) * 0.035
+        trend_colors = [BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR for is_bull in df["long_trend"]]
+        for i, col in enumerate(trend_colors):
+            ax1.bar(x[i], band_height, bottom=ymin_lim, width=1.0, color=col, edgecolor="none", alpha=0.9)
+
+        t_trend = ax1.text(0.015, 0.02, "多空線", transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF", ha="left", va="bottom")
+        t_trend.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
@@ -621,23 +630,14 @@ if stock_options:
             t_tok.set_path_effects(get_bright_effect(color_code, 0.6))
             start_x_chip += len(text_str) * 0.007
 
-        # ---------------------------------------------------------
-        # 層 5：多空線色帶
-        # ---------------------------------------------------------
-        ax5.set_facecolor(PANEL_BG)
-        trend_colors = [BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR for is_bull in df["long_trend"]]
-        ax5.bar(x, [1] * len(df), width=1.0, color=trend_colors, edgecolor="none")
-        t_trend = ax5.text(0.015, 0.5, "多空線", transform=ax5.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF", ha="left", va="center")
-        t_trend.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
-        ax5.set_yticks([])
-
-        for ax in [ax1, ax2, ax3, ax4, ax5]:
+        # 框線與邊距調整 (4個子圖)
+        for ax in [ax1, ax2, ax3, ax4]:
             for spine in ax.spines.values():
                 spine.set_visible(True)
                 spine.set_color(SUB_BORDER)
                 spine.set_linewidth(1.0)
 
-        plt.subplots_adjust(left=0.01, right=0.98, top=0.96, bottom=0.05, hspace=0.06)
+        plt.subplots_adjust(left=0.01, right=0.98, top=0.96, bottom=0.03, hspace=0.06)
         st.pyplot(fig, use_container_width=True, dpi=250)
 
     # =========================================================
