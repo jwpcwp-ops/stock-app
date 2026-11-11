@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (濃縮左側選單、釋放右側空間)
+# 2. 注入自訂 CSS (濃縮股票選單框、最大化右側空間)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -305,11 +305,11 @@ if "app_mode_idx" not in st.session_state:
     st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (濃縮左側選單、大幅擴充右側空間)
+# 7. 網頁主介面佈局 (極致濃縮左側選單、最大化右側空間)
 # ---------------------------------------------------------
 if stock_options:
-    # 🎯 調整比例：左側 4 個分頁按鈕濃縮至窄欄位，右側控制項分配更多寬度 (比例: [0.7, 0.7, 0.7, 0.7, 1.4, 0.9, 2.3, 1.8])
-    top_cols = st.columns([0.7, 0.7, 0.7, 0.7, 1.4, 0.9, 2.3, 1.8])
+    # 🎯 調整比例：將左側 4 個分頁按鈕與股票選單框縮小，大幅保留右側空間給週期與未來指標 [0.6, 0.6, 0.6, 0.6, 1.1, 0.8, 2.5, 2.2]
+    top_cols = st.columns([0.6, 0.6, 0.6, 0.6, 1.1, 0.8, 2.5, 2.2])
     modes = ["📈 個股", "⚡ 選股", "📋 大戶", "📊 基本"]
 
     with top_cols[0]:
@@ -493,10 +493,10 @@ if stock_options:
         osc_colors = [BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["osc"]]
 
         plt.style.use("dark_background")
-        # 🎯 畫布高度設定為 5.0 吋，保證 4 個子圖一眼全覽不需滾動
+        # 🎯 調整畫布高度為 4.8 吋，徹底消除底部多餘留白，讓 4 個圖表完美撐滿
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(
-            4, 1, figsize=(10, 5.0), sharex=True,
-            gridspec_kw={"height_ratios": [3.0, 0.8, 0.8, 1.0]}
+            4, 1, figsize=(10, 4.8), sharex=True,
+            gridspec_kw={"height_ratios": [3.2, 0.75, 0.75, 0.95]}
         )
 
         for ax in [fig, ax1, ax2, ax3, ax4]:
@@ -725,7 +725,7 @@ if stock_options:
                 spine.set_color(SUB_BORDER)
                 spine.set_linewidth(1.0)
 
-        plt.subplots_adjust(left=0.01, right=0.98, top=0.98, bottom=0.02, hspace=0.04)
+        plt.subplots_adjust(left=0.01, right=0.98, top=0.98, bottom=0.02, hspace=0.03)
         st.pyplot(fig, use_container_width=True, dpi=150)
 
     # =========================================================
