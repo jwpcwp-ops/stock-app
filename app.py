@@ -350,7 +350,7 @@ if stock_options:
         stock_id = selected_stock.split()[0]
         stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        # --- 控制面板 (60分鐘改寫為「60分」、不啟動任何指標顯示、預設顯示 60 根 K 線) ---
+        # --- 控制面板 (60分、預設不啟動任何指標、預設顯示 60 根 K 線) ---
         with st.expander("⚙️ 圖表顯示與技術指標設定 (點擊展開)", expanded=True):
             chart_period = st.pills(
                 "週期切換", 
@@ -359,7 +359,6 @@ if stock_options:
                 label_visibility="collapsed"
             )
             
-            # 預設不勾選任何指標 (default=[])，開啟畫面不顯示任何均線與指標
             selected_indicators = st.pills(
                 "均線選單",
                 ["5", "10", "20", "30", "60", "120", "200", "分割率", "250", "120"],
@@ -379,7 +378,6 @@ if stock_options:
         show_k250 = "250" in selected_indicators
         show_k120 = "120" in selected_indicators
 
-        # 預設顯示 60 根 K線，只有點選 250 或 120 時才調整 K線天數
         k_days_choice = 250 if show_k250 else (120 if show_k120 else 60)
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(
             stock_id, target_days=k_days_choice, period_type=chart_period
@@ -472,6 +470,13 @@ if stock_options:
         body_height = [max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])]
         ax1.bar(x, body_height, bottom=body_bottom, width=0.75, color=body_colors, edgecolor="none")
 
+        # 🛡️ 設定 K 線主圖上下留白 (Margin)，避免 K 線擠壓到頂端
+        if not df.empty:
+            p_max = float(df["high"].max())
+            p_min = float(df["low"].min())
+            p_range = p_max - p_min if p_max != p_min else 1.0
+            ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.12)
+
         legend_labels = []
         last_idx = len(df) - 1
         for ma_name, (period, is_show, color) in ma_config.items():
@@ -486,6 +491,7 @@ if stock_options:
                 label_str = f"{ma_name}:{val_now:.1f}{arrow}"
                 legend_labels.append((label_str, color))
 
+        # --- 分割率（黃金分割率）：文字與數值改為緊貼在右側 Y 軸內側 ---
         if show_fib and not df.empty:
             max_p = float(df["high"].max())
             min_p = float(df["low"].min())
@@ -503,8 +509,9 @@ if stock_options:
             
             for ratio_val, label_txt, price_val in fib_levels:
                 ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.9, alpha=0.8)
-                t_fib = ax1.text(last_idx, price_val, f" {price_val:.2f} ({label_txt})", color="#FFFFFF", fontsize=8.0, fontweight="bold", va="center", ha="left")
-                t_fib.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+                # 靠右對齊放置於圖表右側內側，不佔畫面
+                t_fib = ax1.text(last_idx - 0.5, price_val, f" {price_val:.2f} ({label_txt}) ", color="#FFFFFF", fontsize=7.5, fontweight="bold", va="center", ha="right", backgroundcolor="#000000")
+                t_fib.set_path_effects(get_bright_effect("#000000", 0.5))
 
         # --- 扣抵天數標記 (完整保留 120, 65, 35, 5) ---
         total_len = len(df)
@@ -548,6 +555,10 @@ if stock_options:
         approx_x_pos = 0.01 + len(header_quote_str) * 0.0075
         t_trend_badge = ax1.text(approx_x_pos, 0.94, trend_status, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.6))
+
+        # --- 右下角顯示目前週期 (如：日線、60分等) ---
+        t_period_badge = ax1.text(0.98, 0.06, f" {chart_period} ", transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#333333", ha="right", va="bottom")
+        t_period_badge.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         if legend_labels:
             text_x = 0.01
