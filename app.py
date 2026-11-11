@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (精準控制選單寬度與對齊)
+# 2. 注入自訂 CSS (針對 125% 縮放與 1080p 進行最佳化，確保一頁看完不捲動)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -29,10 +29,10 @@ st.markdown(
         footer { display: none !important; }
         
         .block-container {
-            padding-top: 0.1rem !important;
+            padding-top: 0.05rem !important;
             padding-bottom: 0.0rem !important;
-            padding-left: 0.2rem !important;
-            padding-right: 0.2rem !important;
+            padding-left: 0.1rem !important;
+            padding-right: 0.1rem !important;
             max-width: 100% !important;
         }
         .sub-header-14 {
@@ -50,10 +50,10 @@ st.markdown(
             margin-bottom: 1px !important;
         }
         .stButton button {
-            font-size: 9.5px !important;
+            font-size: 9.0px !important;
             padding: 1px 2px !important;
-            min-height: 22px !important;
-            height: 22px !important;
+            min-height: 20px !important;
+            height: 20px !important;
             width: 100% !important;
         }
         [data-testid="stSelectbox"] {
@@ -61,17 +61,17 @@ st.markdown(
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 22px !important;
-            height: 22px !important;
-            font-size: 9.5px !important;
-        }
-        div[data-testid="stPills"] button {
-            font-size: 9.0px !important;
-            padding: 1px 2px !important;
-            margin: 0px 1px !important;
             min-height: 20px !important;
             height: 20px !important;
-            border-radius: 5px !important;
+            font-size: 9.0px !important;
+        }
+        div[data-testid="stPills"] button {
+            font-size: 8.5px !important;
+            padding: 1px 2px !important;
+            margin: 0px 1px !important;
+            min-height: 18px !important;
+            height: 18px !important;
+            border-radius: 4px !important;
             line-height: 1 !important;
         }
         div[data-testid="stPills"] {
@@ -110,7 +110,7 @@ else:
 
 plt.rcParams["axes.unicode_minus"] = False
 
-def get_bright_effect(stroke_color="#FFFFFF", linewidth=0.6):
+def get_bright_effect(stroke_color="#FFFFFF", linewidth=0.5):
     return [path_effects.withStroke(linewidth=linewidth, foreground=stroke_color), path_effects.Normal()]
 
 # ---------------------------------------------------------
@@ -415,7 +415,7 @@ if stock_options:
         last_open = float(df["open"].iloc[-1]) if not df.empty else 0.0
         last_high = float(df["high"].iloc[-1]) if not df.empty else 0.0
         last_low = float(df["low"].iloc[-1]) if not df.empty else 0.0
-        last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
+        last_close = float(df["close"].iloc(-1]) if not df.empty else 0.0
         last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
         ma_config = {
@@ -432,36 +432,48 @@ if stock_options:
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
         # ---------------------------------------------------------
+        # 🎯 恢復均線扣抵計算 (支援 5, 35, 65, 120, 200)
+        # ---------------------------------------------------------
+        deduct_periods = [5, 35, 65, 120, 200]
+        deduct_colors = {5: "#00E5FF", 35: "#FFD700", 65: "#FF00FF", 120: "#00FF66", 200: "#FFA500"}
+        deduct_vals = {}
+        for p in deduct_periods:
+            if len(s_close) >= p:
+                deduct_vals[p] = float(s_close.iloc[-p])
+            else:
+                deduct_vals[p] = float(s_close.iloc[0]) if not s_close.empty else 0.0
+
+        # ---------------------------------------------------------
         # 🎯 參數嚴格獨立：波段歸波段、指標歸指標
         # ---------------------------------------------------------
-        # A. 【波段專用參數】(專門給波段組合使用)
+        # A. 【波段專用參數】
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
         df["band_macd_osc"] = (df["band_macd_dif"] - df["band_macd_dem"]) * 2
         
         df["band_bias_base"] = s_close.rolling(window=20).mean()
         df["band_bias_val"] = ((s_close - df["band_bias_base"]) / (df["band_bias_base"] + 1e-8)) * 100
-        df["band_bias_val_rev"] = -1.0 * df["band_bias_val"]  # 波段低點專用反向設計
+        df["band_bias_val_rev"] = -1.0 * df["band_bias_val"]
 
         df["mtm_val"] = s_close - s_close.shift(10)
         df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
 
-        # B. 【一般技術指標選單參數】(正規標準數據，絕不混淆)
-        # 1. 標準 MACD (12, 26, 9)
+        # B. 【一般技術指標選單參數】
+        # 1. MACD (12, 26, 9)
         df["macd_dif"] = s_close.ewm(span=12, adjust=False).mean() - s_close.ewm(span=26, adjust=False).mean()
         df["macd_dem"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
         df["macd_osc"] = (df["macd_dif"] - df["macd_dem"]) * 2
 
-        # 2. 標準 BIAS 60日：(CLOSE-MA(CLOSE,60))/MA(CLOSE,60)*100
+        # 2. BIAS 60日
         df["bias_ma60"] = s_close.rolling(window=60).mean()
         df["bias_val"] = ((s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)) * 100
 
-        # 3. KDJ 專屬公式：K:SMA(RSV,31,1), D:SMA(K,3,1), J:3*K-2*D
+        # 3. KDJ 標準參數 (9, 3, 3)
         low_min9 = s_low.rolling(9).min()
         high_max9 = s_high.rolling(9).max()
         rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
-        df["kdj_k"] = rsv.ewm(alpha=1/31, adjust=False).mean()
-        df["kdj_d"] = df["kdj_k"].ewm(alpha=1/3, adjust=False).mean()
+        df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
+        df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
 
         # 4. RSI(6)
@@ -476,7 +488,7 @@ if stock_options:
         high_max14 = s_high.rolling(14).max()
         df["w_r"] = (high_max14 - s_close) / (high_max14 - low_min14 + 1e-8) * -100
 
-        # 6. QT (乖離標準差指標)
+        # 6. QT
         df["qt"] = (s_close - s_close.rolling(20).mean()) / (s_close.rolling(20).std() + 1e-8)
 
         cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -509,20 +521,18 @@ if stock_options:
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
-        # 🎯 繪圖畫分布局：
-        # - 「波段」模式：4 個子圖 [主圖K線, 副圖1(波段MACD 5,10), 副圖2(波段BIAS反向), 副圖3(MTM)]
-        # - 其他指標模式：標準 4 個子圖 [主圖K線, 副圖1(正規指標), 副圖2(成交量), 副圖3(大戶羊群)]
+        # 🎯 調整畫布尺寸 (針對 125% 縮放最佳化，總高度縮小以避免捲動)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             fig, axes = plt.subplots(
-                4, 1, figsize=(10, 5.2), sharex=True,
-                gridspec_kw={"height_ratios": [3.0, 0.8, 0.8, 0.8]}
+                4, 1, figsize=(10, 4.4), sharex=True,
+                gridspec_kw={"height_ratios": [3.0, 0.7, 0.7, 0.7]}
             )
             ax1, ax_sub1, ax_sub2, ax_sub3 = axes
         else:
             fig, axes = plt.subplots(
-                4, 1, figsize=(10, 4.8), sharex=True,
-                gridspec_kw={"height_ratios": [3.0, 0.8, 0.75, 0.95]}
+                4, 1, figsize=(10, 4.2), sharex=True,
+                gridspec_kw={"height_ratios": [3.0, 0.7, 0.6, 0.8]}
             )
             ax1, ax_sub1, ax_sub2, ax_sub3 = axes
 
@@ -566,7 +576,7 @@ if stock_options:
             x_right_limit = ax1.get_xlim()[1]
             for _, label_txt, price_val in fib_levels:
                 ax1.axhline(price_val, color="#00E5FF", linestyle=":", linewidth=0.9, alpha=0.8)
-                t_fib = ax1.text(x_right_limit - 0.8, price_val, f" {price_val:.2f} ({label_txt}) ", color="#FFFFFF", fontsize=7.5, fontweight="bold", va="center", ha="right", backgroundcolor="#000000")
+                t_fib = ax1.text(x_right_limit - 0.8, price_val, f" {price_val:.2f} ({label_txt}) ", color="#FFFFFF", fontsize=7.0, fontweight="bold", va="center", ha="right", backgroundcolor="#000000")
                 t_fib.set_path_effects(get_bright_effect("#000000", 0.5))
 
         ymin_lim, ymax_lim = ax1.get_ylim()
@@ -576,78 +586,88 @@ if stock_options:
             ax1.bar(x[i], band_height, bottom=ymin_lim, width=1.0, color=col, edgecolor="none", alpha=0.9)
 
         ax1.yaxis.tick_right()
-        ax1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+        ax1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
         header_quote_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
-        t_header = ax1.text(0.01, 0.94, header_quote_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-        t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.7))
+        t_header = ax1.text(0.01, 0.93, header_quote_str, transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+        t_header.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
 
         ma60_val = df["ma_60"].iloc[-1] if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭趨勢】" if is_bull else "【季線空頭趨勢】"
         trend_color = "#FF3B30" if is_bull else "#00C853"
-        approx_x_pos = 0.01 + len(header_quote_str) * 0.0075
-        t_trend_badge = ax1.text(approx_x_pos, 0.94, trend_status, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=trend_color)
-        t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.6))
+        approx_x_pos = 0.01 + len(header_quote_str) * 0.0072
+        t_trend_badge = ax1.text(approx_x_pos, 0.93, trend_status, transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color=trend_color)
+        t_trend_badge.set_path_effects(get_bright_effect(trend_color, 0.5))
 
-        t_period_badge = ax1.text(0.98, 0.06, f" {chart_period} ", transform=ax1.transAxes, fontsize=9.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#333333", ha="right", va="bottom")
-        t_period_badge.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+        t_period_badge = ax1.text(0.98, 0.06, f" {chart_period} ", transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF", backgroundcolor="#333333", ha="right", va="bottom")
+        t_period_badge.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
         if legend_labels:
             text_x = 0.01
-            text_y = 0.85
+            text_y = 0.84
             for l_str, l_col in legend_labels:
-                t_ma = ax1.text(text_x, text_y, l_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color=l_col)
-                t_ma.set_path_effects(get_bright_effect(l_col, 0.6))
-                text_x += 0.13
+                t_ma = ax1.text(text_x, text_y, l_str, transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color=l_col)
+                t_ma.set_path_effects(get_bright_effect(l_col, 0.5))
+                text_x += 0.12
 
         # ---------------------------------------------------------
-        # 🎯 渲染副圖欄位 (波段 vs 正規技術指標 嚴格區隔)
+        # 🎯 恢復均線扣抵數值顯示於圖表上方
+        # ---------------------------------------------------------
+        deduct_x_start = 0.01
+        deduct_y_pos = 0.75
+        for p in deduct_periods:
+            val = deduct_vals[p]
+            col = deduct_colors[p]
+            d_str = f"{p}:{val:.1f}"
+            t_deduct = ax1.text(deduct_x_start, deduct_y_pos, d_str, transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=col)
+            t_deduct.set_path_effects(get_bright_effect(col, 0.5))
+            deduct_x_start += len(d_str) * 0.013
+
+        # ---------------------------------------------------------
+        # 🎯 渲染副圖欄位
         # ---------------------------------------------------------
         if selected_indicator == "波段":
-            # --- 模式 1：「波段」專屬 3 個獨立高低點副圖 (使用波段專用參數) ---
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
             cur_band_dem = float(df["band_macd_dem"].iloc[-1]) if not df.empty else 0.0
             cur_band_bias = float(df["band_bias_val"].iloc[-1]) if not df.empty else 0.0
 
-            # 副圖 1：波段專用 MACD (5, 10, 5)
+            # 副圖 1：波段 MACD (5,10,5)
             ax_sub1.set_facecolor(PANEL_BG)
             ax_sub1.bar(x, df["band_macd_osc"], width=0.75, color=band_macd_bar_colors, edgecolor="none", alpha=0.9)
             ax_sub1.plot(x, df["band_macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
             ax_sub1.plot(x, df["band_macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
             ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub1.yaxis.tick_right()
-            ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s1 = ax_sub1.text(0.015, 0.78, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-            t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+            t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+            t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
-            # 副圖 2：波段專用 BIAS (反向設計)
+            # 副圖 2：波段 BIAS (反向)
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.plot(x, df["band_bias_val_rev"], linewidth=0.6, color="#FFFF00", label="BIAS(反向)")
             ax_sub2.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub2.yaxis.tick_right()
-            ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub2.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s2 = ax_sub2.text(0.015, 0.78, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-            t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+            t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+            t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
-            # 副圖 3：波段專用 MTM (10, 1)
+            # 副圖 3：波段 MTM (10,1)
             ax_sub3.set_facecolor(PANEL_BG)
             ax_sub3.plot(x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM")
             ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.6, color="#008080", label="Avg")
             ax_sub3.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub3.yaxis.tick_right()
-            ax_sub3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub3.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s3 = ax_sub3.text(0.015, 0.78, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-            t_s3.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+            t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+            t_s3.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
         else:
-            # --- 模式 2：標準技術指標選單 (正規參數：MACD 12,26,9 / BIAS 60 / KDJ 31 等) ---
-            
-            # 副圖 1：正規技術指標呈現
+            # --- 標準技術指標模式 ---
             ax_sub1.set_facecolor(PANEL_BG)
             if selected_indicator == "MACD":
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
@@ -661,7 +681,7 @@ if stock_options:
                 ax_sub1.plot(x, df["kdj_k"], linewidth=0.6, color="#00E5FF", label="K")
                 ax_sub1.plot(x, df["kdj_d"], linewidth=0.6, color="#FFB300", label="D")
                 ax_sub1.plot(x, df["kdj_j"], linewidth=0.6, color="#FF3B30", label="J")
-                ind_title = f"KDJ(9, 31, 3)"
+                ind_title = f"KDJ(9, 3, 3)"
             elif selected_indicator == "RSI":
                 cur_rsi = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.plot(x, df["rsi_6"], linewidth=0.6, color="#00E5FF", label="RSI")
@@ -681,19 +701,19 @@ if stock_options:
 
             ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub1.yaxis.tick_right()
-            ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s1 = ax_sub1.text(0.015, 0.78, ind_title, transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-            t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+            t_s1 = ax_sub1.text(0.015, 0.76, ind_title, transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+            t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             # 副圖 2：成交量
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
             ax_sub2.yaxis.tick_right()
-            ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub2.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_vol = ax_sub2.text(0.015, 0.78, f"成交量:{int(last_vol):,}張   量比:{v_ratio:.2f}倍", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
-            t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.6))
+            t_vol = ax_sub2.text(0.015, 0.76, f"成交量:{int(last_vol):,}張   量比:{v_ratio:.2f}倍", transform=ax_sub2.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+            t_vol.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             # 副圖 3：大戶與羊群持股
             ax_chip = ax_sub3
@@ -709,7 +729,7 @@ if stock_options:
                 cur_sheep = float(s_plot[-1])
 
             ax_chip.yaxis.tick_right()
-            ax_chip.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_chip.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_chip.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
             
             chip_tokens = [
@@ -719,9 +739,9 @@ if stock_options:
             ]
             start_x_chip = 0.015
             for text_str, color_code in chip_tokens:
-                t_tok = ax_chip.text(start_x_chip, 0.78, text_str, transform=ax_chip.transAxes, fontsize=8.5, fontweight="bold", color=color_code)
-                t_tok.set_path_effects(get_bright_effect(color_code, 0.6))
-                start_x_chip += len(text_str) * 0.0065
+                t_tok = ax_chip.text(start_x_chip, 0.76, text_str, transform=ax_chip.transAxes, fontsize=8.0, fontweight="bold", color=color_code)
+                t_tok.set_path_effects(get_bright_effect(color_code, 0.5))
+                start_x_chip += len(text_str) * 0.006
 
         for ax in axes:
             for spine in ax.spines.values():
