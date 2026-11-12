@@ -459,7 +459,7 @@ if stock_options:
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 🎯 嚴格對應您的通達信波段信號公式計算
+        # 🎯 嚴格對應您的通達信波段信號公式計算 (僅在轉折第一天產生信號)
         # ---------------------------------------------------------
         ema3 = s_close.ewm(span=3, adjust=False).mean()
         ema15 = s_close.ewm(span=15, adjust=False).mean()
@@ -485,18 +485,14 @@ if stock_options:
         df["red_days"] = red_days
         df["green_days"] = green_days
 
-        # 買進頭、買進尾、賣出頭、賣出尾
+        # 嚴格對應買進頭/尾、賣出頭/尾（只在轉折當天成立一次）
         buy_head = 成立 & (df["red_days"] == 0)
         buy_tail = (df["red_days"] < df["green_days"]) & (df["red_days"].shift(1, fill_value=999) > df["green_days"].shift(1, fill_value=999))
         sell_head = 不成立 & (df["green_days"] == 0)
         sell_tail = (df["red_days"] > df["green_days"]) & (df["red_days"].shift(1, fill_value=999) < df["green_days"].shift(1, fill_value=999))
 
-        df["is_buy_head"] = buy_head
-        df["is_buy_tail"] = buy_tail
-        df["is_sell_head"] = sell_head
-        df["is_sell_tail"] = sell_tail
-        df["is_buy"] = buy_head | buy_tail
-        df["is_sell"] = sell_head | sell_tail
+        df["is_buy_signal"] = buy_head | buy_tail
+        df["is_sell_signal"] = sell_head | sell_tail
 
         # 其他指標計算
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
@@ -662,20 +658,20 @@ if stock_options:
                     t_fib.set_path_effects(get_bright_effect("#000000", 1.2))
 
             # ---------------------------------------------------------
-            # 🎯 真實在 K 線圖內畫出買賣信號箭頭 (仿照您的傳統軟體截圖)
+            # 🎯 買賣信號箭頭：僅在轉折發生的當天出現一次 (買紅 ▲ / 賣青色 ▼)
             # ---------------------------------------------------------
             for i in range(len(df)):
-                if df["is_buy_head"].iloc[i] or df["is_buy_tail"].iloc[i]:
+                if df["is_buy_signal"].iloc[i]:
                     low_p = float(df["low"].iloc[i])
                     ax1.annotate(
                         '▲', xy=(i, low_p), xytext=(i, low_p * 0.985),
                         ha='center', va='top', fontsize=9, fontweight='bold', color='#FF3333'
                     )
-                if df["is_sell_head"].iloc[i] or df["is_sell_tail"].iloc[i]:
+                if df["is_sell_signal"].iloc[i]:
                     high_p = float(df["high"].iloc[i])
                     ax1.annotate(
                         '▼', xy=(i, high_p), xytext=(i, high_p * 1.015),
-                        ha='center', va='bottom', fontsize=9, fontweight='bold', color='#00E64D'
+                        ha='center', va='bottom', fontsize=9, fontweight='bold', color='#00FFFF'
                     )
 
             ymin_lim, ymax_lim = ax1.get_ylim()
@@ -937,15 +933,15 @@ if stock_options:
             elif is_golden_cross:
                 kdj_signal, kdj_sig_cls = "【買進訊號】KD金交叉", "t-val-red"
 
-            is_buy_signal = bool(df["is_buy"].iloc[-1]) if "is_buy" in df.columns else False
-            is_sell_signal = bool(df["is_sell"].iloc[-1]) if "is_sell" in df.columns else False
+            is_buy_signal_today = bool(df["is_buy_signal"].iloc[-1]) if "is_buy_signal" in df.columns else False
+            is_sell_signal_today = bool(df["is_sell_signal"].iloc[-1]) if "is_sell_signal" in df.columns else False
             
             wave_status = "持倉中 / 觀望"
             wave_cls = "t-val-white"
-            if is_buy_signal:
-                wave_status, wave_cls = "★ 波段買進信號", "t-val-red"
-            elif is_sell_signal:
-                wave_status, wave_cls = "✖ 波段賣出信號", "t-val-green"
+            if is_buy_signal_today:
+                wave_status, wave_cls = "★ 今日波段買進", "t-val-red"
+            elif is_sell_signal_today:
+                wave_status, wave_cls = "✖ 今日波段賣出", "t-val-cyan"
             elif df["red_days"].iloc[-1] < df["green_days"].iloc[-1]:
                 wave_status, wave_cls = "多方波段運行中", "t-val-red"
             else:
