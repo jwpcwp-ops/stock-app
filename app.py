@@ -415,7 +415,7 @@ if stock_options:
         for ma_name, (period, is_show, color) in ma_config.items():
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
-        # 🎯 扣抵天數對齊 (alpha=0.25 黯淡質感)
+        # 🎯 扣抵天數對齊
         deduct_periods = [5, 35, 65, 120, 200]
         deduct_indices = {}
         n_len = len(df)
@@ -507,7 +507,7 @@ if stock_options:
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
         df["long_trend"] = cond3 & cond4
 
-        BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#000000", "#000000", "#262626", "#666666"
+        BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#262626"
         BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
         
         prev_closes = df["close"].shift(1).fillna(df["open"])
@@ -540,7 +540,7 @@ if stock_options:
             ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
             axes = [ax1, ax_sub1, ax_sub2]
 
-        # 右側 5 大獨立子圖欄位 (依序配置：1.均線、2.區間測漲跌幅、3.KDJ、4.成交量、5.多空線縮小專用區)
+        # 右側 5 大獨立子圖欄位
         gs_right = gs[:, 1].subgridspec(5, 1, height_ratios=[1.2, 1.6, 1.2, 1.2, 0.8], hspace=0.04)
         ax_r_ma = fig.add_subplot(gs_right[0])      # 1. 均線區
         ax_r_range = fig.add_subplot(gs_right[1])   # 2. 區間測漲跌幅區
@@ -633,7 +633,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 副圖區繪製
+        # 副圖區繪製 (完整保留所有 8 種指標數值)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -722,27 +722,48 @@ if stock_options:
                 rdiff_arrow = "↑" if cur_rdiff >= 0 else "↓"
                 ax_sub1.plot(x, df["rsi_6"], linewidth=0.5, color="#FF00FF", label="RSI6")
                 ax_sub1.plot(x, df["rsi_12"], linewidth=0.5, color="#00FFFF", label="RSI12")
+                
+                rsi_tokens = [
+                    ("RSI(6,12)  ", "#FFFFFF"),
+                    ("RSI6:", "#FF00FF"), (f"{cur_r6:.2f}  ", "#FF00FF"),
+                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#00FFFF"),
+                    ("差值:", "#FFFF00"), (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00")
+                ]
+                start_x_r = 0.015
+                for r_txt, r_col in rsi_tokens:
+                    t_r = ax_sub1.text(start_x_r, 0.86, r_txt, transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color=r_col)
+                    t_r.set_path_effects(get_bright_effect("#000000", 1.5))
+                    start_x_r += len(r_txt) * 0.007
+
             elif selected_indicator == "W%":
                 cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.plot(x, df["w_r"], linewidth=0.5, color="#FFFF00", label="W%")
+                t_wr = ax_sub1.text(0.015, 0.86, f"W% (威廉指標)  W%:{cur_wr:.2f}%", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFF00")
+                t_wr.set_path_effects(get_bright_effect("#000000", 1.5))
+
             elif selected_indicator == "QT":
                 cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.bar(x, df["qt"], width=0.75, color=qt_bar_colors, edgecolor="none", alpha=1.0)
+                t_qt = ax_sub1.text(0.015, 0.86, f"QT (量價波動)  QT:{cur_qt:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#00FF66")
+                t_qt.set_path_effects(get_bright_effect("#000000", 1.5))
+
             elif selected_indicator == "大戶羊群":
                 if len(big_holder) > 0 and len(sheep_holder) > 0:
                     b_plot = big_holder[-len(df):]
                     s_plot = sheep_holder[-len(df):]
                     ax_sub1.plot(x, b_plot, color="#FF3333", linewidth=0.5, linestyle="-", label="大戶(%)")
                     ax_sub1.plot(x, s_plot, color="#00E64D", linewidth=0.5, linestyle="-", label="羊群(%)")
+                    cur_b = float(b_plot[-1])
+                    cur_s = float(s_plot[-1])
+                    t_sh = ax_sub1.text(0.015, 0.86, f"大戶羊群指標  大戶:{cur_b:.1f}%  散戶:{cur_s:.1f}%", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FF3333")
+                    t_sh.set_path_effects(get_bright_effect("#000000", 1.5))
 
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
 
-            # ---------------------------------------------------------
-            # 🎯 完整保留：成交量副圖及其數值列
-            # ---------------------------------------------------------
+            # 成交量副圖與數值
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=1.0)
             ax_sub2.plot(x, df["vol_ma5"], linewidth=0.5, color="#FFFF00", label="Vol MA5", alpha=0.95)
@@ -771,7 +792,7 @@ if stock_options:
                 start_x_vol += len(v_txt) * 0.007
 
         # ---------------------------------------------------------
-        # 🎯 【右側 5 大專屬獨立解盤欄渲染邏輯】
+        # 🎯 【右側 5 大專屬獨立解盤欄渲染邏輯 (優化比例與清晰度)】
         # ---------------------------------------------------------
         for r_ax in right_axes:
             r_ax.set_facecolor("#111111")
@@ -784,10 +805,10 @@ if stock_options:
         # 1. 【均線區塊】
         ma5_val = float(df["ma_5"].iloc[-1]) if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1]) else 0
         ma20_val = float(df["ma_20"].iloc[-1]) if "ma_20" in df.columns and not pd.isna(df["ma_20"].iloc[-1]) else 0
-        t1 = ax_r_ma.text(0.08, 0.5, f"【均線指標】\n• MA5 : {ma5_val:.1f}\n• MA20: {ma20_val:.1f}", transform=ax_r_ma.transAxes, fontsize=6.5, fontweight="bold", color="#00FFFF", va="center")
+        t1 = ax_r_ma.text(0.08, 0.5, f"【均線指標】\n• MA5 : {ma5_val:.1f}\n• MA20: {ma20_val:.1f}", transform=ax_r_ma.transAxes, fontsize=6.8, fontweight="bold", color="#00FFFF", va="center")
         t1.set_path_effects(get_bright_effect("#000000", 1.2))
 
-        # 2. 【區間測漲跌幅區塊】
+        # 2. 【區間測漲跌幅區塊】 (調整比例與字型大小，數值清晰呈現)
         recent_high_val = float(df["high"].tail(30).max()) if not df.empty else last_high
         recent_low_val = float(df["low"].tail(30).min()) if not df.empty else last_low
         calc_drop = ((recent_high_val - last_low) / recent_high_val) * 100 if recent_high_val > 0 else 0.0
@@ -796,7 +817,7 @@ if stock_options:
         t2 = ax_r_range.text(
             0.08, 0.5, 
             f"---區間測漲跌幅---\n• 最近高: {recent_high_val:.1f}\n• 顯示跌幅: {calc_drop:.1f}%\n• 最近低: {recent_low_val:.1f}\n• 顯示漲幅: {calc_rise:.1f}%", 
-            transform=ax_r_range.transAxes, fontsize=6.0, fontweight="bold", color="#CCFFFF", va="center"
+            transform=ax_r_range.transAxes, fontsize=6.5, fontweight="bold", color="#CCFFFF", va="center"
         )
         t2.set_path_effects(get_bright_effect("#000000", 1.2))
 
@@ -828,19 +849,19 @@ if stock_options:
         elif is_dead_cross:
             kdj_status, kdj_color = "K跌破D(死亡交叉)", "#00E64D"
 
-        t3 = ax_r_kdj.text(0.08, 0.5, f"【KDJ 解盤】\n• {kdj_status}", transform=ax_r_kdj.transAxes, fontsize=6.5, fontweight="bold", color=kdj_color, va="center")
+        t3 = ax_r_kdj.text(0.08, 0.5, f"【KDJ 解盤】\n• {kdj_status}", transform=ax_r_kdj.transAxes, fontsize=6.8, fontweight="bold", color=kdj_color, va="center")
         t3.set_path_effects(get_bright_effect("#000000", 1.2))
 
         # 4. 【成交量區塊】
         vol_status = "量能平穩" if v_ratio < 1.5 else "量能放大"
         vol_c = "#FFFFFF" if v_ratio < 1.5 else "#FF3333"
-        t4 = ax_r_vol.text(0.08, 0.5, f"【成交量區】\n• 5日比: {v_ratio:.2f}\n• {vol_status}", transform=ax_r_vol.transAxes, fontsize=6.5, fontweight="bold", color=vol_c, va="center")
+        t4 = ax_r_vol.text(0.08, 0.5, f"【成交量區】\n• 5日比: {v_ratio:.2f}\n• {vol_status}", transform=ax_r_vol.transAxes, fontsize=6.8, fontweight="bold", color=vol_c, va="center")
         t4.set_path_effects(get_bright_effect("#000000", 1.2))
 
-        # 5. 【多空線縮小專屬區】 (剛好容納單行文字)
+        # 5. 【多空線縮小專屬區】
         trend_txt = "多方掌控" if is_bull else "空方佔優"
         trend_c = "#FF3333" if is_bull else "#00E64D"
-        t5 = ax_r_trend.text(0.08, 0.5, f"【多空線區】趨勢: {trend_txt}", transform=ax_r_trend.transAxes, fontsize=6.5, fontweight="bold", color=trend_c, va="center")
+        t5 = ax_r_trend.text(0.08, 0.5, f"【多空線區】趨勢: {trend_txt}", transform=ax_r_trend.transAxes, fontsize=6.8, fontweight="bold", color=trend_c, va="center")
         t5.set_path_effects(get_bright_effect("#000000", 1.2))
 
         for ax in axes:
