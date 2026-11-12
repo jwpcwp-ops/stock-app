@@ -661,27 +661,23 @@ if stock_options:
 
         else:
             ax_sub1.set_facecolor(PANEL_BG)
-            if selected_indicator == "MACD":
+           if selected_indicator == "MACD":
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
                 ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FF00FF", label="DIF")
                 ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#00E5FF", label="DEA")
                 
-                # 🎯 圖 1 精確還原：MACD : val  DIF : val  OSC : val 格式
-                macd_tokens = [
-                    ("MACD : ", "#FFFF00"), (f"{cur_dif:.2f}", "#FF00FF"),
-                    ("  DIF : ", "#FFFF00"), (f"{cur_dem:.2f}", "#00E5FF"),
-                    ("  OSC : ", "#FFFF00"), (f"{cur_osc:.2f}", "#FF3B30" if cur_osc >= 0 else "#00C853")
-                ]
-                start_x_m = 0.015
-                for m_txt, m_col in macd_tokens:
-                    t_m = ax_sub1.text(start_x_m, 0.76, m_txt, transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color=m_col)
-                    t_m.set_path_effects(get_bright_effect("#000000", 0.5))
-                    start_x_m += len(m_txt) * 0.009
-
-            elif selected_indicator == "BIAS":
-                ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)")
-                t_s1 = ax_sub1.text(0.015, 0.76, f"BIAS(60)  {cur_bias:.2f}%", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
+                # 🎯 精準對齊圖中黃框的緊湊格式：MACD : -1.43  DIF : -1.08  OSC : 0.35
+                # 使用 backgroundcolor 與 boxstyle 完美做出您畫的黃色框線質感
+                macd_text_str = f" MACD : {cur_osc:.2f}  DIF : {cur_dif:.2f}  OSC : {cur_dem:.2f} "
+                t_m = ax_sub1.text(
+                    0.015, 0.78, macd_text_str, 
+                    transform=ax_sub1.transAxes, 
+                    fontsize=8.0, 
+                    fontweight="bold", 
+                    color="#FFFF00",  # 文字主色調或依數值分色
+                    bbox=dict(boxstyle="round,pad=0.2", fc="#000000", ec="#FFD700", lw=0.8, alpha=0.85)
+                )
+                t_m.set_path_effects(get_bright_effect("#000000", 0.5))
                 
             elif selected_indicator == "KDJ":
                 cur_k = float(df["kdj_k"].iloc[-1]) if not df.empty else 0.0
