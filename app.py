@@ -621,11 +621,11 @@ if stock_options:
         trend_color = "#FF3333" if is_bull else "#00E64D"
         
         # 季線多空標籤 (靠右上)
-        t_trend_badge = ax1.text(0.66, 0.93, trend_status, transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color=trend_color)
+        t_trend_badge = ax1.text(0.58, 0.93, trend_status, transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect("#000000", 1.5))
 
-        # 🎯 【完美排版微調】：將週期標籤（日線/60分/週線/月線）安排在「季線多頭/空頭」的左側，右上留白，完美避開右側分割線！
-        t_period_badge = ax1.text(0.53, 0.93, f" {actual_chart_period} ", transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#222222", ha="center", va="center")
+        # 🎯 【完美定案】：將週期標籤（日線/60分/週線/月線）精準安排在「【季線多頭/空頭】」的正右方，留出完美間距，且完全不跟右側分割線打架！
+        t_period_badge = ax1.text(0.72, 0.93, f" {actual_chart_period} ", transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#222222", ha="center", va="center")
         t_period_badge.set_path_effects(get_bright_effect("#000000", 1.2))
 
         if legend_labels:
@@ -737,7 +737,7 @@ if stock_options:
                 rsi_tokens = [
                     ("RSI(6,12)  ", "#FFFFFF"),
                     ("RSI6:", "#FF00FF"), (f"{cur_r6:.2f}  ", "#FF00FF"),
-                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#00FFFF"),
+                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#FF00FF"),
                     ("差值:", "#FFFF00"), (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00")
                 ]
                 start_x_r = 0.015
