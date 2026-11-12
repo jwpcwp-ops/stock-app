@@ -670,14 +670,14 @@ if stock_options:
                     t_fib.set_path_effects(get_bright_effect("#000000", 1.2))
 
             # ---------------------------------------------------------
-            # 🎯 買賣信號箭頭：純箭頭符號（↑ 漲紅 / ↓ 青色），單次觸發
+            # 🎯 買賣信號箭頭：漲的箭頭使用紫色 (#CC00FF) / 跌的箭頭使用青色 (#00FFFF)，單次觸發
             # ---------------------------------------------------------
             for i in range(len(df)):
                 if df["is_buy_signal"].iloc[i]:
                     low_p = float(df["low"].iloc[i])
                     ax1.annotate(
                         '↑', xy=(i, low_p), xytext=(i, low_p * 0.985),
-                        ha='center', va='top', fontsize=11, fontweight='bold', color='#FF3333'
+                        ha='center', va='top', fontsize=11, fontweight='bold', color='#CC00FF'
                     )
                 if df["is_sell_signal"].iloc[i]:
                     high_p = float(df["high"].iloc[i])
@@ -908,7 +908,6 @@ if stock_options:
             ma_status = "多頭排列" if ma5_val > ma20_val > ma60_val else ("空頭排列" if ma5_val < ma20_val < ma60_val else "均線交錯")
             ma_color_class = "t-val-red" if ma5_val > ma20_val else "t-val-green"
 
-            # 恢復您的區間漲跌幅計算
             recent_high_val = float(df["high"].tail(30).max()) if not df.empty else last_high
             recent_low_val = float(df["low"].tail(30).min()) if not df.empty else last_low
             calc_drop = ((recent_high_val - last_low) / recent_high_val) * 100 if recent_high_val > 0 else 0.0
@@ -949,7 +948,6 @@ if stock_options:
             is_buy_signal_today = bool(df["is_buy_signal"].iloc[-1]) if "is_buy_signal" in df.columns else False
             is_sell_signal_today = bool(df["is_sell_signal"].iloc[-1]) if "is_sell_signal" in df.columns else False
             
-            # 波段狀態判定
             wave_status = "持倉中 / 觀望"
             wave_cls = "t-val-white"
             if is_buy_signal_today:
@@ -980,7 +978,7 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 2. 區間漲跌幅 (完整恢復)
+            # 2. 區間漲跌幅
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">【區間漲跌幅】</div>
@@ -1012,7 +1010,7 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 5. 多空與波段信號判定 (同屬性整合)
+            # 5. 多空與波段信號判定
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">【多空與波段判定】</div>
