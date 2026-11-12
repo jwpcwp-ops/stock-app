@@ -904,7 +904,7 @@ if stock_options:
             # 2. 區間測幅
             st.markdown(f"""
                 <div class="terminal-panel">
-                    <div class="terminal-title">---30日區間測幅---</div>
+                    <div class="terminal-title">---區間測幅---</div>
                     <div class="t-row"><span class="t-label">近高:</span><span class="t-val-white">{recent_high_val:.1f}</span></div>
                     <div class="t-row"><span class="t-label">自高回檔:</span><span class="t-val-green">-{calc_drop:.1f}%</span></div>
                     <div class="t-row"><span class="t-label">近低:</span><span class="t-val-white">{recent_low_val:.1f}</span></div>
