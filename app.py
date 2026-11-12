@@ -522,7 +522,7 @@ if stock_options:
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
-        # 🎯 【完美容納 5~6 位數排版：主圖 7.9 : 解盤框 2.1，wspace 放大至 0.085】
+        # 🎯 版面配置 (7.9 : 2.1，wspace 0.085 完美容納 5~6 位數)
         # ---------------------------------------------------------
         fig = plt.figure(figsize=(11.5, 4.2 if selected_indicator != "波段" else 5.4))
         
@@ -607,7 +607,6 @@ if stock_options:
             ax1.bar(x[i], band_height, bottom=ymin_lim, width=1.0, color=col, edgecolor="none", alpha=1.0)
 
         ax1.yaxis.tick_right()
-        # 🎯 Y 軸座標字體下修至 5.8pt，pad=1.5 緊靠邊線，可輕鬆容納 5~6 位數
         ax1.tick_params(axis="y", labelsize=5.8, pad=1.5, colors="#FFFFFF")
         plt.setp(ax1.get_xticklabels(), visible=False)
         ax1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
@@ -620,10 +619,13 @@ if stock_options:
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭】" if is_bull else "【季線空頭】"
         trend_color = "#FF3333" if is_bull else "#00E64D"
-        t_trend_badge = ax1.text(0.65, 0.93, trend_status, transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color=trend_color)
+        
+        # 季線多空標籤 (靠右上)
+        t_trend_badge = ax1.text(0.66, 0.93, trend_status, transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect("#000000", 1.5))
 
-        t_period_badge = ax1.text(0.98, 0.06, f" {actual_chart_period} ", transform=ax1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#222222", ha="right", va="bottom")
+        # 🎯 【完美排版微調】：將週期標籤（日線/60分/週線/月線）安排在「季線多頭/空頭」的左側，右上留白，完美避開右側分割線！
+        t_period_badge = ax1.text(0.53, 0.93, f" {actual_chart_period} ", transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#222222", ha="center", va="center")
         t_period_badge.set_path_effects(get_bright_effect("#000000", 1.2))
 
         if legend_labels:
@@ -635,7 +637,7 @@ if stock_options:
                 text_x += 0.11
 
         # ---------------------------------------------------------
-        # 副圖區繪製 (所有副圖 Y 軸同步下修為 5.8pt，pad=1.5)
+        # 副圖區繪製
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -662,7 +664,6 @@ if stock_options:
             t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#000000", 1.5))
 
-            # 最後一個副圖 (波段 MTM)
             ax_sub3.set_facecolor(PANEL_BG)
             ax_sub3.plot(x, df["mtm_val"], linewidth=0.5, color="#FFFF00", label="MTM")
             ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.5, color="#00FF66", label="Avg")
@@ -774,7 +775,6 @@ if stock_options:
             plt.setp(ax_sub1.get_xticklabels(), visible=False)
             ax_sub1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-            # 🎯 成交量副圖
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=1.0)
             ax_sub2.plot(x, df["vol_ma5"], linewidth=0.5, color="#FFFF00", label="Vol MA5", alpha=0.95)
@@ -808,7 +808,7 @@ if stock_options:
                 start_x_vol += len(v_txt) * 0.007
 
         # ---------------------------------------------------------
-        # 🎯 【右側 5 大專屬獨立解盤欄】
+        # 右側 5 大獨立解盤欄
         # ---------------------------------------------------------
         for r_ax in right_axes:
             r_ax.set_facecolor("#111111")
