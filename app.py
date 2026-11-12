@@ -522,19 +522,20 @@ if stock_options:
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
-        # 🎯 【完美排版：主圖區寬度調大至 8.8，右側解盤區縮小至 1.2，留出完美座標空間】
+        # 🎯 【完美排版微調：將主圖寬度設為 8.3，右側解盤區設為 1.7，並將 wspace 放大至 0.04】
+        # 這樣就能在圖表與解盤框之間拉開一個完美的空白間隔，讓座標數字清晰顯示！
         # ---------------------------------------------------------
         fig = plt.figure(figsize=(11.5, 4.2 if selected_indicator != "波段" else 5.4))
         
         if selected_indicator == "波段":
-            gs = fig.add_gridspec(4, 2, width_ratios=[8.8, 1.2], height_ratios=[2.5, 0.8, 0.8, 0.8], hspace=0.10, wspace=0.01)
+            gs = fig.add_gridspec(4, 2, width_ratios=[8.3, 1.7], height_ratios=[2.5, 0.8, 0.8, 0.8], hspace=0.10, wspace=0.04)
             ax1 = fig.add_subplot(gs[0, 0])
             ax_sub1 = fig.add_subplot(gs[1, 0], sharex=ax1)
             ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
             ax_sub3 = fig.add_subplot(gs[3, 0], sharex=ax1)
             axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
         else:
-            gs = fig.add_gridspec(3, 2, width_ratios=[8.8, 1.2], height_ratios=[2.9, 1.1, 1.1], hspace=0.10, wspace=0.01)
+            gs = fig.add_gridspec(3, 2, width_ratios=[8.3, 1.7], height_ratios=[2.9, 1.1, 1.1], hspace=0.10, wspace=0.04)
             ax1 = fig.add_subplot(gs[0, 0])
             ax_sub1 = fig.add_subplot(gs[1, 0], sharex=ax1)
             ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
@@ -607,7 +608,7 @@ if stock_options:
             ax1.bar(x[i], band_height, bottom=ymin_lim, width=1.0, color=col, edgecolor="none", alpha=1.0)
 
         ax1.yaxis.tick_right()
-        # 🎯 將主圖 Y 軸座標數字改為 7.5pt 精巧小字體，確保不被右側解盤框遮蓋
+        # 🎯 使用 7.5pt 精巧字體顯示 Y 軸座標數字
         ax1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         plt.setp(ax1.get_xticklabels(), visible=False)
         ax1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
@@ -620,7 +621,7 @@ if stock_options:
         is_bull = last_close >= ma60_val
         trend_status = "【季線多頭】" if is_bull else "【季線空頭】"
         trend_color = "#FF3333" if is_bull else "#00E64D"
-        t_trend_badge = ax1.text(0.70, 0.93, trend_status, transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=trend_color)
+        t_trend_badge = ax1.text(0.68, 0.93, trend_status, transform=ax1.transAxes, fontsize=7.5, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect("#000000", 1.5))
 
         t_period_badge = ax1.text(0.98, 0.06, f" {actual_chart_period} ", transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF", backgroundcolor="#222222", ha="right", va="bottom")
@@ -635,7 +636,7 @@ if stock_options:
                 text_x += 0.11
 
         # ---------------------------------------------------------
-        # 副圖區繪製 (副圖座標數值同步改為 7.5pt 小字體)
+        # 副圖區繪製
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -735,7 +736,7 @@ if stock_options:
                 rsi_tokens = [
                     ("RSI(6,12)  ", "#FFFFFF"),
                     ("RSI6:", "#FF00FF"), (f"{cur_r6:.2f}  ", "#FF00FF"),
-                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#00FFFF"),
+                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#FF00FFFF"),
                     ("差值:", "#FFFF00"), (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00")
                 ]
                 start_x_r = 0.015
@@ -773,7 +774,7 @@ if stock_options:
             plt.setp(ax_sub1.get_xticklabels(), visible=False)
             ax_sub1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-            # 🎯 成交量副圖 (座標數字改為 7.5pt 小字體)
+            # 🎯 成交量副圖
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=1.0)
             ax_sub2.plot(x, df["vol_ma5"], linewidth=0.5, color="#FFFF00", label="Vol MA5", alpha=0.95)
@@ -884,7 +885,7 @@ if stock_options:
                 spine.set_color("#555555")
                 spine.set_linewidth(1.2)
 
-        plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.08, hspace=0.10, wspace=0.01)
+        plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.08, hspace=0.10, wspace=0.04)
         st.pyplot(fig, use_container_width=True, dpi=150)
 
     # =========================================================
