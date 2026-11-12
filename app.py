@@ -667,28 +667,30 @@ if stock_options:
             t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
-        else:
+            else:
             ax_sub1.set_facecolor(PANEL_BG)
             if selected_indicator == "MACD":
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
                 ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FF00FF", label="DIF")
                 ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#00E5FF", label="DEA")
                 
+                # 🎯 專業看盤單行緊湊格式：字體縮小、無框線、數值與線條同色
                 osc_color = "#FF3B30" if cur_osc >= 0 else "#00C853"
                 macd_tokens = [
-                    ("MACD : ", "#FFFF00"), (f"{cur_osc:.2f}", osc_color),
-                    ("  DIF : ", "#FFFF00"), (f"{cur_dif:.2f}", "#FF00FF"),
-                    ("  OSC : ", "#FFFF00"), (f"{cur_dem:.2f}", "#00E5FF")
+                    ("MACD(長) ", "#FFFFFF"),
+                    ("DIF:", "#FF00FF"), (f"{cur_dif:.2f} {dif_arrow} ", "#FF00FF"),
+                    ("DEA:", "#00E5FF"), (f"{cur_dem:.2f} {dem_arrow} ", "#00E5FF"),
+                    ("MACD:", osc_color), (f"{cur_osc:.2f} {osc_arrow}", osc_color)
                 ]
                 start_x_m = 0.015
                 for m_txt, m_col in macd_tokens:
-                    t_m = ax_sub1.text(start_x_m, 0.76, m_txt, transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color=m_col)
+                    t_m = ax_sub1.text(start_x_m, 0.78, m_txt, transform=ax_sub1.transAxes, fontsize=7.0, fontweight="bold", color=m_col)
                     t_m.set_path_effects(get_bright_effect("#000000", 0.4))
-                    start_x_m += len(m_txt) * 0.0085
+                    start_x_m += len(m_txt) * 0.007
 
             elif selected_indicator == "BIAS":
                 ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)")
-                t_s1 = ax_sub1.text(0.015, 0.76, f"BIAS(60)  {cur_bias:.2f}%", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFF00")
+                t_s1 = ax_sub1.text(0.015, 0.78, f"BIAS(60)  {cur_bias:.2f}%", transform=ax_sub1.transAxes, fontsize=7.0, fontweight="bold", color="#FFFF00")
                 t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
                 
             elif selected_indicator == "KDJ":
@@ -698,14 +700,15 @@ if stock_options:
                 ax_sub1.plot(x, df["kdj_d"], linewidth=0.6, color="#00E5FF", label="D")
                 
                 kdj_tokens = [
-                    ("K值 : ", "#FFFF00"), (f"{cur_k:.2f}", "#FF00FF"),
-                    ("  D值 : ", "#FFFF00"), (f"{cur_d:.2f}", "#00E5FF")
+                    ("KDJ(9,3,3)  ", "#FFFFFF"),
+                    ("K:", "#FF00FF"), (f"{cur_k:.2f}  ", "#FF00FF"),
+                    ("D:", "#00E5FF"), (f"{cur_d:.2f}", "#00E5FF")
                 ]
                 start_x_k = 0.015
                 for k_txt, k_col in kdj_tokens:
-                    t_k = ax_sub1.text(start_x_k, 0.76, k_txt, transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color=k_col)
+                    t_k = ax_sub1.text(start_x_k, 0.78, k_txt, transform=ax_sub1.transAxes, fontsize=7.0, fontweight="bold", color=k_col)
                     t_k.set_path_effects(get_bright_effect("#000000", 0.4))
-                    start_x_k += len(k_txt) * 0.01
+                    start_x_k += len(k_txt) * 0.007
 
             elif selected_indicator == "RSI":
                 cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
@@ -714,14 +717,15 @@ if stock_options:
                 ax_sub1.plot(x, df["rsi_12"], linewidth=0.6, color="#00E5FF", label="RSI12")
                 
                 rsi_tokens = [
-                    ("RSI6 : ", "#FFFF00"), (f"{cur_r6:.2f}", "#FF00FF"),
-                    ("  RSI12 : ", "#FFFF00"), (f"{cur_r12:.2f}", "#00E5FF")
+                    ("RSI(6,12)  ", "#FFFFFF"),
+                    ("RSI6:", "#FF00FF"), (f"{cur_r6:.2f}  ", "#FF00FF"),
+                    ("RSI12:", "#00E5FF"), (f"{cur_r12:.2f}", "#00E5FF")
                 ]
                 start_x_r = 0.015
                 for r_txt, r_col in rsi_tokens:
-                    t_r = ax_sub1.text(start_x_r, 0.76, r_txt, transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color=r_col)
+                    t_r = ax_sub1.text(start_x_r, 0.78, r_txt, transform=ax_sub1.transAxes, fontsize=7.0, fontweight="bold", color=r_col)
                     t_r.set_path_effects(get_bright_effect("#000000", 0.4))
-                    start_x_r += len(r_txt) * 0.01
+                    start_x_r += len(r_txt) * 0.007
 
             elif selected_indicator == "W%":
                 cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
