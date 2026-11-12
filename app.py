@@ -524,24 +524,24 @@ if stock_options:
         # ---------------------------------------------------------
         # 🎯 【右側 5 欄獨立解盤區排版架構】
         # ---------------------------------------------------------
-        fig = plt.figure(figsize=(11.5, 3.8 if selected_indicator != "波段" else 5.0))
+        fig = plt.figure(figsize=(11.5, 4.0 if selected_indicator != "波段" else 5.2))
         
         if selected_indicator == "波段":
-            gs = fig.add_gridspec(4, 2, width_ratios=[8.5, 1.5], height_ratios=[2.8, 0.7, 0.7, 0.7], hspace=0.03, wspace=0.02)
+            gs = fig.add_gridspec(4, 2, width_ratios=[8.5, 1.5], height_ratios=[2.6, 0.8, 0.8, 0.8], hspace=0.08, wspace=0.02)
             ax1 = fig.add_subplot(gs[0, 0])
             ax_sub1 = fig.add_subplot(gs[1, 0], sharex=ax1)
             ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
             ax_sub3 = fig.add_subplot(gs[3, 0], sharex=ax1)
             axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
         else:
-            gs = fig.add_gridspec(3, 2, width_ratios=[8.5, 1.5], height_ratios=[3.2, 1.1, 1.0], hspace=0.03, wspace=0.02)
+            gs = fig.add_gridspec(3, 2, width_ratios=[8.5, 1.5], height_ratios=[3.0, 1.1, 1.1], hspace=0.08, wspace=0.02)
             ax1 = fig.add_subplot(gs[0, 0])
             ax_sub1 = fig.add_subplot(gs[1, 0], sharex=ax1)
             ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
             axes = [ax1, ax_sub1, ax_sub2]
 
         # 右側 5 大獨立子圖欄位
-        gs_right = gs[:, 1].subgridspec(5, 1, height_ratios=[1.2, 1.6, 1.2, 1.2, 0.8], hspace=0.04)
+        gs_right = gs[:, 1].subgridspec(5, 1, height_ratios=[1.2, 1.6, 1.2, 1.2, 0.8], hspace=0.06)
         ax_r_ma = fig.add_subplot(gs_right[0])      # 1. 均線區
         ax_r_range = fig.add_subplot(gs_right[1])   # 2. 區間測漲跌幅區
         ax_r_kdj = fig.add_subplot(gs_right[2])     # 3. KDJ 區
@@ -608,6 +608,8 @@ if stock_options:
 
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+        # 🎯 恢復主圖與上方副圖的 X 軸刻度文字顯示
+        plt.setp(ax1.get_xticklabels(), visible=False)
         ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
 
         standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
@@ -633,7 +635,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 副圖區繪製 (完整保留所有 8 種指標數值)
+        # 副圖區繪製 (完整保留所有 8 種指標數值與橫軸座標)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -644,6 +646,7 @@ if stock_options:
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            plt.setp(ax_sub1.get_xticklabels(), visible=False)
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
             t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#000000", 1.5))
@@ -654,16 +657,19 @@ if stock_options:
             ax_sub2.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            plt.setp(ax_sub2.get_xticklabels(), visible=False)
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
             t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#000000", 1.5))
 
+            # 最後一個副圖顯示 X 軸座標
             ax_sub3.set_facecolor(PANEL_BG)
             ax_sub3.plot(x, df["mtm_val"], linewidth=0.5, color="#FFFF00", label="MTM")
             ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.5, color="#00FF66", label="Avg")
             ax_sub3.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub3.yaxis.tick_right()
-            ax_sub3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub3.tick_params(axis="both", labelsize=8.0, colors="#FFFFFF")
+            plt.setp(ax_sub3.get_xticklabels(), visible=True)
             ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
             t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#000000", 1.5))
@@ -761,15 +767,17 @@ if stock_options:
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            plt.setp(ax_sub1.get_xticklabels(), visible=False)
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
 
-            # 成交量副圖與數值
+            # 🎯 成交量副圖與數值 (明確開啟 X 軸座標刻度顯示)
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=1.0)
             ax_sub2.plot(x, df["vol_ma5"], linewidth=0.5, color="#FFFF00", label="Vol MA5", alpha=0.95)
             ax_sub2.plot(x, df["vol_ma20"], linewidth=0.5, color="#FF9900", label="Vol MA20", alpha=0.95)
             ax_sub2.yaxis.tick_right()
-            ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
+            ax_sub2.tick_params(axis="both", labelsize=8.0, colors="#FFFFFF")
+            plt.setp(ax_sub2.get_xticklabels(), visible=True)
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
             
             vol_str_parts = [
@@ -792,7 +800,7 @@ if stock_options:
                 start_x_vol += len(v_txt) * 0.007
 
         # ---------------------------------------------------------
-        # 🎯 【右側 5 大專屬獨立解盤欄渲染邏輯 (優化比例與清晰度)】
+        # 🎯 【右側 5 大專屬獨立解盤欄渲染邏輯】
         # ---------------------------------------------------------
         for r_ax in right_axes:
             r_ax.set_facecolor("#111111")
@@ -808,7 +816,7 @@ if stock_options:
         t1 = ax_r_ma.text(0.08, 0.5, f"【均線指標】\n• MA5 : {ma5_val:.1f}\n• MA20: {ma20_val:.1f}", transform=ax_r_ma.transAxes, fontsize=6.8, fontweight="bold", color="#00FFFF", va="center")
         t1.set_path_effects(get_bright_effect("#000000", 1.2))
 
-        # 2. 【區間測漲跌幅區塊】 (調整比例與字型大小，數值清晰呈現)
+        # 2. 【區間測漲跌幅區塊】
         recent_high_val = float(df["high"].tail(30).max()) if not df.empty else last_high
         recent_low_val = float(df["low"].tail(30).min()) if not df.empty else last_low
         calc_drop = ((recent_high_val - last_low) / recent_high_val) * 100 if recent_high_val > 0 else 0.0
@@ -870,7 +878,7 @@ if stock_options:
                 spine.set_color("#555555")
                 spine.set_linewidth(1.2)
 
-        plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.02, hspace=0.03, wspace=0.02)
+        plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.05, hspace=0.08, wspace=0.02)
         st.pyplot(fig, use_container_width=True, dpi=150)
 
     # =========================================================
