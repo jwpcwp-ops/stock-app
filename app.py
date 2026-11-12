@@ -401,7 +401,7 @@ if stock_options:
         last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
         last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
-        # 主圖均線設定 (粗細統一為 0.5)
+        # 主圖均線設定
         ma_config = {
             "5": (5, show_ma5, "#00FFFF"),      # 螢光青藍
             "10": (10, show_ma10, "#FFFF00"),   # 極亮黃
@@ -508,7 +508,7 @@ if stock_options:
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
         df["long_trend"] = cond3 & cond4
 
-        BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#000000", "#000000", "#333333", "#666666"
+        BG_COLOR, PANEL_BG, GRID_COLOR, SUB_BORDER = "#000000", "#000000", "#262626", "#666666"  # 🎯 網格線改成微暗白灰 #262626
         BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
         
         prev_closes = df["close"].shift(1).fillna(df["open"])
@@ -556,12 +556,12 @@ if stock_options:
             ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
             ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
 
-        # 🎯 扣抵垂直虛線調整：改為 linestyle="--" (長虛線)、linewidth=1.4、alpha=0.85 (完美呈現忽隱忽現質感)
+        # 🎯 扣抵垂直虛線調整：維持清晰但柔和的長虛線
         for count_days in [120, 65, 35, 5]:
             if count_days in deduct_indices:
                 idx_pos = deduct_indices[count_days]
                 col = deduct_colors[count_days]
-                ax1.axvline(x=idx_pos, color=col, linestyle="--", linewidth=1.4, alpha=0.85)
+                ax1.axvline(x=idx_pos, color=col, linestyle="--", linewidth=1.2, alpha=0.75)
                 t_num = ax1.text(idx_pos, df["low"].min(), f"{count_days}", color=col, 
                                  fontsize=9.0, fontweight="bold", ha="center", va="bottom")
                 t_num.set_path_effects(get_bright_effect("#000000", 1.5))
@@ -596,7 +596,7 @@ if stock_options:
 
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-        ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+        ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8) # 🎯 黯淡白灰色網格線
 
         standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.93, standard_header_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
@@ -632,7 +632,7 @@ if stock_options:
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
             t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#000000", 1.5))
 
@@ -642,7 +642,7 @@ if stock_options:
             ax_sub2.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
             t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#000000", 1.5))
 
@@ -652,7 +652,7 @@ if stock_options:
             ax_sub3.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub3.yaxis.tick_right()
             ax_sub3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
             t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#000000", 1.5))
 
@@ -769,7 +769,7 @@ if stock_options:
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
 
             # ---------------------------------------------------------
             # 成交量副圖 (附 5日、20日均線，粗細 0.5)
@@ -782,7 +782,7 @@ if stock_options:
 
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
+            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
             
             vol_str_parts = [
                 ("今日 ", "#AAAAAA"),
