@@ -522,20 +522,19 @@ if stock_options:
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
-        # 🎯 【完美排版優化：主圖寬度 8.0，右側解盤區縮小至 2.0，wspace 放大至 0.05】
-        # 這樣右側方框退後、左側間隔拉開，Y 軸座標數值（小字體 7.0pt）就能完美不被遮擋！
+        # 🎯 【完美容納 5~6 位數排版：主圖 7.9 : 解盤框 2.1，wspace 放大至 0.085】
         # ---------------------------------------------------------
         fig = plt.figure(figsize=(11.5, 4.2 if selected_indicator != "波段" else 5.4))
         
         if selected_indicator == "波段":
-            gs = fig.add_gridspec(4, 2, width_ratios=[8.0, 2.0], height_ratios=[2.5, 0.8, 0.8, 0.8], hspace=0.10, wspace=0.05)
+            gs = fig.add_gridspec(4, 2, width_ratios=[7.9, 2.1], height_ratios=[2.5, 0.8, 0.8, 0.8], hspace=0.10, wspace=0.085)
             ax1 = fig.add_subplot(gs[0, 0])
             ax_sub1 = fig.add_subplot(gs[1, 0], sharex=ax1)
             ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
             ax_sub3 = fig.add_subplot(gs[3, 0], sharex=ax1)
             axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
         else:
-            gs = fig.add_gridspec(3, 2, width_ratios=[8.0, 2.0], height_ratios=[2.9, 1.1, 1.1], hspace=0.10, wspace=0.05)
+            gs = fig.add_gridspec(3, 2, width_ratios=[7.9, 2.1], height_ratios=[2.9, 1.1, 1.1], hspace=0.10, wspace=0.085)
             ax1 = fig.add_subplot(gs[0, 0])
             ax_sub1 = fig.add_subplot(gs[1, 0], sharex=ax1)
             ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
@@ -608,8 +607,8 @@ if stock_options:
             ax1.bar(x[i], band_height, bottom=ymin_lim, width=1.0, color=col, edgecolor="none", alpha=1.0)
 
         ax1.yaxis.tick_right()
-        # 🎯 Y 軸座標數字改為精巧的 7.0pt 小字體
-        ax1.tick_params(axis="y", labelsize=7.0, colors="#FFFFFF")
+        # 🎯 Y 軸座標字體下修至 5.8pt，pad=1.5 緊靠邊線，可輕鬆容納 5~6 位數
+        ax1.tick_params(axis="y", labelsize=5.8, pad=1.5, colors="#FFFFFF")
         plt.setp(ax1.get_xticklabels(), visible=False)
         ax1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
 
@@ -636,7 +635,7 @@ if stock_options:
                 text_x += 0.11
 
         # ---------------------------------------------------------
-        # 副圖區繪製
+        # 副圖區繪製 (所有副圖 Y 軸同步下修為 5.8pt，pad=1.5)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -646,7 +645,7 @@ if stock_options:
             ax_sub1.plot(x, df["band_macd_dem"], linewidth=0.5, color="#FF3333", label="MACD")
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
-            ax_sub1.tick_params(axis="y", labelsize=7.0, colors="#FFFFFF")
+            ax_sub1.tick_params(axis="y", labelsize=5.8, pad=1.5, colors="#FFFFFF")
             plt.setp(ax_sub1.get_xticklabels(), visible=False)
             ax_sub1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
             t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
@@ -657,7 +656,7 @@ if stock_options:
             ax_sub2.plot(x, df["band_bias_val_rev"], linewidth=0.5, color="#00FFFF", label="BIAS(反向)")
             ax_sub2.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub2.yaxis.tick_right()
-            ax_sub2.tick_params(axis="y", labelsize=7.0, colors="#FFFFFF")
+            ax_sub2.tick_params(axis="y", labelsize=5.8, pad=1.5, colors="#FFFFFF")
             plt.setp(ax_sub2.get_xticklabels(), visible=False)
             ax_sub2.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
             t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
@@ -669,11 +668,12 @@ if stock_options:
             ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.5, color="#00FF66", label="Avg")
             ax_sub3.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub3.yaxis.tick_right()
-            ax_sub3.tick_params(axis="both", labelsize=7.0, colors="#FFFFFF")
+            ax_sub3.tick_params(axis="y", labelsize=5.8, pad=1.5, colors="#FFFFFF")
+            ax_sub3.tick_params(axis="x", labelsize=6.5, colors="#FFFFFF")
             plt.setp(ax_sub3.get_xticklabels(), visible=True)
             for label in ax_sub3.get_xticklabels():
                 label.set_color("#FFFFFF")
-                label.set_fontsize(7.0)
+                label.set_fontsize(6.5)
             ax_sub3.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
             t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#000000", 1.5))
@@ -770,7 +770,7 @@ if stock_options:
 
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
-            ax_sub1.tick_params(axis="y", labelsize=7.0, colors="#FFFFFF")
+            ax_sub1.tick_params(axis="y", labelsize=5.8, pad=1.5, colors="#FFFFFF")
             plt.setp(ax_sub1.get_xticklabels(), visible=False)
             ax_sub1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
 
@@ -780,11 +780,12 @@ if stock_options:
             ax_sub2.plot(x, df["vol_ma5"], linewidth=0.5, color="#FFFF00", label="Vol MA5", alpha=0.95)
             ax_sub2.plot(x, df["vol_ma20"], linewidth=0.5, color="#FF9900", label="Vol MA20", alpha=0.95)
             ax_sub2.yaxis.tick_right()
-            ax_sub2.tick_params(axis="both", labelsize=7.0, colors="#FFFFFF")
+            ax_sub2.tick_params(axis="y", labelsize=5.8, pad=1.5, colors="#FFFFFF")
+            ax_sub2.tick_params(axis="x", labelsize=6.5, colors="#FFFFFF")
             plt.setp(ax_sub2.get_xticklabels(), visible=True)
             for label in ax_sub2.get_xticklabels():
                 label.set_color("#FFFFFF")
-                label.set_fontsize(7.0)
+                label.set_fontsize(6.5)
             ax_sub2.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
             
             vol_str_parts = [
@@ -807,7 +808,7 @@ if stock_options:
                 start_x_vol += len(v_txt) * 0.007
 
         # ---------------------------------------------------------
-        # 🎯 【右側 5 大專屬獨立解盤欄 (字體縮小至 5.5pt，完美收納不外溢)】
+        # 🎯 【右側 5 大專屬獨立解盤欄】
         # ---------------------------------------------------------
         for r_ax in right_axes:
             r_ax.set_facecolor("#111111")
@@ -885,7 +886,7 @@ if stock_options:
                 spine.set_color("#555555")
                 spine.set_linewidth(1.2)
 
-        plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.08, hspace=0.10, wspace=0.05)
+        plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.08, hspace=0.10, wspace=0.085)
         st.pyplot(fig, use_container_width=True, dpi=150)
 
     # =========================================================
