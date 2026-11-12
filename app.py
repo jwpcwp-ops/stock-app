@@ -292,7 +292,6 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         seed_val = int(stock_id) if stock_id.isdigit() else 42
         np.random.seed(seed_val)
         n_p = len(k_records)
-        # 確保大戶與羊群持股具備交織交叉原理的隨機走勢
         base_big = 45.0 + np.cumsum(np.random.randn(n_p) * 0.5)
         base_sheep = 95.0 - base_big + np.random.randn(n_p) * 0.2
         big_holder = np.clip(base_big, 10.0, 90.0)
@@ -378,7 +377,7 @@ if stock_options:
         with top_cols[6]:
             selected_ma = st.pills(
                 "均線",
-                ["5", "10", "20", "35", "60", "120", "200", "分割"],
+                ["5", "10", "20", "35", "60", "120", "200", "分割", "250"],
                 default=["60", "250"],
                 selection_mode="multi",
                 label_visibility="collapsed",
@@ -542,7 +541,6 @@ if stock_options:
 
         plt.style.use("dark_background")
         
-        # 🎯 改為 3 個畫面（K線主圖 + 技術指標副圖 + 成交量副圖），釋放空間！
         if selected_indicator == "波段":
             fig, axes = plt.subplots(
                 3, 1, figsize=(10, 4.0), sharex=True,
@@ -641,7 +639,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 層 2：技術指標副圖 (完美單行緊湊排版)
+        # 層 2：技術指標副圖
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -741,7 +739,6 @@ if stock_options:
         ax_sub2.set_facecolor(PANEL_BG)
         ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
         
-        # 🎯 如果開啟「大戶羊群」按鈕，則在成交量副圖疊加精緻交織曲線
         cur_big, cur_sheep = 0.0, 0.0
         if show_chip_overlay and len(big_holder) > 0 and len(sheep_holder) > 0:
             ax_chip_twin = ax_sub2.twinx()
@@ -750,11 +747,10 @@ if stock_options:
             s_plot = sheep_holder[-len(df):]
             x_chip = x[-len(b_plot):]
             
-            # 線條細緻化 (linewidth=0.6) 配合圓點標記 (markersize=2)，完美還原截圖視覺
             ax_chip_twin.plot(x_chip, b_plot, color="#FF3B30", linewidth=0.6, marker='o', markersize=2, label="大戶(%)")
             ax_chip_twin.plot(x_chip, s_plot, color="#00C853", linewidth=0.6, marker='o', markersize=2, label="羊群(%)")
             ax_chip_twin.set_ylim(0, 100)
-            ax_chip_twin.yaxis.set_visible(False) # 隱藏右側重複刻度
+            ax_chip_twin.yaxis.set_visible(False)
             
             cur_big = float(b_plot[-1])
             cur_sheep = float(s_plot[-1])
@@ -763,7 +759,6 @@ if stock_options:
         ax_sub2.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        # 顯示成交量與大戶羊群數值
         if show_chip_overlay:
             vol_str_parts = [
                 ("大戶持股 : ", "#FFFFFF"), (f"{cur_big:.2f}%", "#FF3B30"),
