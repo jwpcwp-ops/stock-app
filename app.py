@@ -521,20 +521,26 @@ if stock_options:
 
         plt.style.use("dark_background")
         
+        # 🎯 導入右側專屬獨立解盤欄 (GridSpec 寬度比例: 左側 85%, 右側專屬解盤欄 15%)
+        fig = plt.figure(figsize=(11.5, 3.8 if selected_indicator != "波段" else 5.0))
+        
         if selected_indicator == "波段":
-            fig, axes = plt.subplots(
-                4, 1, figsize=(10, 5.0), sharex=True,
-                gridspec_kw={"height_ratios": [2.8, 0.7, 0.7, 0.7]}
-            )
-            ax1, ax_sub1, ax_sub2, ax_sub3 = axes
+            gs = fig.add_gridspec(4, 2, width_ratios=[8.5, 1.5], height_ratios=[2.8, 0.7, 0.7, 0.7], hspace=0.03, wspace=0.02)
+            ax1 = fig.add_subplot(gs[0, 0])
+            ax_sub1 = fig.add_subplot(gs[1, 0], sharex=ax1)
+            ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
+            ax_sub3 = fig.add_subplot(gs[3, 0], sharex=ax1)
+            ax_right = fig.add_subplot(gs[:, 1])  # 右側獨立資訊欄
+            axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
         else:
-            fig, axes = plt.subplots(
-                3, 1, figsize=(10, 3.8), sharex=True,
-                gridspec_kw={"height_ratios": [3.2, 1.1, 1.0]}
-            )
-            ax1, ax_sub1, ax_sub2 = axes
+            gs = fig.add_gridspec(3, 2, width_ratios=[8.5, 1.5], height_ratios=[3.2, 1.1, 1.0], hspace=0.03, wspace=0.02)
+            ax1 = fig.add_subplot(gs[0, 0])
+            ax_sub1 = fig.add_subplot(gs[1, 0], sharex=ax1)
+            ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
+            ax_right = fig.add_subplot(gs[:, 1])  # 右側獨立資訊欄
+            axes = [ax1, ax_sub1, ax_sub2]
 
-        for ax in [fig] + list(axes):
+        for ax in [fig, ax_right] + list(axes):
             ax.set_facecolor(BG_COLOR)
         fig.patch.set_facecolor(BG_COLOR)
         x = list(range(len(df)))
@@ -619,7 +625,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 副圖區與 KDJ 條件解盤
+        # 副圖區與 KDJ 條件解盤 (安置於右側專屬獨立欄 ax_right)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -707,15 +713,12 @@ if stock_options:
                     start_x_k += len(k_txt) * 0.007
 
                 # ---------------------------------------------------------
-                # 🎯 【KDJ 完整買賣點條件解盤邏輯】 (達成條件才在右側顯示)
+                # 🎯 【右側獨立專屬欄位：KDJ 條件解盤】 (完全不擋 KDJ 線條)
                 # ---------------------------------------------------------
                 current_bias = float(df["bias_val"].iloc[-1]) if "bias_val" in df.columns else 0.0
-                
-                # 判斷交叉狀態
-                is_golden_cross = (prev_k <= prev_d and cur_k > cur_d)  # K 突破 D
-                is_dead_cross = (prev_k >= prev_d and cur_k < cur_d)    # K 跌破 D
+                is_golden_cross = (prev_k <= prev_d and cur_k > cur_d)
+                is_dead_cross = (prev_k >= prev_d and cur_k < cur_d)
 
-                # 買點達成條件：(KD個位數 OR J<0 OR 負乖離≤-18 OR K向上突破D)
                 buy_signals = []
                 if cur_k < 10 and cur_d < 10:
                     buy_signals.append("• KD個位數超賣")
@@ -726,7 +729,6 @@ if stock_options:
                 if is_golden_cross:
                     buy_signals.append("• K突破D (黃金交叉)")
 
-                # 賣點達成條件：(J>100 OR 正乖離≥18 OR K向下跌破D)
                 sell_signals = []
                 if cur_j > 100:
                     sell_signals.append("• J值 > 100 (高檔超買)")
@@ -735,27 +737,29 @@ if stock_options:
                 if is_dead_cross:
                     sell_signals.append("• K跌破D (死亡交叉)")
 
-                # 呈現邏輯：若有買訊或賣訊，即刻在右側區塊浮現
+                # 在右側獨立欄 (ax_right) 繪製解盤內容
+                ax_right.set_facecolor("#111111")
+                ax_right.set_xticks([])
+                ax_right.set_yticks([])
+                for spine in ax_right.spines.values():
+                    spine.set_color("#555555")
+                    spine.set_linewidth(1.2)
+
+                # 標題
+                t_rtitle = ax_right.text(0.08, 0.94, f"【{actual_chart_period}解盤】", transform=ax_right.transAxes, fontsize=8.0, fontweight="bold", color="#00FFFF")
+                t_rtitle.set_path_effects(get_bright_effect("#000000", 1.2))
+
                 if buy_signals:
                     buy_text = "\n".join(buy_signals)
-                    t_interp = ax_sub1.text(
-                        0.78, 0.72,
-                        f"【{actual_chart_period} KDJ 買點訊號】\n{buy_text}\n★ 建議注意低接",
-                        transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FF3333",
-                        va="top", ha="left",
-                        bbox=dict(boxstyle="round,pad=0.3", facecolor="#111111", alpha=0.9, edgecolor="#FF3333", linewidth=1.0)
-                    )
-                    t_interp.set_path_effects(get_bright_effect("#000000", 1.2))
+                    t_rcontent = ax_right.text(0.08, 0.82, f"★ 買點訊號達成:\n{buy_text}", transform=ax_right.transAxes, fontsize=7.5, fontweight="bold", color="#FF3333", va="top")
+                    t_rcontent.set_path_effects(get_bright_effect("#000000", 1.2))
                 elif sell_signals:
                     sell_text = "\n".join(sell_signals)
-                    t_interp = ax_sub1.text(
-                        0.78, 0.72,
-                        f"【{actual_chart_period} KDJ 賣點訊號】\n{sell_text}\n✖ 建議獲利出場",
-                        transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#00E64D",
-                        va="top", ha="left",
-                        bbox=dict(boxstyle="round,pad=0.3", facecolor="#111111", alpha=0.9, edgecolor="#00E64D", linewidth=1.0)
-                    )
-                    t_interp.set_path_effects(get_bright_effect("#000000", 1.2))
+                    t_rcontent = ax_right.text(0.08, 0.82, f"✖ 賣點訊號達成:\n{sell_text}", transform=ax_right.transAxes, fontsize=7.5, fontweight="bold", color="#00E64D", va="top")
+                    t_rcontent.set_path_effects(get_bright_effect("#000000", 1.2))
+                else:
+                    t_rcontent = ax_right.text(0.08, 0.82, "• 盤勢震盪中\n• 未觸發強烈\n  買賣點條件", transform=ax_right.transAxes, fontsize=7.5, fontweight="bold", color="#AAAAAA", va="top")
+                    t_rcontent.set_path_effects(get_bright_effect("#000000", 1.2))
 
             elif selected_indicator == "RSI":
                 cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
@@ -860,7 +864,7 @@ if stock_options:
                 spine.set_color("#555555")
                 spine.set_linewidth(1.2)
 
-        plt.subplots_adjust(left=0.01, right=0.98, top=0.98, bottom=0.02, hspace=0.03)
+        plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.02, hspace=0.03, wspace=0.02)
         st.pyplot(fig, use_container_width=True, dpi=150)
 
     # =========================================================
