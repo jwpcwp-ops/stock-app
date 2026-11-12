@@ -496,12 +496,23 @@ if stock_options:
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
+        # 成交量均線與比較箭頭計算
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
         cur_vol_val = last_vol
         cur_vol_ma5 = float(df["vol_ma5"].iloc[-1]) if not pd.isna(df["vol_ma5"].iloc[-1]) else 0.0
         cur_vol_ma20 = float(df["vol_ma20"].iloc[-1]) if not pd.isna(df["vol_ma20"].iloc[-1]) else 0.0
+
+        prev_vol_ma5 = float(df["vol_ma5"].iloc[-2]) if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2]) else cur_vol_ma5
+        prev_vol_ma20 = float(df["vol_ma20"].iloc[-2]) if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2]) else cur_vol_ma20
+
+        v5_arrow = "↓" if cur_vol_ma5 < prev_vol_ma5 else "↑"
+        v20_arrow = "↓" if cur_vol_ma20 < prev_vol_ma20 else "↑"
+        vol_today_arrow = "↓" if last_vol < (float(df["vol"].iloc[-2]) if len(df) > 1 else last_vol) else "↑"
+
+        v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
+        v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
 
         cond3 = ((s_close.ewm(span=15, adjust=False).mean() / s_close.ewm(span=30, adjust=False).mean() - 1) * 100) > 0
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
@@ -619,7 +630,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 🎯 層 2、3、4：技術指標與籌碼副圖 (字體縮小、數值與線條同色對應)
+        # 層 2、3、4：技術指標與籌碼副圖 (字體縮小、數值與線條同色對應)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -663,7 +674,6 @@ if stock_options:
                 ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FF00FF", label="DIF")
                 ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#00E5FF", label="DEA")
                 
-                # 🎯 MACD 數值與線條同色、字體縮小、緊湊排列 (無外框)
                 osc_color = "#FF3B30" if cur_osc >= 0 else "#00C853"
                 macd_tokens = [
                     ("MACD : ", "#FFFF00"), (f"{cur_osc:.2f}", osc_color),
@@ -687,7 +697,6 @@ if stock_options:
                 ax_sub1.plot(x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K")
                 ax_sub1.plot(x, df["kdj_d"], linewidth=0.6, color="#00E5FF", label="D")
                 
-                # 🎯 KDJ 數值與線條同色、字體縮小、緊湊排列
                 kdj_tokens = [
                     ("K值 : ", "#FFFF00"), (f"{cur_k:.2f}", "#FF00FF"),
                     ("  D值 : ", "#FFFF00"), (f"{cur_d:.2f}", "#00E5FF")
@@ -704,7 +713,6 @@ if stock_options:
                 ax_sub1.plot(x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6")
                 ax_sub1.plot(x, df["rsi_12"], linewidth=0.6, color="#00E5FF", label="RSI12")
                 
-                # 🎯 RSI 數值與線條同色、字體縮小、緊湊排列
                 rsi_tokens = [
                     ("RSI6 : ", "#FFFF00"), (f"{cur_r6:.2f}", "#FF00FF"),
                     ("  RSI12 : ", "#FFFF00"), (f"{cur_r12:.2f}", "#00E5FF")
