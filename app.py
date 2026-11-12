@@ -459,7 +459,7 @@ if stock_options:
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 技術指標與波段信號邏輯計算 (對應您的通達信公式)
+        # 🎯 嚴格對應您的通達信波段信號公式計算
         # ---------------------------------------------------------
         ema3 = s_close.ewm(span=3, adjust=False).mean()
         ema15 = s_close.ewm(span=15, adjust=False).mean()
@@ -472,11 +472,9 @@ if stock_options:
         cond3 = slope_1 > a2_1
         cond4 = ema15 > ema30
 
-        # 成立與不成立布林序列
         成立 = cond1 & cond2 & cond3 & cond4
         不成立 = (~cond1) & (~cond2) & (~cond3) & (~cond4)
 
-        # 模擬 BARSLAST 邏輯計算距上次成立/不成立的K棒天數
         red_days, green_days = [], []
         r_cnt, g_cnt = 999, 999
         for val_s, val_ns in zip(成立, 不成立):
@@ -487,13 +485,16 @@ if stock_options:
         df["red_days"] = red_days
         df["green_days"] = green_days
 
-        # 買進頭、買進尾、賣出頭、賣出尾判定
+        # 買進頭、買進尾、賣出頭、賣出尾
         buy_head = 成立 & (df["red_days"] == 0)
-        # 簡化模擬前天狀態
         buy_tail = (df["red_days"] < df["green_days"]) & (df["red_days"].shift(1, fill_value=999) > df["green_days"].shift(1, fill_value=999))
         sell_head = 不成立 & (df["green_days"] == 0)
         sell_tail = (df["red_days"] > df["green_days"]) & (df["red_days"].shift(1, fill_value=999) < df["green_days"].shift(1, fill_value=999))
 
+        df["is_buy_head"] = buy_head
+        df["is_buy_tail"] = buy_tail
+        df["is_sell_head"] = sell_head
+        df["is_sell_tail"] = sell_tail
         df["is_buy"] = buy_head | buy_tail
         df["is_sell"] = sell_head | sell_tail
 
@@ -659,6 +660,23 @@ if stock_options:
                     ax1.axhline(price_val, color="#00FFFF", linestyle=":", linewidth=1.0, alpha=0.9)
                     t_fib = ax1.text(x_right_limit - 0.8, price_val, f" {price_val:.2f} ({label_txt}) ", color="#FFFFFF", fontsize=7.0, fontweight="bold", va="center", ha="right", backgroundcolor="#111111")
                     t_fib.set_path_effects(get_bright_effect("#000000", 1.2))
+
+            # ---------------------------------------------------------
+            # 🎯 真實在 K 線圖內畫出買賣信號箭頭 (仿照您的傳統軟體截圖)
+            # ---------------------------------------------------------
+            for i in range(len(df)):
+                if df["is_buy_head"].iloc[i] or df["is_buy_tail"].iloc[i]:
+                    low_p = float(df["low"].iloc[i])
+                    ax1.annotate(
+                        '▲', xy=(i, low_p), xytext=(i, low_p * 0.985),
+                        ha='center', va='top', fontsize=9, fontweight='bold', color='#FF3333'
+                    )
+                if df["is_sell_head"].iloc[i] or df["is_sell_tail"].iloc[i]:
+                    high_p = float(df["high"].iloc[i])
+                    ax1.annotate(
+                        '▼', xy=(i, high_p), xytext=(i, high_p * 1.015),
+                        ha='center', va='bottom', fontsize=9, fontweight='bold', color='#00E64D'
+                    )
 
             ymin_lim, ymax_lim = ax1.get_ylim()
             band_height = (ymax_lim - ymin_lim) * 0.035
@@ -873,7 +891,7 @@ if stock_options:
             st.pyplot(fig, use_container_width=True, dpi=150)
 
         # ---------------------------------------------------------
-        # 🎯 右側大字體填滿解盤面板 (內建 KDJ + 波段信號自動判定)
+        # 🎯 右側大字體填滿解盤面板
         # ---------------------------------------------------------
         with info_col:
             ma5_val = float(df["ma_5"].iloc[-1]) if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1]) else 0
@@ -887,7 +905,6 @@ if stock_options:
             calc_drop = ((recent_high_val - last_low) / recent_high_val) * 100 if recent_high_val > 0 else 0.0
             calc_rise = ((last_high / recent_low_val) - 1) * 100 if recent_low_val > 0 else 0.0
 
-            # KDJ 數值與動態判定
             cur_k = float(df["kdj_k"].iloc[-1]) if "kdj_k" in df.columns else 0.0
             cur_d = float(df["kdj_d"].iloc[-1]) if "kdj_d" in df.columns else 0.0
             cur_j = float(df["kdj_j"].iloc[-1]) if "kdj_j" in df.columns else 0.0
@@ -898,7 +915,6 @@ if stock_options:
             is_golden_cross = (prev_k <= prev_d and cur_k > cur_d)
             is_dead_cross = (prev_k >= prev_d and cur_k < cur_d)
 
-            # KDJ 綜合條件判定
             kdj_signal = "中立觀望"
             kdj_sig_cls = "t-val-white"
 
@@ -921,7 +937,6 @@ if stock_options:
             elif is_golden_cross:
                 kdj_signal, kdj_sig_cls = "【買進訊號】KD金交叉", "t-val-red"
 
-            # 🎯 波段信號判定 (對應您提供的通達信公式)
             is_buy_signal = bool(df["is_buy"].iloc[-1]) if "is_buy" in df.columns else False
             is_sell_signal = bool(df["is_sell"].iloc[-1]) if "is_sell" in df.columns else False
             
@@ -952,7 +967,7 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 2. 🎯 波段信號解盤面板 (新增)
+            # 2. 波段信號解盤面板
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">【波段信號判定】</div>
@@ -962,7 +977,7 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 3. KDJ 綜合解盤與買賣點自動判定
+            # 3. KDJ 綜合解盤
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">【KDJ綜合解盤】</div>
