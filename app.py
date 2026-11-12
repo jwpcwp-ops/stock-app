@@ -485,11 +485,9 @@ if stock_options:
         df["red_days"] = red_days
         df["green_days"] = green_days
 
-        # 原始變盤點
         raw_buy = 成立 & (df["red_days"] == 0)
         raw_sell = 不成立 & (df["green_days"] == 0)
 
-        # 🎯 狀態機過濾：確保信號只在「狀態剛轉變的那一天」成立一次，之後不連續產生
         filtered_buy = []
         filtered_sell = []
         last_state = 0  # 0: 無 / 1: 多頭 / -1: 空頭
@@ -672,7 +670,7 @@ if stock_options:
                     t_fib.set_path_effects(get_bright_effect("#000000", 1.2))
 
             # ---------------------------------------------------------
-            # 🎯 買賣信號箭頭：使用純箭頭符號（↑ 漲紅 / ↓ 青色），且每個轉折區間只出現在轉折第一天
+            # 🎯 買賣信號箭頭：純箭頭符號（↑ 漲紅 / ↓ 青色），單次觸發
             # ---------------------------------------------------------
             for i in range(len(df)):
                 if df["is_buy_signal"].iloc[i]:
@@ -901,7 +899,7 @@ if stock_options:
             st.pyplot(fig, use_container_width=True, dpi=150)
 
         # ---------------------------------------------------------
-        # 🎯 右側大字體填滿解盤面板
+        # 🎯 右側大字體填滿解盤面板 (恢復區間漲跌幅 + 整合波段信號至多空判定)
         # ---------------------------------------------------------
         with info_col:
             ma5_val = float(df["ma_5"].iloc[-1]) if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1]) else 0
@@ -910,6 +908,7 @@ if stock_options:
             ma_status = "多頭排列" if ma5_val > ma20_val > ma60_val else ("空頭排列" if ma5_val < ma20_val < ma60_val else "均線交錯")
             ma_color_class = "t-val-red" if ma5_val > ma20_val else "t-val-green"
 
+            # 恢復您的區間漲跌幅計算
             recent_high_val = float(df["high"].tail(30).max()) if not df.empty else last_high
             recent_low_val = float(df["low"].tail(30).min()) if not df.empty else last_low
             calc_drop = ((recent_high_val - last_low) / recent_high_val) * 100 if recent_high_val > 0 else 0.0
@@ -950,6 +949,7 @@ if stock_options:
             is_buy_signal_today = bool(df["is_buy_signal"].iloc[-1]) if "is_buy_signal" in df.columns else False
             is_sell_signal_today = bool(df["is_sell_signal"].iloc[-1]) if "is_sell_signal" in df.columns else False
             
+            # 波段狀態判定
             wave_status = "持倉中 / 觀望"
             wave_cls = "t-val-white"
             if is_buy_signal_today:
@@ -960,6 +960,9 @@ if stock_options:
                 wave_status, wave_cls = "多方波段運行中", "t-val-red"
             else:
                 wave_status, wave_cls = "空方波段整理中", "t-val-green"
+
+            red_days_val = int(df["red_days"].iloc[-1])
+            green_days_val = int(df["green_days"].iloc[-1])
 
             vol_status = "量能平穩" if v_ratio < 1.5 else "量能顯著放大"
             vol_cls = "t-val-white" if v_ratio < 1.5 else "t-val-red"
@@ -977,13 +980,14 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 2. 波段信號解盤面板
+            # 2. 區間漲跌幅 (完整恢復)
             st.markdown(f"""
                 <div class="terminal-panel">
-                    <div class="terminal-title">【波段信號判定】</div>
-                    <div class="t-row"><span class="t-label">狀態:</span><span class="{wave_cls}">{wave_status}</span></div>
-                    <div class="t-row"><span class="t-label">紅天數:</span><span class="t-val-red">{int(df["red_days"].iloc[-1])}日</span></div>
-                    <div class="t-row"><span class="t-label">綠天數:</span><span class="t-val-green">{int(df["green_days"].iloc[-1])}日</span></div>
+                    <div class="terminal-title">【區間漲跌幅】</div>
+                    <div class="t-row"><span class="t-label">近30高:</span><span class="t-val-cyan">{recent_high_val:.2f}</span></div>
+                    <div class="t-row"><span class="t-label">近30低:</span><span class="t-val-cyan">{recent_low_val:.2f}</span></div>
+                    <div class="t-row"><span class="t-label">回檔幅:</span><span class="t-val-green">-{calc_drop:.2f}%</span></div>
+                    <div class="t-row"><span class="t-label">彈升幅:</span><span class="t-val-red">+{calc_rise:.2f}%</span></div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -1008,11 +1012,14 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 5. 多空判定
+            # 5. 多空與波段信號判定 (同屬性整合)
             st.markdown(f"""
                 <div class="terminal-panel">
-                    <div class="terminal-title">【多空判定】</div>
-                    <div class="t-row" style="text-align: center; justify-content: center;"><span class="{trend_cls}" style="font-size: 13px;">{trend_txt}</span></div>
+                    <div class="terminal-title">【多空與波段判定】</div>
+                    <div class="t-row"><span class="t-label">多空:</span><span class="{trend_cls}">{trend_txt}</span></div>
+                    <div class="t-row"><span class="t-label">波段狀態:</span><span class="{wave_cls}">{wave_status}</span></div>
+                    <div class="t-row"><span class="t-label">紅天數:</span><span class="t-val-red">{red_days_val}日</span></div>
+                    <div class="t-row"><span class="t-label">綠天數:</span><span class="t-val-green">{green_days_val}日</span></div>
                 </div>
             """, unsafe_allow_html=True)
 
