@@ -496,6 +496,14 @@ if stock_options:
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
+        # 箭頭判斷
+        prev_dif = float(df["macd_dif"].iloc[-2]) if len(df) > 1 else cur_dif
+        dif_arrow = "↑" if cur_dif >= prev_dif else "↓"
+        prev_dem = float(df["macd_dem"].iloc[-2]) if len(df) > 1 else cur_dem
+        dem_arrow = "↑" if cur_dem >= prev_dem else "↓"
+        prev_osc = float(df["macd_osc"].iloc[-2]) if len(df) > 1 else cur_osc
+        osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
+
         # 成交量均線與比較箭頭計算
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
@@ -630,7 +638,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 層 2、3、4：技術指標與籌碼副圖 (字體縮小、數值與線條同色對應)
+        # 層 2、3、4：技術指標與籌碼副圖 (專業單行緊湊排版)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -645,7 +653,7 @@ if stock_options:
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
+            t_s1 = ax_sub1.text(0.015, 0.78, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=7.0, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             ax_sub2.set_facecolor(PANEL_BG)
@@ -654,7 +662,7 @@ if stock_options:
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
+            t_s2 = ax_sub2.text(0.015, 0.78, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=7.0, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             ax_sub3.set_facecolor(PANEL_BG)
@@ -664,17 +672,17 @@ if stock_options:
             ax_sub3.yaxis.tick_right()
             ax_sub3.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
+            t_s3 = ax_sub3.text(0.015, 0.78, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=7.0, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
-            else:
+        else:
             ax_sub1.set_facecolor(PANEL_BG)
             if selected_indicator == "MACD":
                 ax_sub1.bar(x, df["macd_osc"], width=0.75, color=macd_bar_colors, edgecolor="none", alpha=0.9)
                 ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FF00FF", label="DIF")
                 ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#00E5FF", label="DEA")
                 
-                # 🎯 專業看盤單行緊湊格式：字體縮小、無框線、數值與線條同色
+                # 🎯 單行緊湊串連、無框線、數值與線條同色
                 osc_color = "#FF3B30" if cur_osc >= 0 else "#00C853"
                 macd_tokens = [
                     ("MACD(長) ", "#FFFFFF"),
@@ -730,13 +738,13 @@ if stock_options:
             elif selected_indicator == "W%":
                 cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.plot(x, df["w_r"], linewidth=0.6, color="#FFD700", label="W%")
-                t_s1 = ax_sub1.text(0.015, 0.76, f"W%(9): {cur_wr:.1f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFD700")
+                t_s1 = ax_sub1.text(0.015, 0.78, f"W%(9): {cur_wr:.1f}", transform=ax_sub1.transAxes, fontsize=7.0, fontweight="bold", color="#FFD700")
                 t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
 
             elif selected_indicator == "QT":
                 cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.bar(x, df["qt"], width=0.75, color=qt_bar_colors, edgecolor="none", alpha=0.9)
-                t_s1 = ax_sub1.text(0.015, 0.76, f"QT(每筆均量): {cur_qt:.2f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
+                t_s1 = ax_sub1.text(0.015, 0.78, f"QT(每筆均量): {cur_qt:.2f}", transform=ax_sub1.transAxes, fontsize=7.0, fontweight="bold", color="#FFFFFF")
                 t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
 
             ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
@@ -768,7 +776,7 @@ if stock_options:
             
             start_x_vol = 0.015
             for v_txt, v_col in vol_str_parts:
-                t_v = ax_sub2.text(start_x_vol, 0.76, v_txt, transform=ax_sub2.transAxes, fontsize=7.0, fontweight="bold", color=v_col)
+                t_v = ax_sub2.text(start_x_vol, 0.78, v_txt, transform=ax_sub2.transAxes, fontsize=7.0, fontweight="bold", color=v_col)
                 t_v.set_path_effects(get_bright_effect("#000000", 0.4))
                 start_x_vol += len(v_txt) * 0.007
 
@@ -798,7 +806,7 @@ if stock_options:
             ]
             start_x_chip = 0.015
             for text_str, color_code in chip_tokens:
-                t_tok = ax_chip.text(start_x_chip, 0.76, text_str, transform=ax_chip.transAxes, fontsize=7.5, fontweight="bold", color=color_code)
+                t_tok = ax_chip.text(start_x_chip, 0.78, text_str, transform=ax_chip.transAxes, fontsize=7.0, fontweight="bold", color=color_code)
                 t_tok.set_path_effects(get_bright_effect("#000000", 0.4))
                 start_x_chip += len(text_str) * 0.006
 
