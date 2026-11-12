@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (優化排版、右側解盤面板填滿樣式)
+# 2. 注入自訂 CSS (右側大字體填滿解盤面板)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -82,7 +82,7 @@ st.markdown(
             gap: 2px !important;
         }
         
-        /* 🎯 專屬右側解盤面板樣式：模仿專業看盤軟體填滿、黑底紅框綠字大字體 */
+        /* 專屬右側解盤面板樣式：模仿專業看盤軟體填滿、黑底紅框綠字大字體 */
         .terminal-panel {
             background-color: #0b0b0b;
             border: 1px solid #cc0000;
@@ -447,7 +447,7 @@ if stock_options:
         for ma_name, (period, is_show, color) in ma_config.items():
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
-        # 🎯 扣抵天數對齊
+        # 扣抵天數對齊
         deduct_periods = [5, 35, 65, 120, 200]
         deduct_indices = {}
         n_len = len(df)
@@ -554,7 +554,7 @@ if stock_options:
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
-        # 🎯 版面配置：圖表區獨立為一欄，右側獨立為大字體解盤面板欄
+        # 版面配置：左側圖表區與右側大字體解盤面板欄
         # ---------------------------------------------------------
         chart_col, info_col = st.columns([8.2, 1.8])
 
@@ -580,9 +580,7 @@ if stock_options:
             fig.patch.set_facecolor(BG_COLOR)
             x = list(range(len(df)))
 
-            # ---------------------------------------------------------
             # 層 1：K線主圖
-            # ---------------------------------------------------------
             ax1.set_facecolor(PANEL_BG)
             ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.7, alpha=1.0)
             body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
@@ -660,9 +658,7 @@ if stock_options:
                     t_ma.set_path_effects(get_bright_effect("#000000", 1.5))
                     text_x += 0.11
 
-            # ---------------------------------------------------------
             # 副圖區繪製
-            # ---------------------------------------------------------
             if selected_indicator == "波段":
                 cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.set_facecolor(PANEL_BG)
@@ -841,7 +837,7 @@ if stock_options:
             st.pyplot(fig, use_container_width=True, dpi=150)
 
         # ---------------------------------------------------------
-        # 🎯 右側大字體填滿解盤面板 (HTML 實作，字大清晰不擠壓)
+        # 🎯 右側大字體填滿解盤面板 (內建 KDJ 綜合自動判定條件)
         # ---------------------------------------------------------
         with info_col:
             ma5_val = float(df["ma_5"].iloc[-1]) if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1]) else 0
@@ -855,33 +851,46 @@ if stock_options:
             calc_drop = ((recent_high_val - last_low) / recent_high_val) * 100 if recent_high_val > 0 else 0.0
             calc_rise = ((last_high / recent_low_val) - 1) * 100 if recent_low_val > 0 else 0.0
 
+            # KDJ 數值與動態判定
             cur_k = float(df["kdj_k"].iloc[-1]) if "kdj_k" in df.columns else 0.0
             cur_d = float(df["kdj_d"].iloc[-1]) if "kdj_d" in df.columns else 0.0
             cur_j = float(df["kdj_j"].iloc[-1]) if "kdj_j" in df.columns else 0.0
             prev_k = float(df["kdj_k"].iloc[-2]) if len(df) > 1 else cur_k
             prev_d = float(df["kdj_d"].iloc[-2]) if len(df) > 1 else cur_d
-            current_bias = float(df["bias_val"].iloc[-1]) if "bias_val" in df.columns else 0.0
+            k_diff_kd = cur_k - cur_d
 
             is_golden_cross = (prev_k <= prev_d and cur_k > cur_d)
             is_dead_cross = (prev_k >= prev_d and cur_k < cur_d)
-            kdj_status, kdj_cls = "盤勢震盪", "t-val-white"
-            if cur_k < 10 and cur_d < 10:
-                kdj_status, kdj_cls = "KD超賣(低接)", "t-val-red"
-            elif cur_j < 0:
-                kdj_status, kdj_cls = "J<0極度超賣", "t-val-red"
-            elif is_golden_cross:
-                kdj_status, kdj_cls = "KD黃金交叉", "t-val-red"
+
+            # 根據您提供的 6 大條件自動判定買賣訊號
+            kdj_signal = "中立觀望"
+            kdj_sig_cls = "t-val-white"
+
+            if cur_k > 90:
+                kdj_signal, kdj_sig_cls = "【強力賣出】K>90超買", "t-val-green"
             elif cur_j > 100:
-                kdj_status, kdj_cls = "J>100超買", "t-val-green"
+                kdj_signal, kdj_sig_cls = "【強力賣出】J>100超買", "t-val-green"
+            elif k_diff_kd > 18:
+                kdj_signal, kdj_sig_cls = "【強力賣出】正乖離>+18", "t-val-green"
             elif is_dead_cross:
-                kdj_status, kdj_cls = "KD死亡交叉", "t-val-green"
+                kdj_signal, kdj_sig_cls = "【賣出訊號】KD死叉", "t-val-green"
+            elif cur_k < 9:
+                kdj_signal, kdj_sig_cls = "【強力買進】K<9超賣", "t-val-red"
+            elif cur_k < 9 and cur_d < 9:
+                kdj_signal, kdj_sig_cls = "【強力買進】KD雙跌破9", "t-val-red"
+            elif cur_j < 0:
+                kdj_signal, kdj_sig_cls = "【強力買進】J<0超賣", "t-val-red"
+            elif k_diff_kd < -18:
+                kdj_signal, kdj_sig_cls = "【強力買進】負乖離<-18", "t-val-red"
+            elif is_golden_cross:
+                kdj_signal, kdj_sig_cls = "【買進訊號】KD金交叉", "t-val-red"
 
             vol_status = "量能平穩" if v_ratio < 1.5 else "量能顯著放大"
             vol_cls = "t-val-white" if v_ratio < 1.5 else "t-val-red"
             trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
             trend_cls = "t-val-red" if is_bull else "t-val-green"
 
-            # 1. 均線區塊
+            # 1. 均線解盤
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">【均線解盤】</div>
@@ -892,7 +901,7 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 2. 區間測幅區塊
+            # 2. 區間測幅
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">---30日區間測幅---</div>
@@ -903,17 +912,18 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 3. KDJ解盤區塊
+            # 3. KDJ 綜合解盤與買賣點自動判定
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">【KDJ綜合解盤】</div>
-                    <div class="t-row"><span class="t-label">狀態:</span><span class="{kdj_cls}">{kdj_status}</span></div>
+                    <div class="t-row"><span class="t-label">判定:</span><span class="{kdj_sig_cls}">{kdj_signal}</span></div>
                     <div class="t-row"><span class="t-label">K/D:</span><span class="t-val-white">{cur_k:.1f} / {cur_d:.1f}</span></div>
                     <div class="t-row"><span class="t-label">J值:</span><span class="t-val-cyan">{cur_j:.1f}</span></div>
+                    <div class="t-row"><span class="t-label">K-D乖離:</span><span class="t-val-white">{k_diff_kd:+.1f}</span></div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # 4. 成交量區塊
+            # 4. 成交量解盤
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">【成交量解盤】</div>
@@ -923,7 +933,7 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 5. 多空判定區塊
+            # 5. 多空判定
             st.markdown(f"""
                 <div class="terminal-panel">
                     <div class="terminal-title">【多空判定】</div>
