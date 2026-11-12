@@ -459,8 +459,45 @@ if stock_options:
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 技術指標計算
+        # 技術指標與波段信號邏輯計算 (對應您的通達信公式)
         # ---------------------------------------------------------
+        ema3 = s_close.ewm(span=3, adjust=False).mean()
+        ema15 = s_close.ewm(span=15, adjust=False).mean()
+        ema30 = s_close.ewm(span=30, adjust=False).mean()
+
+        cond1 = ema3 > ema15
+        cond2 = ema15 < s_close
+        slope_1 = (ema15 / ema30 - 1) * 100
+        a2_1 = 0.0
+        cond3 = slope_1 > a2_1
+        cond4 = ema15 > ema30
+
+        # 成立與不成立布林序列
+        成立 = cond1 & cond2 & cond3 & cond4
+        不成立 = (~cond1) & (~cond2) & (~cond3) & (~cond4)
+
+        # 模擬 BARSLAST 邏輯計算距上次成立/不成立的K棒天數
+        red_days, green_days = [], []
+        r_cnt, g_cnt = 999, 999
+        for val_s, val_ns in zip(成立, 不成立):
+            r_cnt = 0 if val_s else r_cnt + 1
+            g_cnt = 0 if val_ns else g_cnt + 1
+            red_days.append(r_cnt)
+            green_days.append(g_cnt)
+        df["red_days"] = red_days
+        df["green_days"] = green_days
+
+        # 買進頭、買進尾、賣出頭、賣出尾判定
+        buy_head = 成立 & (df["red_days"] == 0)
+        # 簡化模擬前天狀態
+        buy_tail = (df["red_days"] < df["green_days"]) & (df["red_days"].shift(1, fill_value=999) > df["green_days"].shift(1, fill_value=999))
+        sell_head = 不成立 & (df["green_days"] == 0)
+        sell_tail = (df["red_days"] > df["green_days"]) & (df["red_days"].shift(1, fill_value=999) < df["green_days"].shift(1, fill_value=999))
+
+        df["is_buy"] = buy_head | buy_tail
+        df["is_sell"] = sell_head | sell_tail
+
+        # 其他指標計算
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
         df["band_macd_osc"] = (df["band_macd_dif"] - df["band_macd_dem"]) * 2
@@ -535,9 +572,8 @@ if stock_options:
         v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
         v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
 
-        cond3 = ((s_close.ewm(span=15, adjust=False).mean() / s_close.ewm(span=30, adjust=False).mean() - 1) * 100) > 0
-        cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
-        df["long_trend"] = cond3 & cond4
+        cond_trend_long = ((s_close.ewm(span=15, adjust=False).mean() / s_close.ewm(span=30, adjust=False).mean() - 1) * 100) > 0
+        df["long_trend"] = cond_trend_long
 
         BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
         BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
@@ -837,7 +873,7 @@ if stock_options:
             st.pyplot(fig, use_container_width=True, dpi=150)
 
         # ---------------------------------------------------------
-        # 🎯 右側大字體填滿解盤面板 (內建 KDJ 綜合自動判定條件)
+        # 🎯 右側大字體填滿解盤面板 (內建 KDJ + 波段信號自動判定)
         # ---------------------------------------------------------
         with info_col:
             ma5_val = float(df["ma_5"].iloc[-1]) if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1]) else 0
@@ -862,7 +898,7 @@ if stock_options:
             is_golden_cross = (prev_k <= prev_d and cur_k > cur_d)
             is_dead_cross = (prev_k >= prev_d and cur_k < cur_d)
 
-            # 根據您提供的 6 大條件自動判定買賣訊號
+            # KDJ 綜合條件判定
             kdj_signal = "中立觀望"
             kdj_sig_cls = "t-val-white"
 
@@ -885,6 +921,21 @@ if stock_options:
             elif is_golden_cross:
                 kdj_signal, kdj_sig_cls = "【買進訊號】KD金交叉", "t-val-red"
 
+            # 🎯 波段信號判定 (對應您提供的通達信公式)
+            is_buy_signal = bool(df["is_buy"].iloc[-1]) if "is_buy" in df.columns else False
+            is_sell_signal = bool(df["is_sell"].iloc[-1]) if "is_sell" in df.columns else False
+            
+            wave_status = "持倉中 / 觀望"
+            wave_cls = "t-val-white"
+            if is_buy_signal:
+                wave_status, wave_cls = "★ 波段買進信號", "t-val-red"
+            elif is_sell_signal:
+                wave_status, wave_cls = "✖ 波段賣出信號", "t-val-green"
+            elif df["red_days"].iloc[-1] < df["green_days"].iloc[-1]:
+                wave_status, wave_cls = "多方波段運行中", "t-val-red"
+            else:
+                wave_status, wave_cls = "空方波段整理中", "t-val-green"
+
             vol_status = "量能平穩" if v_ratio < 1.5 else "量能顯著放大"
             vol_cls = "t-val-white" if v_ratio < 1.5 else "t-val-red"
             trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
@@ -901,14 +952,13 @@ if stock_options:
                 </div>
             """, unsafe_allow_html=True)
 
-            # 2. 區間測幅
+            # 2. 🎯 波段信號解盤面板 (新增)
             st.markdown(f"""
                 <div class="terminal-panel">
-                    <div class="terminal-title">---區間測幅---</div>
-                    <div class="t-row"><span class="t-label">近高:</span><span class="t-val-white">{recent_high_val:.1f}</span></div>
-                    <div class="t-row"><span class="t-label">自高回檔:</span><span class="t-val-green">-{calc_drop:.1f}%</span></div>
-                    <div class="t-row"><span class="t-label">近低:</span><span class="t-val-white">{recent_low_val:.1f}</span></div>
-                    <div class="t-row"><span class="t-label">自低反彈:</span><span class="t-val-red">+{calc_rise:.1f}%</span></div>
+                    <div class="terminal-title">【波段信號判定】</div>
+                    <div class="t-row"><span class="t-label">狀態:</span><span class="{wave_cls}">{wave_status}</span></div>
+                    <div class="t-row"><span class="t-label">紅天數:</span><span class="t-val-red">{int(df["red_days"].iloc[-1])}日</span></div>
+                    <div class="t-row"><span class="t-label">綠天數:</span><span class="t-val-green">{int(df["green_days"].iloc[-1])}日</span></div>
                 </div>
             """, unsafe_allow_html=True)
 
