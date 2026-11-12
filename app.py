@@ -459,7 +459,7 @@ if stock_options:
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 🎯 嚴格對應您的通達信波段信號公式計算 (僅在轉折第一天產生信號)
+        # 🎯 波段信號邏輯與「嚴格單次觸發」過濾
         # ---------------------------------------------------------
         ema3 = s_close.ewm(span=3, adjust=False).mean()
         ema15 = s_close.ewm(span=15, adjust=False).mean()
@@ -485,14 +485,28 @@ if stock_options:
         df["red_days"] = red_days
         df["green_days"] = green_days
 
-        # 嚴格對應買進頭/尾、賣出頭/尾（只在轉折當天成立一次）
-        buy_head = 成立 & (df["red_days"] == 0)
-        buy_tail = (df["red_days"] < df["green_days"]) & (df["red_days"].shift(1, fill_value=999) > df["green_days"].shift(1, fill_value=999))
-        sell_head = 不成立 & (df["green_days"] == 0)
-        sell_tail = (df["red_days"] > df["green_days"]) & (df["red_days"].shift(1, fill_value=999) < df["green_days"].shift(1, fill_value=999))
+        # 原始變盤點
+        raw_buy = 成立 & (df["red_days"] == 0)
+        raw_sell = 不成立 & (df["green_days"] == 0)
 
-        df["is_buy_signal"] = buy_head | buy_tail
-        df["is_sell_signal"] = sell_head | sell_tail
+        # 🎯 狀態機過濾：確保信號只在「狀態剛轉變的那一天」成立一次，之後不連續產生
+        filtered_buy = []
+        filtered_sell = []
+        last_state = 0  # 0: 無 / 1: 多頭 / -1: 空頭
+
+        for b, s in zip(raw_buy, raw_sell):
+            b_flag, s_flag = False, False
+            if b and last_state != 1:
+                b_flag = True
+                last_state = 1
+            elif s and last_state != -1:
+                s_flag = True
+                last_state = -1
+            filtered_buy.append(b_flag)
+            filtered_sell.append(s_flag)
+
+        df["is_buy_signal"] = filtered_buy
+        df["is_sell_signal"] = filtered_sell
 
         # 其他指標計算
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
@@ -658,20 +672,20 @@ if stock_options:
                     t_fib.set_path_effects(get_bright_effect("#000000", 1.2))
 
             # ---------------------------------------------------------
-            # 🎯 買賣信號箭頭：僅在轉折發生的當天出現一次 (買紅 ▲ / 賣青色 ▼)
+            # 🎯 買賣信號箭頭：使用純箭頭符號（↑ 漲紅 / ↓ 青色），且每個轉折區間只出現在轉折第一天
             # ---------------------------------------------------------
             for i in range(len(df)):
                 if df["is_buy_signal"].iloc[i]:
                     low_p = float(df["low"].iloc[i])
                     ax1.annotate(
-                        '▲', xy=(i, low_p), xytext=(i, low_p * 0.985),
-                        ha='center', va='top', fontsize=9, fontweight='bold', color='#FF3333'
+                        '↑', xy=(i, low_p), xytext=(i, low_p * 0.985),
+                        ha='center', va='top', fontsize=11, fontweight='bold', color='#FF3333'
                     )
                 if df["is_sell_signal"].iloc[i]:
                     high_p = float(df["high"].iloc[i])
                     ax1.annotate(
-                        '▼', xy=(i, high_p), xytext=(i, high_p * 1.015),
-                        ha='center', va='bottom', fontsize=9, fontweight='bold', color='#00FFFF'
+                        '↓', xy=(i, high_p), xytext=(i, high_p * 1.015),
+                        ha='center', va='bottom', fontsize=11, fontweight='bold', color='#00FFFF'
                     )
 
             ymin_lim, ymax_lim = ax1.get_ylim()
