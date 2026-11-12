@@ -341,7 +341,7 @@ if stock_options:
             )
             actual_chart_period = chart_period
 
-        # 第二行：均線設定區、技術指標預設為 MACD、K線天數
+        # 第二行：均線設定區、技術指標、K線天數
         second_row_cols = st.columns([1.2, 1.2, 0.6])
         with second_row_cols[0]:
             selected_ma = st.pills(
@@ -403,19 +403,19 @@ if stock_options:
 
         # 主圖均線設定
         ma_config = {
-            "5": (5, show_ma5, "#00FFFF"),      # 螢光青藍
-            "10": (10, show_ma10, "#FFFF00"),   # 極亮黃
-            "20": (20, show_ma20, "#FF00FF"),   # 亮粉紅
-            "35": (35, show_ma35, "#00FF66"),   # 螢光綠
-            "60": (60, show_ma60, "#FF9900"),   # 亮橘色
-            "120": (120, show_ma120, "#CC66FF"),# 亮紫色
-            "200": (200, show_ma200, "#FFFFFF") # 純白色
+            "5": (5, show_ma5, "#00FFFF"),      
+            "10": (10, show_ma10, "#FFFF00"),   
+            "20": (20, show_ma20, "#FF00FF"),   
+            "35": (35, show_ma35, "#00FF66"),   
+            "60": (60, show_ma60, "#FF9900"),   
+            "120": (120, show_ma120, "#CC66FF"),
+            "200": (200, show_ma200, "#FFFFFF") 
         }
 
         for ma_name, (period, is_show, color) in ma_config.items():
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
-        # 🎯 支援 5, 35, 65, 120, 200 扣抵天數對齊
+        # 🎯 扣抵天數對齊 (alpha=0.25 黯淡質感)
         deduct_periods = [5, 35, 65, 120, 200]
         deduct_indices = {}
         n_len = len(df)
@@ -427,7 +427,7 @@ if stock_options:
                 deduct_indices[p] = 0
 
         # ---------------------------------------------------------
-        # 技術指標與成交量均線計算
+        # 技術指標計算
         # ---------------------------------------------------------
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
@@ -473,7 +473,6 @@ if stock_options:
 
         df["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
 
-        # 成交量 5日、20日均線計算
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
@@ -556,13 +555,13 @@ if stock_options:
             ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
             ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
 
-        # 🎯 扣抵垂直虛線調整：透明度降至 0.3、細度 0.8，達到真正的「黯淡、忽隱忽現、絕不干擾 K 線」質感
+        # 🎯 扣抵垂直虛線 (alpha=0.25 黯淡質感)
         for count_days in [5, 35, 65, 120, 200]:
             if count_days in deduct_indices:
                 idx_pos = deduct_indices[count_days]
-                ax1.axvline(x=idx_pos, color="#00FFFF", linestyle="--", linewidth=0.8, alpha=0.3)
+                ax1.axvline(x=idx_pos, color="#00FFFF", linestyle="--", linewidth=0.8, alpha=0.25)
                 t_num = ax1.text(idx_pos, df["low"].min(), f"{count_days}", color="#00FFFF", 
-                                 fontsize=8.0, fontweight="bold", ha="center", va="bottom", alpha=0.5)
+                                 fontsize=8.0, fontweight="bold", ha="center", va="bottom", alpha=0.4)
                 t_num.set_path_effects(get_bright_effect("#000000", 1.2))
 
         legend_labels = []
@@ -595,7 +594,7 @@ if stock_options:
 
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-        ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
+        ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
 
         standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.93, standard_header_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
@@ -620,7 +619,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 副圖區：根據所選指標繪製
+        # 副圖區與 KDJ 條件解盤
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -631,7 +630,7 @@ if stock_options:
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
+            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
             t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#000000", 1.5))
 
@@ -641,7 +640,7 @@ if stock_options:
             ax_sub2.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
+            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
             t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#000000", 1.5))
 
@@ -651,7 +650,7 @@ if stock_options:
             ax_sub3.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub3.yaxis.tick_right()
             ax_sub3.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
+            ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
             t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#000000", 1.5))
 
@@ -686,6 +685,8 @@ if stock_options:
                 cur_d = float(df["kdj_d"].iloc[-1]) if not df.empty else 0.0
                 cur_j = float(df["kdj_j"].iloc[-1]) if not df.empty else 0.0
                 cur_diff = float(df["kdj_diff"].iloc[-1]) if not df.empty else 0.0
+                prev_k = float(df["kdj_k"].iloc[-2]) if len(df) > 1 else cur_k
+                prev_d = float(df["kdj_d"].iloc[-2]) if len(df) > 1 else cur_d
                 diff_arrow = "↑" if cur_diff >= 0 else "↓"
                 
                 ax_sub1.plot(x, df["kdj_k"], linewidth=0.5, color="#FF00FF", label="K")
@@ -705,6 +706,57 @@ if stock_options:
                     t_k.set_path_effects(get_bright_effect("#000000", 1.5))
                     start_x_k += len(k_txt) * 0.007
 
+                # ---------------------------------------------------------
+                # 🎯 【KDJ 完整買賣點條件解盤邏輯】 (達成條件才在右側顯示)
+                # ---------------------------------------------------------
+                current_bias = float(df["bias_val"].iloc[-1]) if "bias_val" in df.columns else 0.0
+                
+                # 判斷交叉狀態
+                is_golden_cross = (prev_k <= prev_d and cur_k > cur_d)  # K 突破 D
+                is_dead_cross = (prev_k >= prev_d and cur_k < cur_d)    # K 跌破 D
+
+                # 買點達成條件：(KD個位數 OR J<0 OR 負乖離≤-18 OR K向上突破D)
+                buy_signals = []
+                if cur_k < 10 and cur_d < 10:
+                    buy_signals.append("• KD個位數超賣")
+                if cur_j < 0:
+                    buy_signals.append("• J值 < 0 (深水區)")
+                if current_bias <= -18.0:
+                    buy_signals.append(f"• 負乖離 {current_bias:.1f}%")
+                if is_golden_cross:
+                    buy_signals.append("• K突破D (黃金交叉)")
+
+                # 賣點達成條件：(J>100 OR 正乖離≥18 OR K向下跌破D)
+                sell_signals = []
+                if cur_j > 100:
+                    sell_signals.append("• J值 > 100 (高檔超買)")
+                if current_bias >= 18.0:
+                    sell_signals.append(f"• 正乖離 +{current_bias:.1f}%")
+                if is_dead_cross:
+                    sell_signals.append("• K跌破D (死亡交叉)")
+
+                # 呈現邏輯：若有買訊或賣訊，即刻在右側區塊浮現
+                if buy_signals:
+                    buy_text = "\n".join(buy_signals)
+                    t_interp = ax_sub1.text(
+                        0.78, 0.72,
+                        f"【{actual_chart_period} KDJ 買點訊號】\n{buy_text}\n★ 建議注意低接",
+                        transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FF3333",
+                        va="top", ha="left",
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor="#111111", alpha=0.9, edgecolor="#FF3333", linewidth=1.0)
+                    )
+                    t_interp.set_path_effects(get_bright_effect("#000000", 1.2))
+                elif sell_signals:
+                    sell_text = "\n".join(sell_signals)
+                    t_interp = ax_sub1.text(
+                        0.78, 0.72,
+                        f"【{actual_chart_period} KDJ 賣點訊號】\n{sell_text}\n✖ 建議獲利出場",
+                        transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#00E64D",
+                        va="top", ha="left",
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor="#111111", alpha=0.9, edgecolor="#00E64D", linewidth=1.0)
+                    )
+                    t_interp.set_path_effects(get_bright_effect("#000000", 1.2))
+
             elif selected_indicator == "RSI":
                 cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
                 cur_r12 = float(df["rsi_12"].iloc[-1]) if not df.empty else 0.0
@@ -717,7 +769,7 @@ if stock_options:
                 rsi_tokens = [
                     ("RSI(6,12)  ", "#FFFFFF"),
                     ("RSI6:", "#FF00FF"), (f"{cur_r6:.2f}  ", "#FF00FF"),
-                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#FF00FF"),
+                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#00FFFF"),
                     ("乖離:", "#FFFF00"), (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00")
                 ]
                 start_x_r = 0.015
@@ -768,10 +820,10 @@ if stock_options:
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
+            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
 
             # ---------------------------------------------------------
-            # 成交量副圖 (附 5日、20日均線，粗細 0.5)
+            # 成交量副圖 (alpha=0.25 網格)
             # ---------------------------------------------------------
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=1.0)
@@ -781,7 +833,7 @@ if stock_options:
 
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
-            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.8)
+            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
             
             vol_str_parts = [
                 ("今日 ", "#AAAAAA"),
