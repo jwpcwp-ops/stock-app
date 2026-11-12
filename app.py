@@ -624,7 +624,7 @@ if stock_options:
         t_trend_badge = ax1.text(0.58, 0.93, trend_status, transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color=trend_color)
         t_trend_badge.set_path_effects(get_bright_effect("#000000", 1.5))
 
-        # 🎯 【完美定案】：將週期標籤（日線/60分/週線/月線）精準安排在「【季線多頭/空頭】」的正右方，留出完美間距，且完全不跟右側分割線打架！
+        # 週期標籤放置於季線標籤右側
         t_period_badge = ax1.text(0.72, 0.93, f" {actual_chart_period} ", transform=ax1.transAxes, fontsize=7.0, fontweight="bold", color="#FFFFFF", backgroundcolor="#222222", ha="center", va="center")
         t_period_badge.set_path_effects(get_bright_effect("#000000", 1.2))
 
@@ -737,7 +737,7 @@ if stock_options:
                 rsi_tokens = [
                     ("RSI(6,12)  ", "#FFFFFF"),
                     ("RSI6:", "#FF00FF"), (f"{cur_r6:.2f}  ", "#FF00FF"),
-                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#FF00FF"),
+                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#00FFFF"),
                     ("差值:", "#FFFF00"), (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00")
                 ]
                 start_x_r = 0.015
@@ -808,7 +808,7 @@ if stock_options:
                 start_x_vol += len(v_txt) * 0.007
 
         # ---------------------------------------------------------
-        # 右側 5 大獨立解盤欄
+        # 🎯 【右側 5 大獨立解盤欄 - 豐富升級版】
         # ---------------------------------------------------------
         for r_ax in right_axes:
             r_ax.set_facecolor("#111111")
@@ -818,10 +818,20 @@ if stock_options:
                 spine.set_color("#555555")
                 spine.set_linewidth(1.0)
 
-        # 1. 【均線區塊】
+        # 1. 【均線區塊】：加入多空排列判斷與趨勢判定
         ma5_val = float(df["ma_5"].iloc[-1]) if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1]) else 0
         ma20_val = float(df["ma_20"].iloc[-1]) if "ma_20" in df.columns and not pd.isna(df["ma_20"].iloc[-1]) else 0
-        t1 = ax_r_ma.text(0.08, 0.5, f"【均線】\n•MA5:{ma5_val:.1f}\n•MA20:{ma20_val:.1f}", transform=ax_r_ma.transAxes, fontsize=5.5, fontweight="bold", color="#00FFFF", va="center")
+        ma60_val = float(df["ma_60"].iloc[-1]) if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1]) else 0
+        
+        # 判斷均線架構
+        ma_status = "多頭排列" if ma5_val > ma20_val > ma60_val else ("空頭排列" if ma5_val < ma20_val < ma60_val else "均線交錯")
+        ma_color = "#FF3333" if ma5_val > ma20_val else "#00E64D"
+        
+        t1 = ax_r_ma.text(
+            0.08, 0.5, 
+            f"【均線解盤】\n•狀態:{ma_status}\n•MA5:{ma5_val:.1f}\n•MA20:{ma20_val:.1f}\n•季60:{ma60_val:.1f}", 
+            transform=ax_r_ma.transAxes, fontsize=5.0, fontweight="bold", color=ma_color, va="center"
+        )
         t1.set_path_effects(get_bright_effect("#000000", 1.0))
 
         # 2. 【區間測漲跌幅區塊】
@@ -832,8 +842,8 @@ if stock_options:
 
         t2 = ax_r_range.text(
             0.08, 0.5, 
-            f"---區間測幅---\n•高:{recent_high_val:.1f}\n•跌:{calc_drop:.1f}%\n•低:{recent_low_val:.1f}\n•漲:{calc_rise:.1f}%", 
-            transform=ax_r_range.transAxes, fontsize=5.2, fontweight="bold", color="#CCFFFF", va="center"
+            f"---30日區間測幅---\n•近高:{recent_high_val:.1f}\n•自高回檔:{calc_drop:.1f}%\n•近低:{recent_low_val:.1f}\n•自低反彈:{calc_rise:.1f}%", 
+            transform=ax_r_range.transAxes, fontsize=4.8, fontweight="bold", color="#CCFFFF", va="center"
         )
         t2.set_path_effects(get_bright_effect("#000000", 1.0))
 
@@ -851,33 +861,45 @@ if stock_options:
         kdj_status = "盤勢震盪"
         kdj_color = "#AAAAAA"
         if cur_k < 10 and cur_d < 10:
-            kdj_status, kdj_color = "KD超賣", "#FF3333"
+            kdj_status, kdj_color = "KD超賣(低接)", "#FF3333"
         elif cur_j < 0:
-            kdj_status, kdj_color = "J<0低接", "#FF3333"
+            kdj_status, kdj_color = "J<0極度超賣", "#FF3333"
         elif current_bias <= -18.0:
-            kdj_status, kdj_color = f"負乖離{current_bias:.1f}%", "#FF3333"
+            kdj_status, kdj_color = f"負乖離過大{current_bias:.1f}%", "#FF3333"
         elif is_golden_cross:
-            kdj_status, kdj_color = "黃金交叉", "#FF3333"
+            kdj_status, kdj_color = "KD黃金交叉", "#FF3333"
         elif cur_j > 100:
             kdj_status, kdj_color = "J>100超買", "#00E64D"
         elif current_bias >= 18.0:
-            kdj_status, kdj_color = f"正乖離+{current_bias:.1f}%", "#00E64D"
+            kdj_status, kdj_color = f"正乖離過大+{current_bias:.1f}%", "#00E64D"
         elif is_dead_cross:
-            kdj_status, kdj_color = "死亡交叉", "#00E64D"
+            kdj_status, kdj_color = "KD死亡交叉", "#00E64D"
 
-        t3 = ax_r_kdj.text(0.08, 0.5, f"【KDJ解盤】\n• {kdj_status}", transform=ax_r_kdj.transAxes, fontsize=5.5, fontweight="bold", color=kdj_color, va="center")
+        t3 = ax_r_kdj.text(
+            0.08, 0.5, 
+            f"【KDJ綜合解盤】\n•狀態: {kdj_status}\n•K:{cur_k:.1f}  D:{cur_d:.1f}\n•J值:{cur_j:.1f}", 
+            transform=ax_r_kdj.transAxes, fontsize=5.0, fontweight="bold", color=kdj_color, va="center"
+        )
         t3.set_path_effects(get_bright_effect("#000000", 1.0))
 
         # 4. 【成交量區塊】
-        vol_status = "量平穩" if v_ratio < 1.5 else "量放大"
+        vol_status = "量能平穩" if v_ratio < 1.5 else "量能顯著放大"
         vol_c = "#FFFFFF" if v_ratio < 1.5 else "#FF3333"
-        t4 = ax_r_vol.text(0.08, 0.5, f"【成交量】\n• 5日比:{v_ratio:.2f}\n• {vol_status}", transform=ax_r_vol.transAxes, fontsize=5.5, fontweight="bold", color=vol_c, va="center")
+        t4 = ax_r_vol.text(
+            0.08, 0.5, 
+            f"【成交量解盤】\n•5日均量比:{v_ratio:.2f}倍\n•現況: {vol_status}\n•當日量:{int(last_vol):,}張", 
+            transform=ax_r_vol.transAxes, fontsize=5.0, fontweight="bold", color=vol_c, va="center"
+        )
         t4.set_path_effects(get_bright_effect("#000000", 1.0))
 
         # 5. 【多空線縮小專屬區】
-        trend_txt = "多方掌控" if is_bull else "空方佔優"
+        trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
         trend_c = "#FF3333" if is_bull else "#00E64D"
-        t5 = ax_r_trend.text(0.08, 0.5, f"【多空】{trend_txt}", transform=ax_r_trend.transAxes, fontsize=5.5, fontweight="bold", color=trend_c, va="center")
+        t5 = ax_r_trend.text(
+            0.08, 0.5, 
+            f"【多空判定】\n• {trend_txt}", 
+            transform=ax_r_trend.transAxes, fontsize=5.2, fontweight="bold", color=trend_c, va="center"
+        )
         t5.set_path_effects(get_bright_effect("#000000", 1.0))
 
         for ax in axes:
