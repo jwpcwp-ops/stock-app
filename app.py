@@ -556,14 +556,14 @@ if stock_options:
             ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
             ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
 
-        # 🎯 扣抵垂直虛線調整：5, 35, 65, 120, 200 全部改為青色 (#00FFFF)，長虛線、適當透明度 (alpha=0.25) 呈現完美的忽隱忽現質感
+        # 🎯 扣抵垂直虛線調整：透明度降至 0.3、細度 0.8，達到真正的「黯淡、忽隱忽現、絕不干擾 K 線」質感
         for count_days in [5, 35, 65, 120, 200]:
             if count_days in deduct_indices:
                 idx_pos = deduct_indices[count_days]
-                ax1.axvline(x=idx_pos, color="#00FFFF", linestyle="-----", linewidth=0.25, alpha=0.55)
+                ax1.axvline(x=idx_pos, color="#00FFFF", linestyle="--", linewidth=0.8, alpha=0.3)
                 t_num = ax1.text(idx_pos, df["low"].min(), f"{count_days}", color="#00FFFF", 
-                                 fontsize=8.5, fontweight="bold", ha="center", va="bottom")
-                t_num.set_path_effects(get_bright_effect("#000000", 1.5))
+                                 fontsize=8.0, fontweight="bold", ha="center", va="bottom", alpha=0.5)
+                t_num.set_path_effects(get_bright_effect("#000000", 1.2))
 
         legend_labels = []
         last_idx = len(df) - 1
