@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (進一步微調介面緊湊度)
+# 2. 注入自訂 CSS (徹底解決按鈕擁擠與捲動問題)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -31,8 +31,8 @@ st.markdown(
         .block-container {
             padding-top: 0.05rem !important;
             padding-bottom: 0.0rem !important;
-            padding-left: 0.1rem !important;
-            padding-right: 0.1rem !important;
+            padding-left: 0.2rem !important;
+            padding-right: 0.2rem !important;
             max-width: 100% !important;
         }
         .sub-header-14 {
@@ -45,45 +45,42 @@ st.markdown(
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            gap: 1px !important;
+            gap: 4px !important;
             align-items: center !important;
-            margin-bottom: 1px !important;
+            margin-bottom: 2px !important;
         }
         .stButton button {
-            font-size: 8.0px !important;
-            padding: 1px 2px !important;
-            min-height: 19px !important;
-            height: 19px !important;
-            width: 100% !important;
+            font-size: 8.5px !important;
+            padding: 2px 4px !important;
+            min-height: 22px !important;
+            height: 22px !important;
         }
         [data-testid="stSelectbox"] {
-            max-width: 140px !important;
-            width: 140px !important;
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 19px !important;
-            height: 19px !important;
-            font-size: 8.5px !important;
-            padding-left: 2px !important;
-            padding-right: 2px !important;
+            min-height: 22px !important;
+            height: 22px !important;
+            font-size: 9.0px !important;
+            padding-left: 4px !important;
+            padding-right: 4px !important;
         }
+        /* 讓 pills 按鈕舒適展開，不再擁擠 */
         div[data-testid="stPills"] button {
-            font-size: 7.5px !important;
-            padding: 0px 1px !important;
-            margin: 0px 0.5px !important;
-            min-height: 18px !important;
-            height: 18px !important;
-            border-radius: 3px !important;
-            line-height: 1 !important;
+            font-size: 8.5px !important;
+            padding: 2px 6px !important;
+            margin: 0px 1px !important;
+            min-height: 22px !important;
+            height: 22px !important;
+            border-radius: 4px !important;
+            line-height: 1.1 !important;
         }
         div[data-testid="stPills"] {
-            gap: 0.5px !important;
-            flex-wrap: nowrap !important;
-            overflow-x: auto !important;
+            gap: 2px !important;
+            flex-wrap: wrap !important;
         }
         [data-testid="stVerticalBlock"] {
-            gap: 1px !important;
+            gap: 2px !important;
         }
     </style>
 """,
@@ -292,7 +289,6 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         seed_val = int(stock_id) if stock_id.isdigit() else 42
         np.random.seed(seed_val)
         n_p = len(k_records)
-        # 🎯 嚴格實作大戶與羊群互補交織交叉原理 (大戶紅、羊群綠)
         base_big = 50.0 + np.cumsum(np.random.randn(n_p) * 0.6)
         big_holder = np.clip(base_big, 20.0, 85.0)
         sheep_holder = np.clip(100.0 - big_holder + np.random.randn(n_p) * 0.3, 15.0, 80.0)
@@ -308,21 +304,21 @@ if "screened_results" not in st.session_state:
     st.session_state.screened_results = []
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (🎯 改為頂端下拉選單切換功能)
+# 7. 網頁主介面佈局 (🎯 上下分行，充分利用寬廣空間)
 # ---------------------------------------------------------
 if stock_options:
-    top_cols = st.columns([1.2, 1.1, 0.9, 1.8, 2.5, 2.5, 1.5])
-
+    # 第一行：功能選單、股票選單、週期選單
+    top_row_cols = st.columns([1.5, 1.8, 1.2, 5.0])
     modes = ["📈 個股籌碼圖表", "⚡ 秒速選股", "📋 大戶總表", "📊 基本面與圖表"]
 
-    with top_cols[0]:
+    with top_row_cols[0]:
         app_mode = st.selectbox("功能模式", modes, label_visibility="collapsed", key="mode_select_dropdown")
 
     if app_mode == "📈 個股籌碼圖表":
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        with top_cols[1]:
+        with top_row_cols[1]:
             selected_stock = st.selectbox(
                 "股票選單",
                 stock_options,
@@ -337,7 +333,7 @@ if stock_options:
             stock_id = selected_stock.split()[0]
             stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        with top_cols[2]:
+        with top_row_cols[2]:
             chart_period = st.selectbox(
                 "週期",
                 ["日線", "60分", "週線", "月線"],
@@ -347,7 +343,9 @@ if stock_options:
             )
             actual_chart_period = chart_period
 
-        with top_cols[3]:
+        # 第二行：均線選項與技術指標選項分開獨立配置，完全不擁擠
+        second_row_cols = st.columns([1.1, 1.0])
+        with second_row_cols[0]:
             selected_ma = st.pills(
                 "均線",
                 ["5", "10", "20", "35", "60", "120", "200", "分割", "120", "250"],
@@ -357,7 +355,7 @@ if stock_options:
                 key="pills_ma"
             )
 
-        with top_cols[4]:
+        with second_row_cols[1]:
             selected_indicator = st.pills(
                 "指標",
                 ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "大戶羊群"],
@@ -604,7 +602,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 層 2：技術指標副圖 (🎯 獨立於頂端，絕不與走勢交疊)
+        # 層 2：技術指標副圖
         # ---------------------------------------------------------
         ax_sub1.set_facecolor(PANEL_BG)
 
@@ -697,7 +695,6 @@ if stock_options:
             t_s1 = ax_sub1.text(0.015, 0.86, f"QT(每筆均量): {cur_qt:.2f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
 
-        # 🎯 專屬大戶羊群指標：獨立於第 2 欄位，線條 0.3 粗細、無球型圓點、精準呈現交織交叉原理
         elif selected_indicator == "大戶羊群":
             if len(big_holder) > 0 and len(sheep_holder) > 0:
                 b_plot = big_holder[-len(df):]
