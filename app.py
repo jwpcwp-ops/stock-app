@@ -341,7 +341,7 @@ if stock_options:
             )
             actual_chart_period = chart_period
 
-        # 第二行：均線設定區、技術指標、K線天數
+        # 第二行：均線設定區、技術指標預設為 MACD、K線天數
         second_row_cols = st.columns([1.2, 1.2, 0.6])
         with second_row_cols[0]:
             selected_ma = st.pills(
@@ -401,7 +401,7 @@ if stock_options:
         last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
         last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
-        # 主圖均線設定
+        # 主圖均線設定 (粗細統一為 0.5)
         ma_config = {
             "5": (5, show_ma5, "#00FFFF"),      # 螢光青藍
             "10": (10, show_ma10, "#FFFF00"),   # 極亮黃
@@ -522,7 +522,6 @@ if stock_options:
 
         plt.style.use("dark_background")
         
-        # 🎯 判斷是否為「波段」指標（波段指標需要 3 個子圖：波段MACD、波段BIAS、波段MTM）
         if selected_indicator == "波段":
             fig, axes = plt.subplots(
                 4, 1, figsize=(10, 5.0), sharex=True,
@@ -557,11 +556,12 @@ if stock_options:
             ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
             ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
 
+        # 🎯 扣抵垂直虛線調整：改為 linestyle="--" (長虛線)、linewidth=1.4、alpha=0.85 (完美呈現忽隱忽現質感)
         for count_days in [120, 65, 35, 5]:
             if count_days in deduct_indices:
                 idx_pos = deduct_indices[count_days]
                 col = deduct_colors[count_days]
-                ax1.axvline(x=idx_pos, color=col, linestyle=":", linewidth=1.0, alpha=0.9)
+                ax1.axvline(x=idx_pos, color=col, linestyle="--", linewidth=1.4, alpha=0.85)
                 t_num = ax1.text(idx_pos, df["low"].min(), f"{count_days}", color=col, 
                                  fontsize=9.0, fontweight="bold", ha="center", va="bottom")
                 t_num.set_path_effects(get_bright_effect("#000000", 1.5))
@@ -624,7 +624,6 @@ if stock_options:
         # 副圖區：根據所選指標繪製
         # ---------------------------------------------------------
         if selected_indicator == "波段":
-            # 波段指標專屬的三個副圖
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
             ax_sub1.set_facecolor(PANEL_BG)
             ax_sub1.bar(x, df["band_macd_osc"], width=0.75, color=band_macd_bar_colors, edgecolor="none", alpha=1.0)
@@ -658,7 +657,6 @@ if stock_options:
             t_s3.set_path_effects(get_bright_effect("#000000", 1.5))
 
         else:
-            # 標準單一指標副圖 (ax_sub1)
             ax_sub1.set_facecolor(PANEL_BG)
 
             if selected_indicator == "MACD":
