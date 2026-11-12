@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (進一步微調股票選單框框寬度與緊湊度)
+# 2. 注入自訂 CSS (進一步微調介面緊湊度)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -57,8 +57,8 @@ st.markdown(
             width: 100% !important;
         }
         [data-testid="stSelectbox"] {
-            max-width: 110px !important;
-            width: 110px !important;
+            max-width: 140px !important;
+            width: 140px !important;
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
@@ -292,10 +292,10 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         seed_val = int(stock_id) if stock_id.isdigit() else 42
         np.random.seed(seed_val)
         n_p = len(k_records)
-        base_big = 45.0 + np.cumsum(np.random.randn(n_p) * 0.5)
-        base_sheep = 95.0 - base_big + np.random.randn(n_p) * 0.2
-        big_holder = np.clip(base_big, 10.0, 90.0)
-        sheep_holder = np.clip(base_sheep, 10.0, 90.0)
+        # 🎯 嚴格實作大戶與羊群互補交織交叉原理 (大戶紅、羊群綠)
+        base_big = 50.0 + np.cumsum(np.random.randn(n_p) * 0.6)
+        big_holder = np.clip(base_big, 20.0, 85.0)
+        sheep_holder = np.clip(100.0 - big_holder + np.random.randn(n_p) * 0.3, 15.0, 80.0)
 
     return k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio
 
@@ -306,46 +306,23 @@ if "selected_index" not in st.session_state:
     st.session_state.selected_index = 0
 if "screened_results" not in st.session_state:
     st.session_state.screened_results = []
-if "app_mode_idx" not in st.session_state:
-    st.session_state.app_mode_idx = 0
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局
+# 7. 網頁主介面佈局 (🎯 改為頂端下拉選單切換功能)
 # ---------------------------------------------------------
 if stock_options:
-    top_cols = st.columns([0.35, 0.35, 0.35, 0.35, 0.6, 0.9, 2.2, 2.0, 1.2])
-    modes = ["📈 個股", "⚡ 選股", "📋 大戶", "📊 基本"]
+    top_cols = st.columns([1.2, 1.1, 0.9, 1.8, 2.5, 2.5, 1.5])
+
+    modes = ["📈 個股籌碼圖表", "⚡ 秒速選股", "📋 大戶總表", "📊 基本面與圖表"]
 
     with top_cols[0]:
-        if st.button(modes[0], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 0 else "secondary"):
-            st.session_state.app_mode_idx = 0
-            st.rerun()
-    with top_cols[1]:
-        if st.button(modes[1], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 1 else "secondary"):
-            st.session_state.app_mode_idx = 1
-            st.rerun()
-    with top_cols[2]:
-        if st.button(modes[2], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 2 else "secondary"):
-            st.session_state.app_mode_idx = 2
-            st.rerun()
-    with top_cols[3]:
-        if st.button(modes[3], use_container_width=True, type="primary" if st.session_state.app_mode_idx == 3 else "secondary"):
-            st.session_state.app_mode_idx = 3
-            st.rerun()
+        app_mode = st.selectbox("功能模式", modes, label_visibility="collapsed", key="mode_select_dropdown")
 
-    app_mode_map = [
-        "📈 單股籌碼圖表檢視",
-        "⚡ 秒速選股：黃金交叉 / 死亡交叉",
-        "📋 每週大戶增幅前 15 名總表",
-        "📊 基本面與圖表",
-    ]
-    app_mode = app_mode_map[st.session_state.app_mode_idx]
-
-    if app_mode == "📈 單股籌碼圖表檢視":
+    if app_mode == "📈 個股籌碼圖表":
         if st.session_state.selected_index >= len(stock_options):
             st.session_state.selected_index = 0
 
-        with top_cols[4]:
+        with top_cols[1]:
             selected_stock = st.selectbox(
                 "股票選單",
                 stock_options,
@@ -360,7 +337,7 @@ if stock_options:
             stock_id = selected_stock.split()[0]
             stock_name = selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
 
-        with top_cols[5]:
+        with top_cols[2]:
             chart_period = st.selectbox(
                 "週期",
                 ["日線", "60分", "週線", "月線"],
@@ -370,20 +347,20 @@ if stock_options:
             )
             actual_chart_period = chart_period
 
-        with top_cols[6]:
+        with top_cols[3]:
             selected_ma = st.pills(
                 "均線",
-                ["5", "10", "20", "35", "60", "120", "200", "分割", "250"],
+                ["5", "10", "20", "35", "60", "120", "200", "分割", "120", "250"],
                 default=["60", "250"],
                 selection_mode="multi",
                 label_visibility="collapsed",
                 key="pills_ma"
             )
 
-        with top_cols[7]:
+        with top_cols[4]:
             selected_indicator = st.pills(
                 "指標",
-                ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT"],
+                ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "大戶羊群"],
                 default="MACD",
                 selection_mode="single",
                 label_visibility="collapsed",
@@ -391,9 +368,6 @@ if stock_options:
             )
             if not selected_indicator:
                 selected_indicator = "MACD"
-
-        with top_cols[8]:
-            show_chip_overlay = st.toggle("📋 大戶羊群", value=False, key="toggle_chip")
 
         show_ma5 = "5" in selected_ma
         show_ma10 = "10" in selected_ma
@@ -470,7 +444,7 @@ if stock_options:
         df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
         df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
         df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
-        df["kdj_diff"] = df["kdj_k"] - df["kdj_d"] # 🎯 KDJ 乖離 (K - D)
+        df["kdj_diff"] = df["kdj_k"] - df["kdj_d"]
 
         delta = s_close.diff()
         gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
@@ -482,7 +456,7 @@ if stock_options:
         loss12 = (-delta.where(delta < 0, 0)).rolling(12).mean()
         rs12 = gain12 / (loss12 + 1e-8)
         df["rsi_12"] = 100 - (100 / (1 + rs12))
-        df["rsi_diff"] = df["rsi_6"] - df["rsi_12"] # 🎯 RSI 乖離 (RSI6 - RSI12)
+        df["rsi_diff"] = df["rsi_6"] - df["rsi_12"]
 
         low_min9_w = s_low.rolling(9).min()
         high_max9_w = s_high.rolling(9).max()
@@ -630,7 +604,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 層 2：技術指標副圖 (🎯 頂端獨立標題列 + 下方純淨走勢區)
+        # 層 2：技術指標副圖 (🎯 獨立於頂端，絕不與走勢交疊)
         # ---------------------------------------------------------
         ax_sub1.set_facecolor(PANEL_BG)
 
@@ -640,7 +614,6 @@ if stock_options:
             ax_sub1.plot(x, df["band_macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
             ax_sub1.plot(x, df["band_macd_dem"], linewidth=0.6, color="#FF3B30", label="MACD")
             
-            # 頂端獨立標題列
             t_s1 = ax_sub1.text(0.015, 0.86, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
 
@@ -703,7 +676,7 @@ if stock_options:
             rsi_tokens = [
                 ("RSI(6,12)  ", "#FFFFFF"),
                 ("RSI6:", "#FF00FF"), (f"{cur_r6:.2f}  ", "#FF00FF"),
-                ("RSI12:", "#00E5FF"), (f"{cur_r12:.2f}  ", "#00E5FF"),
+                ("RSI12:", "#00E5FF"), (f"{cur_r12:.2f}  ", "#FF00FF"),
                 ("乖離:", "#FFD700"), (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFD700")
             ]
             start_x_r = 0.015
@@ -724,56 +697,56 @@ if stock_options:
             t_s1 = ax_sub1.text(0.015, 0.86, f"QT(每筆均量): {cur_qt:.2f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
 
+        # 🎯 專屬大戶羊群指標：獨立於第 2 欄位，線條 0.3 粗細、無球型圓點、精準呈現交織交叉原理
+        elif selected_indicator == "大戶羊群":
+            if len(big_holder) > 0 and len(sheep_holder) > 0:
+                b_plot = big_holder[-len(df):]
+                s_plot = sheep_holder[-len(df):]
+                
+                ax_sub1.plot(x, b_plot, color="#FF3B30", linewidth=0.3, linestyle="-", label="大戶(%)")
+                ax_sub1.plot(x, s_plot, color="#00C853", linewidth=0.3, linestyle="-", label="羊群(%)")
+                ax_sub1.set_ylim(0, 100)
+                
+                cur_big = float(b_plot[-1])
+                cur_sheep = float(s_plot[-1])
+                
+                chip_tokens = [
+                    ("大戶持股 : ", "#FFFFFF"), (f"{cur_big:.2f}%", "#FF3B30"),
+                    ("  ", "#FFFFFF"),
+                    ("羊群持股 : ", "#FFFFFF"), (f"{cur_sheep:.2f}%", "#00C853")
+                ]
+                start_x_chip = 0.015
+                for text_str, color_code in chip_tokens:
+                    t_tok = ax_sub1.text(start_x_chip, 0.86, text_str, transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color=color_code)
+                    t_tok.set_path_effects(get_bright_effect("#000000", 0.4))
+                    start_x_chip += len(text_str) * 0.006
+
         ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
         ax_sub1.yaxis.tick_right()
         ax_sub1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
         # ---------------------------------------------------------
-        # 層 3：成交量副圖 (🎯 頂端獨立標題列 + 下方純淨成交量與大戶羊群)
+        # 層 3：成交量副圖
         # ---------------------------------------------------------
         ax_sub2.set_facecolor(PANEL_BG)
         ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
-        
-        cur_big, cur_sheep = 0.0, 0.0
-        if show_chip_overlay and len(big_holder) > 0 and len(sheep_holder) > 0:
-            ax_chip_twin = ax_sub2.twinx()
-            ax_chip_twin.set_facecolor("none")
-            b_plot = big_holder[-len(df):]
-            s_plot = sheep_holder[-len(df):]
-            x_chip = x[-len(b_plot):]
-            
-            ax_chip_twin.plot(x_chip, b_plot, color="#FF3B30", linewidth=0.6, marker='o', markersize=2, label="大戶(%)")
-            ax_chip_twin.plot(x_chip, s_plot, color="#00C853", linewidth=0.6, marker='o', markersize=2, label="羊群(%)")
-            ax_chip_twin.set_ylim(0, 100)
-            ax_chip_twin.yaxis.set_visible(False)
-            
-            cur_big = float(b_plot[-1])
-            cur_sheep = float(s_plot[-1])
-
         ax_sub2.yaxis.tick_right()
         ax_sub2.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
         ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
         
-        if show_chip_overlay:
-            vol_str_parts = [
-                ("大戶持股 : ", "#FFFFFF"), (f"{cur_big:.2f}%", "#FF3B30"),
-                ("  ", "#FFFFFF"),
-                ("羊群持股 : ", "#FFFFFF"), (f"{cur_sheep:.2f}%", "#00C853")
-            ]
-        else:
-            vol_str_parts = [
-                ("今日 ", "#888888"),
-                (f"量:{int(cur_vol_val)}", "#FF3B30"), (f"{vol_today_arrow}", "#FF3B30"),
-                ("  ", "#FFFFFF"),
-                ("日5:", "#FFD700"), (f"{int(cur_vol_ma5)}", "#FFD700"), (f"{v5_arrow}", "#FFD700"),
-                ("  ", "#FFFFFF"),
-                ("值5:", "#FFD700"), (f"{v5_val_ratio:.2f}", "#FFD700"), (f"{v5_arrow}", "#FFD700"),
-                ("  ", "#FFFFFF"),
-                ("日20:", "#FF8C00"), (f"{int(cur_vol_ma20)}", "#FF8C00"), (f"{v20_arrow}", "#FF8C00"),
-                ("  ", "#FFFFFF"),
-                ("值20:", "#FF8C00"), (f"{v20_val_ratio:.2f}", "#FF8C00"), (f"{v20_arrow}", "#FF8C00")
-            ]
+        vol_str_parts = [
+            ("今日 ", "#888888"),
+            (f"量:{int(cur_vol_val)}", "#FF3B30"), (f"{vol_today_arrow}", "#FF3B30"),
+            ("  ", "#FFFFFF"),
+            ("日5:", "#FFD700"), (f"{int(cur_vol_ma5)}", "#FFD700"), (f"{v5_arrow}", "#FFD700"),
+            ("  ", "#FFFFFF"),
+            ("值5:", "#FFD700"), (f"{v5_val_ratio:.2f}", "#FFD700"), (f"{v5_arrow}", "#FFD700"),
+            ("  ", "#FFFFFF"),
+            ("日20:", "#FF8C00"), (f"{int(cur_vol_ma20)}", "#FF8C00"), (f"{v20_arrow}", "#FF8C00"),
+            ("  ", "#FFFFFF"),
+            ("值20:", "#FF8C00"), (f"{v20_val_ratio:.2f}", "#FF8C00"), (f"{v20_arrow}", "#FF8C00")
+        ]
         
         start_x_vol = 0.015
         for v_txt, v_col in vol_str_parts:
@@ -793,7 +766,7 @@ if stock_options:
     # =========================================================
     # 分頁二：秒速選股
     # =========================================================
-    elif app_mode == "⚡ 秒速選股：黃金交叉 / 死亡交叉":
+    elif app_mode == "⚡ 秒速選股":
         st.markdown('<p class="sub-header-14">⚡ 籌碼型態選股</p>', unsafe_allow_html=True)
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
@@ -857,14 +830,13 @@ if stock_options:
             with c_b:
                 if st.button("📈 前往圖表", use_container_width=True):
                     st.session_state.selected_index = stock_options.index(selected_from_screen)
-                    st.session_state.app_mode_idx = 0
                     st.rerun()
             st.dataframe(df_res, use_container_width=True, hide_index=True)
 
     # =========================================================
-    # 分頁三：每週大戶增幅前 15 名總表
+    # 分頁三：大戶總表
     # =========================================================
-    elif app_mode == "📋 每週大戶增幅前 15 名總表":
+    elif app_mode == "📋 大戶總表":
         excel_filename = "大戶持股最新分析總表.xlsx"
         if os.path.exists(excel_filename):
             df_top15 = pd.read_excel(excel_filename, sheet_name="大戶增幅前15名", header=1)
