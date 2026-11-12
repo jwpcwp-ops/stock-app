@@ -560,7 +560,7 @@ if stock_options:
         for count_days in [5, 35, 65, 120, 200]:
             if count_days in deduct_indices:
                 idx_pos = deduct_indices[count_days]
-                ax1.axvline(x=idx_pos, color="#00FFFF", linestyle="--", linewidth=0.25, alpha=0.25)
+                ax1.axvline(x=idx_pos, color="#00FFFF", linestyle="-----", linewidth=0.25, alpha=0.55)
                 t_num = ax1.text(idx_pos, df["low"].min(), f"{count_days}", color="#00FFFF", 
                                  fontsize=8.5, fontweight="bold", ha="center", va="bottom")
                 t_num.set_path_effects(get_bright_effect("#000000", 1.5))
