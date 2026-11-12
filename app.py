@@ -434,9 +434,6 @@ if stock_options:
         for ma_name, (period, is_show, color) in ma_config.items():
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
-        # ---------------------------------------------------------
-        # 扣抵計算邏輯 (5, 35, 65, 120)
-        # ---------------------------------------------------------
         deduct_periods = [5, 35, 65, 120]
         deduct_colors = {5: "#00E5FF", 35: "#00FF66", 65: "#FF00FF", 120: "#9D4EDD"}
         deduct_indices = {}
@@ -448,9 +445,7 @@ if stock_options:
             else:
                 deduct_indices[p] = 0
 
-        # ---------------------------------------------------------
-        # 技術指標計算 (含 MACD, KDJ, RSI 6,12)
-        # ---------------------------------------------------------
+        # 技術指標計算
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
         df["band_macd_osc"] = (df["band_macd_dif"] - df["band_macd_dem"]) * 2
@@ -501,23 +496,12 @@ if stock_options:
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
-        # 成交量均線計算 (5MA 與 20MA，單位為張)
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
         cur_vol_val = last_vol
         cur_vol_ma5 = float(df["vol_ma5"].iloc[-1]) if not pd.isna(df["vol_ma5"].iloc[-1]) else 0.0
         cur_vol_ma20 = float(df["vol_ma20"].iloc[-1]) if not pd.isna(df["vol_ma20"].iloc[-1]) else 0.0
-        
-        prev_vol_ma5 = float(df["vol_ma5"].iloc[-2]) if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2]) else cur_vol_ma5
-        prev_vol_ma20 = float(df["vol_ma20"].iloc[-2]) if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2]) else cur_vol_ma20
-        
-        v5_arrow = "↓" if cur_vol_ma5 < prev_vol_ma5 else "↑"
-        v20_arrow = "↓" if cur_vol_ma20 < prev_vol_ma20 else "↑"
-        vol_today_arrow = "↓" if last_vol < (float(df["vol"].iloc[-2]) if len(df) > 1 else last_vol) else "↑"
-
-        v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
-        v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
 
         cond3 = ((s_close.ewm(span=15, adjust=False).mean() / s_close.ewm(span=30, adjust=False).mean() - 1) * 100) > 0
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
@@ -556,7 +540,7 @@ if stock_options:
         x = list(range(len(df)))
 
         # ---------------------------------------------------------
-        # 層 1：K線、均線、扣抵垂直虛線與標記
+        # 層 1：K線主圖
         # ---------------------------------------------------------
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.5, alpha=0.95)
@@ -635,7 +619,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 層 2、3、4：技術指標與籌碼副圖 (完整整合緊湊黃框格式)
+        # 🎯 層 2、3、4：技術指標與籌碼副圖 (字體縮小、數值與線條同色對應)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -650,7 +634,7 @@ if stock_options:
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+            t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             ax_sub2.set_facecolor(PANEL_BG)
@@ -659,7 +643,7 @@ if stock_options:
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+            t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
             ax_sub3.set_facecolor(PANEL_BG)
@@ -669,7 +653,7 @@ if stock_options:
             ax_sub3.yaxis.tick_right()
             ax_sub3.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
-            t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
+            t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
         else:
@@ -679,21 +663,23 @@ if stock_options:
                 ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FF00FF", label="DIF")
                 ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#00E5FF", label="DEA")
                 
-                macd_text_str = f" MACD : {cur_osc:.2f}  DIF : {cur_dif:.2f}  OSC : {cur_dem:.2f} "
-                t_m = ax_sub1.text(
-                    0.015, 0.78, macd_text_str, 
-                    transform=ax_sub1.transAxes, 
-                    fontsize=8.0, 
-                    fontweight="bold", 
-                    color="#FFFF00",
-                    bbox=dict(boxstyle="round,pad=0.2", fc="#000000", ec="#FFD700", lw=0.8, alpha=0.85)
-                )
-                t_m.set_path_effects(get_bright_effect("#000000", 0.5))
+                # 🎯 MACD 數值與線條同色、字體縮小、緊湊排列 (無外框)
+                osc_color = "#FF3B30" if cur_osc >= 0 else "#00C853"
+                macd_tokens = [
+                    ("MACD : ", "#FFFF00"), (f"{cur_osc:.2f}", osc_color),
+                    ("  DIF : ", "#FFFF00"), (f"{cur_dif:.2f}", "#FF00FF"),
+                    ("  OSC : ", "#FFFF00"), (f"{cur_dem:.2f}", "#00E5FF")
+                ]
+                start_x_m = 0.015
+                for m_txt, m_col in macd_tokens:
+                    t_m = ax_sub1.text(start_x_m, 0.76, m_txt, transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color=m_col)
+                    t_m.set_path_effects(get_bright_effect("#000000", 0.4))
+                    start_x_m += len(m_txt) * 0.0085
 
             elif selected_indicator == "BIAS":
                 ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)")
-                t_s1 = ax_sub1.text(0.015, 0.76, f"BIAS(60)  {cur_bias:.2f}%", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
+                t_s1 = ax_sub1.text(0.015, 0.76, f"BIAS(60)  {cur_bias:.2f}%", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFF00")
+                t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
                 
             elif selected_indicator == "KDJ":
                 cur_k = float(df["kdj_k"].iloc[-1]) if not df.empty else 0.0
@@ -701,16 +687,16 @@ if stock_options:
                 ax_sub1.plot(x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K")
                 ax_sub1.plot(x, df["kdj_d"], linewidth=0.6, color="#00E5FF", label="D")
                 
-                kdj_text_str = f" K值 : {cur_k:.2f}  D值 : {cur_d:.2f} "
-                t_k = ax_sub1.text(
-                    0.015, 0.78, kdj_text_str, 
-                    transform=ax_sub1.transAxes, 
-                    fontsize=8.0, 
-                    fontweight="bold", 
-                    color="#FFFF00",
-                    bbox=dict(boxstyle="round,pad=0.2", fc="#000000", ec="#FFD700", lw=0.8, alpha=0.85)
-                )
-                t_k.set_path_effects(get_bright_effect("#000000", 0.5))
+                # 🎯 KDJ 數值與線條同色、字體縮小、緊湊排列
+                kdj_tokens = [
+                    ("K值 : ", "#FFFF00"), (f"{cur_k:.2f}", "#FF00FF"),
+                    ("  D值 : ", "#FFFF00"), (f"{cur_d:.2f}", "#00E5FF")
+                ]
+                start_x_k = 0.015
+                for k_txt, k_col in kdj_tokens:
+                    t_k = ax_sub1.text(start_x_k, 0.76, k_txt, transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color=k_col)
+                    t_k.set_path_effects(get_bright_effect("#000000", 0.4))
+                    start_x_k += len(k_txt) * 0.01
 
             elif selected_indicator == "RSI":
                 cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
@@ -718,28 +704,28 @@ if stock_options:
                 ax_sub1.plot(x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6")
                 ax_sub1.plot(x, df["rsi_12"], linewidth=0.6, color="#00E5FF", label="RSI12")
                 
-                rsi_text_str = f" RSI6 : {cur_r6:.2f}  RSI12 : {cur_r12:.2f} "
-                t_r = ax_sub1.text(
-                    0.015, 0.78, rsi_text_str, 
-                    transform=ax_sub1.transAxes, 
-                    fontsize=8.0, 
-                    fontweight="bold", 
-                    color="#FFFF00",
-                    bbox=dict(boxstyle="round,pad=0.2", fc="#000000", ec="#FFD700", lw=0.8, alpha=0.85)
-                )
-                t_r.set_path_effects(get_bright_effect("#000000", 0.5))
+                # 🎯 RSI 數值與線條同色、字體縮小、緊湊排列
+                rsi_tokens = [
+                    ("RSI6 : ", "#FFFF00"), (f"{cur_r6:.2f}", "#FF00FF"),
+                    ("  RSI12 : ", "#FFFF00"), (f"{cur_r12:.2f}", "#00E5FF")
+                ]
+                start_x_r = 0.015
+                for r_txt, r_col in rsi_tokens:
+                    t_r = ax_sub1.text(start_x_r, 0.76, r_txt, transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color=r_col)
+                    t_r.set_path_effects(get_bright_effect("#000000", 0.4))
+                    start_x_r += len(r_txt) * 0.01
 
             elif selected_indicator == "W%":
                 cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.plot(x, df["w_r"], linewidth=0.6, color="#FFD700", label="W%")
-                t_s1 = ax_sub1.text(0.015, 0.76, f"W%(9): {cur_wr:.1f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
+                t_s1 = ax_sub1.text(0.015, 0.76, f"W%(9): {cur_wr:.1f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFD700")
+                t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
 
             elif selected_indicator == "QT":
                 cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
                 ax_sub1.bar(x, df["qt"], width=0.75, color=qt_bar_colors, edgecolor="none", alpha=0.9)
-                t_s1 = ax_sub1.text(0.015, 0.76, f"QT(每筆均量): {cur_qt:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
-                t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
+                t_s1 = ax_sub1.text(0.015, 0.76, f"QT(每筆均量): {cur_qt:.2f}", transform=ax_sub1.transAxes, fontsize=7.5, fontweight="bold", color="#FFFFFF")
+                t_s1.set_path_effects(get_bright_effect("#000000", 0.4))
 
             ax_sub1.axhline(0, color="#666666", linestyle=":", linewidth=1)
             ax_sub1.yaxis.tick_right()
@@ -770,9 +756,9 @@ if stock_options:
             
             start_x_vol = 0.015
             for v_txt, v_col in vol_str_parts:
-                t_v = ax_sub2.text(start_x_vol, 0.76, v_txt, transform=ax_sub2.transAxes, fontsize=7.5, fontweight="bold", color=v_col)
-                t_v.set_path_effects(get_bright_effect(v_col, 0.5))
-                start_x_vol += len(v_txt) * 0.0075
+                t_v = ax_sub2.text(start_x_vol, 0.76, v_txt, transform=ax_sub2.transAxes, fontsize=7.0, fontweight="bold", color=v_col)
+                t_v.set_path_effects(get_bright_effect("#000000", 0.4))
+                start_x_vol += len(v_txt) * 0.007
 
             # ---------------------------------------------------------
             # 大戶與羊群副圖 (緊湊格式對齊)
@@ -800,9 +786,9 @@ if stock_options:
             ]
             start_x_chip = 0.015
             for text_str, color_code in chip_tokens:
-                t_tok = ax_chip.text(start_x_chip, 0.76, text_str, transform=ax_chip.transAxes, fontsize=8.0, fontweight="bold", color=color_code)
-                t_tok.set_path_effects(get_bright_effect(color_code, 0.5))
-                start_x_chip += len(text_str) * 0.0065
+                t_tok = ax_chip.text(start_x_chip, 0.76, text_str, transform=ax_chip.transAxes, fontsize=7.5, fontweight="bold", color=color_code)
+                t_tok.set_path_effects(get_bright_effect("#000000", 0.4))
+                start_x_chip += len(text_str) * 0.006
 
         for ax in axes:
             for spine in ax.spines.values():
