@@ -522,7 +522,7 @@ if stock_options:
         plt.style.use("dark_background")
         
         # ---------------------------------------------------------
-        # 🎯 【右側 4 欄獨立解盤區排版架構】
+        # 🎯 【右側 5 欄獨立解盤區排版架構】
         # ---------------------------------------------------------
         fig = plt.figure(figsize=(11.5, 3.8 if selected_indicator != "波段" else 5.0))
         
@@ -540,13 +540,14 @@ if stock_options:
             ax_sub2 = fig.add_subplot(gs[2, 0], sharex=ax1)
             axes = [ax1, ax_sub1, ax_sub2]
 
-        # 右側 4 大獨立子圖欄位 (均線、多空線、KDJ、成交量)
-        gs_right = gs[:, 1].subgridspec(4, 1, hspace=0.05)
+        # 右側 5 大獨立子圖欄位 (依序配置：1.均線、2.區間測漲跌幅、3.KDJ、4.成交量、5.多空線縮小專用區)
+        gs_right = gs[:, 1].subgridspec(5, 1, height_ratios=[1.2, 1.6, 1.2, 1.2, 0.8], hspace=0.04)
         ax_r_ma = fig.add_subplot(gs_right[0])      # 1. 均線區
-        ax_r_trend = fig.add_subplot(gs_right[1])   # 2. 多空線區
+        ax_r_range = fig.add_subplot(gs_right[1])   # 2. 區間測漲跌幅區
         ax_r_kdj = fig.add_subplot(gs_right[2])     # 3. KDJ 區
         ax_r_vol = fig.add_subplot(gs_right[3])     # 4. 成交量區
-        right_axes = [ax_r_ma, ax_r_trend, ax_r_kdj, ax_r_vol]
+        ax_r_trend = fig.add_subplot(gs_right[4])   # 5. 多空線縮小專屬區
+        right_axes = [ax_r_ma, ax_r_range, ax_r_kdj, ax_r_vol, ax_r_trend]
 
         for ax in [fig] + list(axes) + right_axes:
             ax.set_facecolor(BG_COLOR)
@@ -739,7 +740,9 @@ if stock_options:
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
 
-            # 成交量副圖
+            # ---------------------------------------------------------
+            # 🎯 完整保留：成交量副圖及其數值列
+            # ---------------------------------------------------------
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=1.0)
             ax_sub2.plot(x, df["vol_ma5"], linewidth=0.5, color="#FFFF00", label="Vol MA5", alpha=0.95)
@@ -747,9 +750,28 @@ if stock_options:
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
+            
+            vol_str_parts = [
+                ("今日 ", "#AAAAAA"),
+                (f"量:{int(cur_vol_val)}", "#FF3333"), (f"{vol_today_arrow}", "#FF3333"),
+                ("  ", "#FFFFFF"),
+                ("日5:", "#FFFF00"), (f"{int(cur_vol_ma5)}", "#FFFF00"), (f"{v5_arrow}", "#FFFF00"),
+                ("  ", "#FFFFFF"),
+                ("值5:", "#FFFF00"), (f"{v5_val_ratio:.2f}", "#FFFF00"), (f"{v5_arrow}", "#FFFF00"),
+                ("  ", "#FFFFFF"),
+                ("日20:", "#FF9900"), (f"{int(cur_vol_ma20)}", "#FF9900"), (f"{v20_arrow}", "#FF9900"),
+                ("  ", "#FFFFFF"),
+                ("值20:", "#FF9900"), (f"{v20_val_ratio:.2f}", "#FF9900"), (f"{v20_arrow}", "#FF9900")
+            ]
+            
+            start_x_vol = 0.015
+            for v_txt, v_col in vol_str_parts:
+                t_v = ax_sub2.text(start_x_vol, 0.86, v_txt, transform=ax_sub2.transAxes, fontsize=8.0, fontweight="bold", color=v_col)
+                t_v.set_path_effects(get_bright_effect("#000000", 1.5))
+                start_x_vol += len(v_txt) * 0.007
 
         # ---------------------------------------------------------
-        # 🎯 【右側 4 大專屬獨立解盤欄渲染邏輯】
+        # 🎯 【右側 5 大專屬獨立解盤欄渲染邏輯】
         # ---------------------------------------------------------
         for r_ax in right_axes:
             r_ax.set_facecolor("#111111")
@@ -762,16 +784,23 @@ if stock_options:
         # 1. 【均線區塊】
         ma5_val = float(df["ma_5"].iloc[-1]) if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1]) else 0
         ma20_val = float(df["ma_20"].iloc[-1]) if "ma_20" in df.columns and not pd.isna(df["ma_20"].iloc[-1]) else 0
-        t1 = ax_r_ma.text(0.08, 0.75, f"【均線指標】\n• MA5 : {ma5_val:.1f}\n• MA20: {ma20_val:.1f}", transform=ax_r_ma.transAxes, fontsize=7.0, fontweight="bold", color="#00FFFF", va="center")
+        t1 = ax_r_ma.text(0.08, 0.5, f"【均線指標】\n• MA5 : {ma5_val:.1f}\n• MA20: {ma20_val:.1f}", transform=ax_r_ma.transAxes, fontsize=6.5, fontweight="bold", color="#00FFFF", va="center")
         t1.set_path_effects(get_bright_effect("#000000", 1.2))
 
-        # 2. 【多空線區塊】
-        trend_txt = "多方掌控" if is_bull else "空方佔優"
-        trend_c = "#FF3333" if is_bull else "#00E64D"
-        t2 = ax_r_trend.text(0.08, 0.75, f"【多空線區】\n• 趨勢: {trend_txt}", transform=ax_r_trend.transAxes, fontsize=7.0, fontweight="bold", color=trend_c, va="center")
+        # 2. 【區間測漲跌幅區塊】
+        recent_high_val = float(df["high"].tail(30).max()) if not df.empty else last_high
+        recent_low_val = float(df["low"].tail(30).min()) if not df.empty else last_low
+        calc_drop = ((recent_high_val - last_low) / recent_high_val) * 100 if recent_high_val > 0 else 0.0
+        calc_rise = ((last_high / recent_low_val) - 1) * 100 if recent_low_val > 0 else 0.0
+
+        t2 = ax_r_range.text(
+            0.08, 0.5, 
+            f"---區間測漲跌幅---\n• 最近高: {recent_high_val:.1f}\n• 顯示跌幅: {calc_drop:.1f}%\n• 最近低: {recent_low_val:.1f}\n• 顯示漲幅: {calc_rise:.1f}%", 
+            transform=ax_r_range.transAxes, fontsize=6.0, fontweight="bold", color="#CCFFFF", va="center"
+        )
         t2.set_path_effects(get_bright_effect("#000000", 1.2))
 
-        # 3. 【KDJ 解盤區塊】 (執行您的 5 大買賣點條件判斷)
+        # 3. 【KDJ 解盤區塊】
         cur_k = float(df["kdj_k"].iloc[-1]) if "kdj_k" in df.columns else 0.0
         cur_d = float(df["kdj_d"].iloc[-1]) if "kdj_d" in df.columns else 0.0
         cur_j = float(df["kdj_j"].iloc[-1]) if "kdj_j" in df.columns else 0.0
@@ -799,14 +828,20 @@ if stock_options:
         elif is_dead_cross:
             kdj_status, kdj_color = "K跌破D(死亡交叉)", "#00E64D"
 
-        t3 = ax_r_kdj.text(0.08, 0.75, f"【KDJ 解盤】\n• {kdj_status}", transform=ax_r_kdj.transAxes, fontsize=7.0, fontweight="bold", color=kdj_color, va="center")
+        t3 = ax_r_kdj.text(0.08, 0.5, f"【KDJ 解盤】\n• {kdj_status}", transform=ax_r_kdj.transAxes, fontsize=6.5, fontweight="bold", color=kdj_color, va="center")
         t3.set_path_effects(get_bright_effect("#000000", 1.2))
 
         # 4. 【成交量區塊】
         vol_status = "量能平穩" if v_ratio < 1.5 else "量能放大"
         vol_c = "#FFFFFF" if v_ratio < 1.5 else "#FF3333"
-        t4 = ax_r_vol.text(0.08, 0.75, f"【成交量區】\n• 5日比: {v_ratio:.2f}\n• {vol_status}", transform=ax_r_vol.transAxes, fontsize=7.0, fontweight="bold", color=vol_c, va="center")
+        t4 = ax_r_vol.text(0.08, 0.5, f"【成交量區】\n• 5日比: {v_ratio:.2f}\n• {vol_status}", transform=ax_r_vol.transAxes, fontsize=6.5, fontweight="bold", color=vol_c, va="center")
         t4.set_path_effects(get_bright_effect("#000000", 1.2))
+
+        # 5. 【多空線縮小專屬區】 (剛好容納單行文字)
+        trend_txt = "多方掌控" if is_bull else "空方佔優"
+        trend_c = "#FF3333" if is_bull else "#00E64D"
+        t5 = ax_r_trend.text(0.08, 0.5, f"【多空線區】趨勢: {trend_txt}", transform=ax_r_trend.transAxes, fontsize=6.5, fontweight="bold", color=trend_c, va="center")
+        t5.set_path_effects(get_bright_effect("#000000", 1.2))
 
         for ax in axes:
             for spine in ax.spines.values():
