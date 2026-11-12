@@ -507,7 +507,7 @@ if stock_options:
         cond4 = s_close.ewm(span=15, adjust=False).mean() > s_close.ewm(span=30, adjust=False).mean()
         df["long_trend"] = cond3 & cond4
 
-        BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#262626"
+        BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
         BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
         
         prev_closes = df["close"].shift(1).fillna(df["open"])
@@ -609,7 +609,8 @@ if stock_options:
         ax1.yaxis.tick_right()
         ax1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
         plt.setp(ax1.get_xticklabels(), visible=False)
-        ax1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
+        # 🎯 強制開啟主圖網格線 (包含橫向價格與縱向天數交叉網格)
+        ax1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
 
         standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
         t_header = ax1.text(0.01, 0.93, standard_header_str, transform=ax1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
@@ -634,7 +635,7 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 副圖區繪製 (強制開啟最下方 X 軸座標顯示)
+        # 副圖區繪製 (強制開啟副圖完整網格線與 X 軸座標)
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
@@ -646,7 +647,7 @@ if stock_options:
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             plt.setp(ax_sub1.get_xticklabels(), visible=False)
-            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
+            ax_sub1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
             t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#000000", 1.5))
 
@@ -657,11 +658,11 @@ if stock_options:
             ax_sub2.yaxis.tick_right()
             ax_sub2.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             plt.setp(ax_sub2.get_xticklabels(), visible=False)
-            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
+            ax_sub2.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
             t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#000000", 1.5))
 
-            # 最後一個副圖 (波段 MTM) 強制顯示 X 軸刻度
+            # 最後一個副圖 (波段 MTM)
             ax_sub3.set_facecolor(PANEL_BG)
             ax_sub3.plot(x, df["mtm_val"], linewidth=0.5, color="#FFFF00", label="MTM")
             ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.5, color="#00FF66", label="Avg")
@@ -672,7 +673,7 @@ if stock_options:
             for label in ax_sub3.get_xticklabels():
                 label.set_color("#FFFFFF")
                 label.set_fontsize(8.0)
-            ax_sub3.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
+            ax_sub3.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
             t_s3 = ax_sub3.text(0.015, 0.76, f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}", transform=ax_sub3.transAxes, fontsize=8.5, fontweight="bold", color="#FFFFFF")
             t_s3.set_path_effects(get_bright_effect("#000000", 1.5))
         else:
@@ -734,7 +735,7 @@ if stock_options:
                 rsi_tokens = [
                     ("RSI(6,12)  ", "#FFFFFF"),
                     ("RSI6:", "#FF00FF"), (f"{cur_r6:.2f}  ", "#FF00FF"),
-                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#00FFFF"),
+                    ("RSI12:", "#00FFFF"), (f"{cur_r12:.2f}  ", "#FF00FF"),
                     ("差值:", "#FFFF00"), (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00")
                 ]
                 start_x_r = 0.015
@@ -770,9 +771,9 @@ if stock_options:
             ax_sub1.yaxis.tick_right()
             ax_sub1.tick_params(axis="y", labelsize=8.0, colors="#FFFFFF")
             plt.setp(ax_sub1.get_xticklabels(), visible=False)
-            ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
+            ax_sub1.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-            # 🎯 成交量副圖 (強制開啟 X 軸刻度文字顯示)
+            # 🎯 成交量副圖 (強制開啟網格線與 X 軸座標)
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=1.0)
             ax_sub2.plot(x, df["vol_ma5"], linewidth=0.5, color="#FFFF00", label="Vol MA5", alpha=0.95)
@@ -783,7 +784,7 @@ if stock_options:
             for label in ax_sub2.get_xticklabels():
                 label.set_color("#FFFFFF")
                 label.set_fontsize(8.0)
-            ax_sub2.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.25)
+            ax_sub2.grid(True, which='both', linestyle="--", color=GRID_COLOR, alpha=0.5)
             
             vol_str_parts = [
                 ("今日 ", "#AAAAAA"),
@@ -883,7 +884,6 @@ if stock_options:
                 spine.set_color("#555555")
                 spine.set_linewidth(1.2)
 
-        # 🎯 調整底部邊界留出空間給 X 軸刻度數字顯示
         plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.08, hspace=0.10, wspace=0.02)
         st.pyplot(fig, use_container_width=True, dpi=150)
 
