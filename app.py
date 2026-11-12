@@ -56,7 +56,6 @@ st.markdown(
             height: 19px !important;
             width: 100% !important;
         }
-        /* 🎯 圖2修正：縮小股票下拉選單的位置框框 */
         [data-testid="stSelectbox"] {
             max-width: 110px !important;
             width: 110px !important;
@@ -173,7 +172,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         tickers_to_try = [stock_id + ".TW", stock_id + ".TWO"]
 
     yf_interval = "1d"
-    yf_period = "2y"
+    yf_period = "3y" if target_days > 250 else "2y"
     if period_type in ["60分", "60分鐘"]:
         yf_interval = "60m"
         yf_period = "60d"
@@ -185,7 +184,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
         yf_period = "10y"
     elif period_type == "日線":
         yf_interval = "1d"
-        yf_period = "2y"
+        yf_period = "3y" if target_days > 250 else "2y"
 
     for ticker in tickers_to_try:
         try:
@@ -312,7 +311,7 @@ if "app_mode_idx" not in st.session_state:
 # 7. 網頁主介面佈局
 # ---------------------------------------------------------
 if stock_options:
-    top_cols = st.columns([0.4, 0.4, 0.4, 0.4, 0.65, 0.9, 2.9, 2.8])
+    top_cols = st.columns([0.35, 0.35, 0.35, 0.35, 0.6, 0.75, 2.2, 1.8, 1.0])
     modes = ["📈 個股", "⚡ 選股", "📋 大戶", "📊 基本"]
 
     with top_cols[0]:
@@ -376,8 +375,8 @@ if stock_options:
         with top_cols[6]:
             selected_ma = st.pills(
                 "均線選單",
-                ["5", "10", "20", "35", "60", "120", "200", "分割", "120", "250"],
-                default=["60", "250"],
+                ["5", "10", "20", "35", "60", "120", "200", "分割"],
+                default=["60", "200"],
                 selection_mode="multi",
                 label_visibility="collapsed",
                 key="pills_ma"
@@ -387,13 +386,24 @@ if stock_options:
             selected_indicator = st.pills(
                 "技術指標",
                 ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT"],
-                default="MACD",
+                default="波段",
                 selection_mode="single",
                 label_visibility="collapsed",
                 key="pills_ind"
             )
             if not selected_indicator:
-                selected_indicator = "MACD"
+                selected_indicator = "波段"
+
+        with top_cols[8]:
+            k_days_choice_str = st.pills(
+                "天數",
+                ["120", "250", "500"],
+                default="250",
+                selection_mode="single",
+                label_visibility="collapsed",
+                key="pills_k_days"
+            )
+            k_days_choice = int(k_days_choice_str) if k_days_choice_str else 250
 
         show_ma5 = "5" in selected_ma
         show_ma10 = "10" in selected_ma
@@ -403,9 +413,7 @@ if stock_options:
         show_ma120 = "120" in selected_ma
         show_ma200 = "200" in selected_ma
         show_fib = "分割" in selected_ma
-        show_k250 = "250" in selected_ma
 
-        k_days_choice = 250
         k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = get_comprehensive_stock_data(
             stock_id, target_days=k_days_choice, period_type=actual_chart_period
         )
@@ -435,9 +443,6 @@ if stock_options:
         for ma_name, (period, is_show, color) in ma_config.items():
             df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
-        # ---------------------------------------------------------
-        # 🎯 扣抵計算邏輯 (5, 35, 65, 120)
-        # ---------------------------------------------------------
         deduct_periods = [5, 35, 65, 120]
         deduct_colors = {5: "#00E5FF", 35: "#00FF66", 65: "#FF00FF", 120: "#9D4EDD"}
         deduct_indices = {}
@@ -449,9 +454,7 @@ if stock_options:
             else:
                 deduct_indices[p] = 0
 
-        # ---------------------------------------------------------
-        # 🎯 技術指標計算 (含 MACD, KDJ, RSI 6,12)
-        # ---------------------------------------------------------
+        # 技術指標計算
         df["band_macd_dif"] = s_close.ewm(span=5, adjust=False).mean() - s_close.ewm(span=10, adjust=False).mean()
         df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
         df["band_macd_osc"] = (df["band_macd_dif"] - df["band_macd_dem"]) * 2
@@ -496,7 +499,6 @@ if stock_options:
 
         df["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
 
-        # 🎯 MACD 數據計算與前後日比較箭頭
         cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
         prev_dif = float(df["macd_dif"].iloc[-2]) if len(df) > 1 else cur_dif
         dif_arrow = "↑" if cur_dif >= prev_dif else "↓"
@@ -512,7 +514,6 @@ if stock_options:
         cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
         cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
 
-        # 成交量均線計算 (5MA 與 20MA，單位為張)
         df["vol_ma5"] = df["vol"].rolling(window=5).mean()
         df["vol_ma20"] = df["vol"].rolling(window=20).mean()
 
@@ -548,18 +549,19 @@ if stock_options:
 
         plt.style.use("dark_background")
         
+        # 🎯 依據選擇判定副圖數量：選「波段」時為 4 個獨立子圖，其餘為標準 3 個子圖
         if selected_indicator == "波段":
             fig, axes = plt.subplots(
-                4, 1, figsize=(10, 4.4), sharex=True,
-                gridspec_kw={"height_ratios": [3.0, 0.7, 0.7, 0.7]}
+                4, 1, figsize=(10, 4.8), sharex=True,
+                gridspec_kw={"height_ratios": [3.0, 1.0, 1.0, 1.0]}
             )
             ax1, ax_sub1, ax_sub2, ax_sub3 = axes
         else:
             fig, axes = plt.subplots(
-                4, 1, figsize=(10, 4.2), sharex=True,
-                gridspec_kw={"height_ratios": [3.0, 0.7, 0.6, 0.8]}
+                3, 1, figsize=(10, 3.8), sharex=True,
+                gridspec_kw={"height_ratios": [3.2, 1.1, 1.0]}
             )
-            ax1, ax_sub1, ax_sub2, ax_sub3 = axes
+            ax1, ax_sub1, ax_sub2 = axes
 
         for ax in [fig] + list(axes):
             ax.set_facecolor(BG_COLOR)
@@ -567,7 +569,7 @@ if stock_options:
         x = list(range(len(df)))
 
         # ---------------------------------------------------------
-        # 層 1：K線、均線、扣抵垂直虛線與標記
+        # 層 1：K線主圖
         # ---------------------------------------------------------
         ax1.set_facecolor(PANEL_BG)
         ax1.vlines(x, df["low"], df["high"], color=body_colors, linewidth=0.5, alpha=0.95)
@@ -646,13 +648,14 @@ if stock_options:
                 text_x += 0.12
 
         # ---------------------------------------------------------
-        # 層 2、3、4：技術指標與籌碼副圖
+        # 層 2、3、4：技術指標副圖（完整支援波段 4 欄位獨立配置）
         # ---------------------------------------------------------
         if selected_indicator == "波段":
             cur_band_dif = float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
             cur_band_dem = float(df["band_macd_dem"].iloc[-1]) if not df.empty else 0.0
             cur_band_bias = float(df["band_bias_val"].iloc[-1]) if not df.empty else 0.0
 
+            # 子圖 1：波段 MACD
             ax_sub1.set_facecolor(PANEL_BG)
             ax_sub1.bar(x, df["band_macd_osc"], width=0.75, color=band_macd_bar_colors, edgecolor="none", alpha=0.9)
             ax_sub1.plot(x, df["band_macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF")
@@ -664,6 +667,7 @@ if stock_options:
             t_s1 = ax_sub1.text(0.015, 0.76, f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}", transform=ax_sub1.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
             t_s1.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
+            # 子圖 2：波段 BIAS 反向
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.plot(x, df["band_bias_val_rev"], linewidth=0.6, color="#FFFF00", label="BIAS(反向)")
             ax_sub2.axhline(0, color="#666666", linestyle=":", linewidth=1)
@@ -673,6 +677,7 @@ if stock_options:
             t_s2 = ax_sub2.text(0.015, 0.76, f"波段 BIAS(反向)  {cur_band_bias:.2f}%", transform=ax_sub2.transAxes, fontsize=8.0, fontweight="bold", color="#FFFFFF")
             t_s2.set_path_effects(get_bright_effect("#FFFFFF", 0.5))
 
+            # 子圖 3：波段 MTM
             ax_sub3.set_facecolor(PANEL_BG)
             ax_sub3.plot(x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM")
             ax_sub3.plot(x, df["mtm_ma1"], linewidth=0.6, color="#008080", label="Avg")
@@ -690,7 +695,6 @@ if stock_options:
                 ax_sub1.plot(x, df["macd_dif"], linewidth=0.6, color="#FF0000", label="DIF")
                 ax_sub1.plot(x, df["macd_dem"], linewidth=0.6, color="#FFFFFF", label="DEA")
                 
-                # 🎯 圖1修正：精確還原 MACD(長) DIF (紅色) DEA (白色/淡色) MACD (紫色) 標記與箭頭
                 macd_tokens = [
                     ("MACD(長) ", "#FFFFFF"),
                     (f"DIF:{cur_dif:.2f} {dif_arrow}", "#FF3B30"),
@@ -754,9 +758,7 @@ if stock_options:
             ax_sub1.tick_params(axis="y", labelsize=7.5, colors="#FFFFFF")
             ax_sub1.grid(True, linestyle="--", color=GRID_COLOR, alpha=0.9)
 
-            # ---------------------------------------------------------
-            # 🎯 成交量副圖與詳細標註（完美對齊您的看盤軟體格式）
-            # ---------------------------------------------------------
+            # 成交量副圖
             ax_sub2.set_facecolor(PANEL_BG)
             ax_sub2.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", alpha=0.9)
             ax_sub2.yaxis.tick_right()
