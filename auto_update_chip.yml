@@ -2,13 +2,17 @@ name: 自動更新每週大戶籌碼分析表
 
 on:
   schedule:
-    #  UTC 時間每週六 00:00 執行 (等於台灣時間每週六早上 08:00)
+    # UTC 時間每週六 00:00 執行 (等於台灣時間每週六早上 08:00)
     - cron: '0 0 * * 6'
   workflow_dispatch: # 支援在 GitHub 網頁上點擊「Run workflow」手動觸發執行
 
 jobs:
   update-chip-data:
     runs-on: ubuntu-latest
+    
+    # 💡 賦予 Git 寫入與推送的權限
+    permissions:
+      contents: write
 
     steps:
     - name: 檢出程式碼
@@ -19,10 +23,11 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: 安裝所需 Python 套件
+    - name: 安裝所需 Python 套件 (含 Playwright)
       run: |
         python -m pip install --upgrade pip
-        pip install pandas openpyxl requests beautifulsoup4
+        pip install pandas openpyxl requests beautifulsoup4 playwright
+        playwright install chromium
 
     - name: 執行大戶持股爬蟲與 Excel 生成腳本
       run: |
