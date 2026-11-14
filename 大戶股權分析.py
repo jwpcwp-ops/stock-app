@@ -7,25 +7,34 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from playwright.sync_api import sync_playwright
 
-# 1. 設定目標儲存路徑（直接採用專案根目錄的固定檔名供網頁讀取）
 output_filename_fixed = "大戶持股最新分析總表.xlsx"
 url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
 
-print("=== 開始執行：最新單週大戶籌碼與表頭字體大小 8 號優化系統 ===")
+print("=== 開始執行：最新單週大戶籌碼自動更新系統 (雲端強化版) ===")
 
 latest_date_str = ""
 latest_week_name = ""
 target_df = None
 
 with sync_playwright() as p:
-    # 💡 雲端背景執行必須設為 headless=True
-    browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
+    browser = p.chromium.launch(
+        headless=True,
+        args=["--no-sandbox", "--disable-setuid-sandbox"]
+    )
+    # 模擬真實使用者的 User-Agent，避免被網站簡易阻擋
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+    page = context.new_page()
     
     print("正在連線至目標網站...")
-    page.goto(url, timeout=60000)
-    page.wait_for_load_state("domcontentloaded")
-    time.sleep(3)
+    try:
+        page.goto(url, timeout=60000, wait_until="networkidle")
+    except Exception as e:
+        print(f"網路連線逾時，嘗試直接讀取... {e}")
+        page.goto(url, timeout=60000)
+        
+    time.sleep(5) # 給予充足的載入時間
     
     # 擷取網頁最新收盤日期
     try:
@@ -36,8 +45,14 @@ with sync_playwright() as p:
             print(f"📅 成功擷取網頁最新收盤日期：{latest_date_str}")
         else:
             latest_date_str = time.strftime("%Y/%m/%d")
-    except Exception as e:
+    except Exception:
         latest_date_str = time.strftime("%Y/%m/%d")
+
+    # 確保下拉選單已載入
+    try:
+        page.wait_for_selector("select", timeout=15000)
+    except Exception:
+        print("⚠️ 警告：找不到網頁下拉選單，可能遭受網站阻擋或結構變更。")
 
     # 取得選單中的「最新一週」
     select_weeks = page.locator("select").nth(0)
@@ -45,16 +60,16 @@ with sync_playwright() as p:
     week_options = options_locator.all_inner_texts()
     week_values = options_locator.evaluate_all("options => options.map(o => o.value)")
     
-    if week_values:
+    if week_values and len(week_values) > 0:
         latest_week_name = week_options[0].strip()
         latest_val = week_values[0]
-        print(f"正在擷取最新單週別: {latest_week_name} ...", end="")
+        print(f"正在擷取最新單週別: {latest_week_name} (Value: {latest_val}) ...", end="")
         
         for retry in range(3):
             try:
                 select_weeks.select_option(latest_val)
-                page.wait_for_function(f"document.querySelector('select').value === '{latest_val}'", timeout=8000)
-                time.sleep(3.5)
+                # 等待表格內容更新
+                time.sleep(5)
                 
                 html_content = page.content()
                 dfs = pd.read_html(StringIO(html_content))
@@ -65,15 +80,18 @@ with sync_playwright() as p:
                 if target_df is not None and len(target_df) > 0:
                     break
                 else:
-                    time.sleep(2)
-            except Exception as e:
-                time.sleep(2)
+                    time.sleep(3)
+            except Exception as err:
+                print(f"重試中 ({retry+1})... 錯誤: {err}")
+                time.sleep(3)
         print(" ➔ 成功！")
+    else:
+        print("❌ 抓取不到選單選項值。")
         
     browser.close()
 
 if target_df is None or len(target_df) == 0:
-    print("❌ 未能成功擷取最新單週資料。")
+    print("❌ 未能成功擷取最新單週資料（可能因雲端 IP 遭到網站防火牆攔截）。")
     exit(1)
 
 # 根據抓取到的最新日期轉換成純數字格式作為備份檔名
@@ -210,7 +228,7 @@ for path in [output_filename_fixed, backup_filename]:
 
     if '大戶增幅前15名' in wb.sheetnames:
         ws_top15 = wb['大戶增幅前15名']
-        ws_top15.sheet_view.showGridLines = True
+        ws_top15.sheet_view.showGridLines + True
         
         for col_idx in range(1, ws_top15.max_column + 1):
             col_letter = openpyxl.utils.get_column_letter(col_idx)
