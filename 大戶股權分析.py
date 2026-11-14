@@ -17,7 +17,7 @@ if not os.path.exists(target_dir):
 
 url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
 
-print("=== 開始執行：最新單週大戶籌碼自動更新系統 (BS4 穩定版) ===")
+print("=== 開始執行：最新單週大戶籌碼自動更新系統 (穩定版) ===")
 
 latest_date_str = ""
 latest_week_name = ""
@@ -62,18 +62,17 @@ with sync_playwright() as p:
         for retry in range(3):
             try:
                 select_weeks.select_option(latest_val)
-                time.sleep(6)  # 確保網頁完整渲染
+                time.sleep(6)  # 確保雲端網頁完整渲染
                 
                 html_content = page.content()
                 
-                # 💡 改用 BeautifulSoup 直接解析 HTML 表格，不依賴 lxml
+                # 💡 使用 html.parser 解析，避免依賴外部 lxml 套件報錯
                 soup = BeautifulSoup(html_content, 'html.parser')
                 tables = soup.find_all('table')
                 
                 if tables:
-                    # 找出網頁中行數最多的表格（即數據主表）
                     largest_table = max(tables, key=lambda t: len(t.find_all('tr')))
-                    dfs = pd.read_html(StringIO(str(largest_table)))
+                    dfs = pd.read_html(StringIO(str(largest_table)), flavor='bs4')
                     if dfs:
                         target_df = dfs[0]
                 
