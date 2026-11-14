@@ -7,13 +7,12 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from playwright.sync_api import sync_playwright
 
-# 1. 設定目標儲存路徑（支援本機路徑，並同時產出網頁專用的固定總表）
 target_dir = r"D:\2026Q1\下載網站\富邦網站\股權分析"
 if not os.path.exists(target_dir):
     try:
         os.makedirs(target_dir, exist_ok=True)
     except Exception:
-        target_dir = "."  # 如果在雲端環境無法建立 D 槽，則自動改存至根目錄
+        target_dir = "."
 
 url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
 
@@ -24,7 +23,6 @@ latest_week_name = ""
 target_df = None
 
 with sync_playwright() as p:
-    # 💡 雲端背景執行必須設為 headless=True，並加入防沙箱報錯參數
     browser = p.chromium.launch(
         headless=True,
         args=["--no-sandbox", "--disable-setuid-sandbox"]
@@ -39,7 +37,6 @@ with sync_playwright() as p:
     page.wait_for_load_state("domcontentloaded")
     time.sleep(3)
     
-    # 擷取網頁最新收盤日期
     try:
         page_text = page.content()
         date_match = re.search(r"收盤價日期[:：]\s*(\d{4}/\d{1,2}/\d{1,2})", page_text)
@@ -48,10 +45,9 @@ with sync_playwright() as p:
             print(f"📅 成功擷取網頁最新收盤日期：{latest_date_str}")
         else:
             latest_date_str = time.strftime("%Y/%m/%d")
-    except Exception as e:
+    except Exception:
         latest_date_str = time.strftime("%Y/%m/%d")
 
-    # 取得選單中的「最新一週」
     select_weeks = page.locator("select").nth(0)
     options_locator = select_weeks.locator("option")
     week_options = options_locator.all_inner_texts()
@@ -65,8 +61,8 @@ with sync_playwright() as p:
         for retry in range(3):
             try:
                 select_weeks.select_option(latest_val)
-                page.wait_for_function(f"document.querySelector('select').value === '{latest_val}'", timeout=8000)
-                time.sleep(3.5)
+                # 💡 雲端環境拉長等待時間至 6 秒，確保表格完整渲染
+                time.sleep(6)
                 
                 html_content = page.content()
                 dfs = pd.read_html(StringIO(html_content))
@@ -75,12 +71,13 @@ with sync_playwright() as p:
                     target_df = max(dfs, key=len)
                 
                 if target_df is not None and len(target_df) > 0:
+                    print(" ➔ 成功！")
                     break
                 else:
-                    time.sleep(2)
+                    time.sleep(3)
             except Exception as e:
-                time.sleep(2)
-        print(" ➔ 成功！")
+                print(f"重試中... {e}")
+                time.sleep(3)
         
     browser.close()
 
@@ -88,16 +85,14 @@ if target_df is None or len(target_df) == 0:
     print("❌ 未能成功擷取最新單週資料。")
     exit(1)
 
-# 根據抓取到的最新日期轉換成純數字格式作為檔名
 date_digits = re.sub(r'\D', '', latest_date_str)
 if not date_digits or len(date_digits) != 8:
     date_digits = time.strftime("%Y%m%d")
 
 output_filename = f"大戶持股最新單週{date_digits}分析總表.xlsx"
 output_path = os.path.join(target_dir, output_filename)
-fixed_output_path = "大戶持股最新分析總表.xlsx"  # 網頁端專用的固定檔名
+fixed_output_path = "大戶持股最新分析總表.xlsx"
 
-# 2. 資料清理與欄位對應
 if isinstance(target_df.columns, pd.MultiIndex):
     target_df.columns = ['_'.join([str(c) for c in col if 'Unnamed' not in str(c)]).strip() for col in target_df.columns.values]
 
@@ -144,15 +139,11 @@ for col_name, idx in optional_cols:
         data_dict[col_name] = target_df.iloc[:, idx]
 
 clean_data = pd.DataFrame(data_dict)
-
-# 排除 DR
 clean_data = clean_data[~clean_data['名稱'].astype(str).str.contains('-DR', na=False)].reset_index(drop=True)
 
-# 刪除資料中心原本的前 10 列垃圾資料
 if len(clean_data) > 10:
     clean_data = clean_data.iloc[10:].reset_index(drop=True)
 
-# 產出大戶增幅前15名資料
 top15_df = pd.DataFrame()
 if '大戶持有率_差異(%)' in clean_data.columns:
     clean_data['大戶持有率_差異(%)'] = pd.to_numeric(clean_data['大戶持有率_差異(%)'], errors='coerce')
@@ -163,10 +154,9 @@ if '大戶持有率_差異(%)' in clean_data.columns:
     top15_df = top15_raw[top15_cols].copy()
     top15_df['連結'] = ""
 
-# 3. 寫入 Excel 檔案（同時寫入本機備份路徑與網頁根目錄的固定總表）
 paths_to_save = [output_path, fixed_output_path]
 if target_dir == ".":
-    paths_to_save = [fixed_output_path]  # 雲端環境只存根目錄
+    paths_to_save = [fixed_output_path]
 
 for path in paths_to_save:
     try:
@@ -179,9 +169,7 @@ for path in paths_to_save:
         if not top15_df.empty:
             top15_df.to_excel(writer, sheet_name='大戶增幅前15名', index=False, startrow=1)
 
-    # 4. 透過 openpyxl 進行排版與格式設定
     wb = openpyxl.load_workbook(path)
-
     if "個股查詢" in wb.sheetnames:
         del wb["個股查詢"]
 
@@ -207,13 +195,10 @@ for path in paths_to_save:
     if '資料中心' in wb.sheetnames:
         ws_data = wb['資料中心']
         ws_data.sheet_view.showGridLines = True
-        
         for col_idx in range(1, ws_data.max_column + 1):
             col_letter = openpyxl.utils.get_column_letter(col_idx)
             ws_data.column_dimensions[col_letter].width = 10
-
         ws_data.row_dimensions[1].height = 30
-
         for r in range(1, ws_data.max_row + 1):
             for c in range(1, ws_data.max_column + 1):
                 cell = ws_data.cell(row=r, column=c)
@@ -234,7 +219,6 @@ for path in paths_to_save:
     if '大戶增幅前15名' in wb.sheetnames:
         ws_top15 = wb['大戶增幅前15名']
         ws_top15.sheet_view.showGridLines = True
-        
         for col_idx in range(1, ws_top15.max_column + 1):
             col_letter = openpyxl.utils.get_column_letter(col_idx)
             ws_top15.column_dimensions[col_letter].width = 10
@@ -269,7 +253,6 @@ for path in paths_to_save:
             cell.alignment = align_header
             cell.border = thin_border
             col_name_str = str(cell.value) if cell.value else ""
-            
             if ("差異(%)" in col_name_str and "持有率" in col_name_str) or col_name_str == "連結" or c == link_col_idx:
                 cell.fill = fill_red
             else:
@@ -281,7 +264,6 @@ for path in paths_to_save:
                 cell.font = font_data_10
                 cell.border = thin_border
                 cell.alignment = align_left if c in [2, 3] else align_center
-                
                 if c == link_col_idx:
                     cell_code = ws_top15.cell(row=r, column=1).value
                     cell_name = ws_top15.cell(row=r, column=2).value
