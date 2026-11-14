@@ -1,7 +1,6 @@
 import os
 import re
 import time
-from io import StringIO
 import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -17,7 +16,7 @@ if not os.path.exists(target_dir):
 
 url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
 
-print("=== 開始執行：最新單週大戶籌碼自動更新系統 (穩定版) ===")
+print("=== 開始執行：最新單週大戶籌碼自動更新系統 (純 BS4 穩健版) ===")
 
 latest_date_str = ""
 latest_week_name = ""
@@ -66,15 +65,22 @@ with sync_playwright() as p:
                 
                 html_content = page.content()
                 
-                # 💡 使用 html.parser 解析，避免依賴外部 lxml 套件報錯
+                # 💡 直接用 BeautifulSoup 萃取表格行與列，徹底擺脫 pd.read_html 的套件依賴
                 soup = BeautifulSoup(html_content, 'html.parser')
                 tables = soup.find_all('table')
                 
                 if tables:
                     largest_table = max(tables, key=lambda t: len(t.find_all('tr')))
-                    dfs = pd.read_html(StringIO(str(largest_table)), flavor='bs4')
-                    if dfs:
-                        target_df = dfs[0]
+                    rows = []
+                    for tr in largest_table.find_all('tr'):
+                        cells = [td.get_text(strip=True) for td in tr.find_all(['th', 'td'])]
+                        if cells:
+                            rows.append(cells)
+                    
+                    if rows:
+                        max_cols = max(len(r) for r in rows)
+                        normalized_rows = [r + [''] * (max_cols - len(r)) for r in rows]
+                        target_df = pd.DataFrame(normalized_rows)
                 
                 if target_df is not None and len(target_df) > 0:
                     print(" ➔ 成功！")
@@ -99,9 +105,7 @@ output_filename = f"大戶持股最新單週{date_digits}分析總表.xlsx"
 output_path = os.path.join(target_dir, output_filename)
 fixed_output_path = "大戶持股最新分析總表.xlsx"
 
-if isinstance(target_df.columns, pd.MultiIndex):
-    target_df.columns = ['_'.join([str(c) for c in col if 'Unnamed' not in str(c)]).strip() for col in target_df.columns.values]
-
+# 插入週別欄位
 target_df.insert(0, "週別", latest_week_name)
 
 if target_df.shape[1] > 3:
