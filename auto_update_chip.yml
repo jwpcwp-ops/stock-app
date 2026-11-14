@@ -1,0 +1,41 @@
+name: 自動更新每週大戶籌碼分析表
+
+on:
+  schedule:
+    - cron: '0 4 * * 6'
+  workflow_dispatch:
+
+jobs:
+  update-chip-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: 檢出程式碼
+      uses: actions/checkout@v4
+
+    - name: 設定 Python 環境
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: 安裝系統依賴與 Python 套件
+      run: |
+        sudo apt-get update && sudo apt-get install -y python3-lxml libxml2-dev libxslt1-dev
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl lxml html5lib beautifulsoup4 playwright
+        playwright install chromium
+        playwright install-deps chromium
+
+    - name: 執行大戶持股爬蟲與 Excel 生成腳本
+      run: |
+        python 大戶股權分析.py
+
+    - name: 自動提交並推送更新至 GitHub
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add 大戶持股最新分析總表.xlsx
+        git diff-index --quiet HEAD || git commit -m "Auto-update: 自動更新最新單週大戶持股分析總表"
+        git push
