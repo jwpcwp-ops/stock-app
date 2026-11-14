@@ -6,6 +6,7 @@ import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
 
 target_dir = r"D:\2026Q1\下載網站\富邦網站\股權分析"
 if not os.path.exists(target_dir):
@@ -16,7 +17,7 @@ if not os.path.exists(target_dir):
 
 url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
 
-print("=== 開始執行：最新單週大戶籌碼與表頭字體大小 8 號優化系統 ===")
+print("=== 開始執行：最新單週大戶籌碼自動更新系統 (BS4 穩定版) ===")
 
 latest_date_str = ""
 latest_week_name = ""
@@ -61,14 +62,20 @@ with sync_playwright() as p:
         for retry in range(3):
             try:
                 select_weeks.select_option(latest_val)
-                # 💡 雲端環境拉長等待時間至 6 秒，確保表格完整渲染
-                time.sleep(6)
+                time.sleep(6)  # 確保網頁完整渲染
                 
                 html_content = page.content()
-                dfs = pd.read_html(StringIO(html_content))
                 
-                if dfs:
-                    target_df = max(dfs, key=len)
+                # 💡 改用 BeautifulSoup 直接解析 HTML 表格，不依賴 lxml
+                soup = BeautifulSoup(html_content, 'html.parser')
+                tables = soup.find_all('table')
+                
+                if tables:
+                    # 找出網頁中行數最多的表格（即數據主表）
+                    largest_table = max(tables, key=lambda t: len(t.find_all('tr')))
+                    dfs = pd.read_html(StringIO(str(largest_table)))
+                    if dfs:
+                        target_df = dfs[0]
                 
                 if target_df is not None and len(target_df) > 0:
                     print(" ➔ 成功！")
