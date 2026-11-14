@@ -1,0 +1,284 @@
+import os
+import re
+import time
+from io import StringIO
+import pandas as pd
+import openpyxl
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from playwright.sync_api import sync_playwright
+
+# 1. 設定目標儲存路徑
+target_dir = r"D:\2026Q1\下載網站\富邦網站\股權分析"
+url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
+
+if not os.path.exists(target_dir):
+    os.makedirs(target_dir)
+
+print("=== 開始執行：最新單週大戶籌碼與表頭字體大小 8 號優化系統 ===")
+
+latest_date_str = ""
+latest_week_name = ""
+target_df = None
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False)
+    page = browser.new_page()
+    
+    print("正在連線至目標網站...")
+    page.goto(url, timeout=60000)
+    page.wait_for_load_state("domcontentloaded")
+    time.sleep(3)
+    
+    # 擷取網頁最新收盤日期
+    try:
+        page_text = page.content()
+        date_match = re.search(r"收盤價日期[:：]\s*(\d{4}/\d{1,2}/\d{1,2})", page_text)
+        if date_match:
+            latest_date_str = date_match.group(1)
+            print(f"📅 成功擷取網頁最新收盤日期：{latest_date_str}")
+        else:
+            latest_date_str = time.strftime("%Y/%m/%d")
+    except Exception as e:
+        latest_date_str = time.strftime("%Y/%m/%d")
+
+    # 取得選單中的「最新一週」
+    select_weeks = page.locator("select").nth(0)
+    options_locator = select_weeks.locator("option")
+    week_options = options_locator.all_inner_texts()
+    week_values = options_locator.evaluate_all("options => options.map(o => o.value)")
+    
+    if week_values:
+        latest_week_name = week_options[0].strip()
+        latest_val = week_values[0]
+        print(f"正在擷取最新單週別: {latest_week_name} ...", end="")
+        
+        for retry in range(3):
+            try:
+                select_weeks.select_option(latest_val)
+                page.wait_for_function(f"document.querySelector('select').value === '{latest_val}'", timeout=8000)
+                time.sleep(3.5)
+                
+                html_content = page.content()
+                dfs = pd.read_html(StringIO(html_content))
+                
+                if dfs:
+                    target_df = max(dfs, key=len)
+                
+                if target_df is not None and len(target_df) > 0:
+                    break
+                else:
+                    time.sleep(2)
+            except Exception as e:
+                time.sleep(2)
+        print(" ➔ 成功！")
+        
+    browser.close()
+
+if target_df is None or len(target_df) == 0:
+    print("❌ 未能成功擷取最新單週資料。")
+    exit()
+
+# 根據抓取到的最新日期轉換成純數字格式作為檔名
+date_digits = re.sub(r'\D', '', latest_date_str)
+if not date_digits or len(date_digits) != 8:
+    date_digits = time.strftime("%Y%m%d")
+
+output_filename = f"大戶持股最新單週{date_digits}分析總表.xlsx"
+output_path = os.path.join(target_dir, output_filename)
+
+# 2. 資料清理與欄位對應
+if isinstance(target_df.columns, pd.MultiIndex):
+    target_df.columns = ['_'.join([str(c) for c in col if 'Unnamed' not in str(c)]).strip() for col in target_df.columns.values]
+
+target_df.insert(0, "週別", latest_week_name)
+
+if target_df.shape[1] > 3:
+    header_mask = (target_df.iloc[:, 3].astype(str).str.strip() != "排名") & \
+                  (target_df.iloc[:, 3].notna()) & \
+                  (target_df.iloc[:, 3].astype(str).str.strip() != "")
+    target_df = target_df[header_mask].reset_index(drop=True)
+
+raw_stock_info = target_df.iloc[:, 4] if target_df.shape[1] > 4 else pd.Series([""] * len(target_df))
+stock_codes, stock_names = [], []
+
+for item in raw_stock_info:
+    item_str = str(item).strip()
+    match = re.match(r"^(\d+)\s*(.*)$", item_str)
+    if match:
+        stock_codes.append(match.group(1))
+        stock_names.append(match.group(2))
+    else:
+        stock_codes.append(item_str)
+        stock_names.append("")
+
+data_dict = {
+    '週別': target_df.iloc[:, 0],
+    '排名': target_df.iloc[:, 3] if target_df.shape[1] > 3 else '',
+    '代碼': stock_codes,
+    '名稱': stock_names,
+    '類別': target_df.iloc[:, 5] if target_df.shape[1] > 5 else '',
+    '總集保戶數_上週': target_df.iloc[:, 6] if target_df.shape[1] > 6 else '',
+    '總集保戶數_本週': target_df.iloc[:, 7] if target_df.shape[1] > 7 else '',
+}
+
+optional_cols = [
+    ('大股東人數_上週', 9), ('大股東人數_本週', 10),
+    ('大戶持有率_上週(%)', 12), ('大戶持有率_本週(%)', 13), ('大戶持有率_差異(%)', 14),
+    ('平均張數_上週', 15), ('平均張數_本週', 16), ('平均張數_差異(%)', 17),
+    ('今日收盤價', 18), ('今日漲跌', 19)
+]
+
+for col_name, idx in optional_cols:
+    if target_df.shape[1] > idx:
+        data_dict[col_name] = target_df.iloc[:, idx]
+
+clean_data = pd.DataFrame(data_dict)
+
+# 排除 DR
+clean_data = clean_data[~clean_data['名稱'].astype(str).str.contains('-DR', na=False)].reset_index(drop=True)
+
+# 刪除資料中心原本的前 10 列垃圾資料
+if len(clean_data) > 10:
+    clean_data = clean_data.iloc[10:].reset_index(drop=True)
+
+# 產出大戶增幅前15名資料
+top15_df = pd.DataFrame()
+if '大戶持有率_差異(%)' in clean_data.columns:
+    clean_data['大戶持有率_差異(%)'] = pd.to_numeric(clean_data['大戶持有率_差異(%)'], errors='coerce')
+    top15_raw = clean_data.sort_values(by='大戶持有率_差異(%)', ascending=False).head(15).reset_index(drop=True)
+    if '週別' in top15_raw.columns:
+        top15_raw = top15_raw.drop(columns=['週別'])
+    top15_cols = [col for col in top15_raw.columns if col != '排名']
+    top15_df = top15_raw[top15_cols].copy()
+    top15_df['連結'] = ""
+
+# 3. 寫入 Excel 檔案
+with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+    clean_data.to_excel(writer, sheet_name='資料中心', index=False)
+    if not top15_df.empty:
+        top15_df.to_excel(writer, sheet_name='大戶增幅前15名', index=False, startrow=1)
+
+# 4. 透過 openpyxl 進行排版與格式設定
+wb = openpyxl.load_workbook(output_path)
+
+if "個股查詢" in wb.sheetnames:
+    del wb["個股查詢"]
+
+fill_blue = PatternFill(start_color="3172AD", end_color="3172AD", fill_type="solid")
+fill_red = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+fill_yellow = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+
+# 💡 表頭與標題字型大小設定為 8 號粗體
+font_header_8 = Font(name='新細明體', size=8, bold=True, color="FFFFFF")
+font_title_8 = Font(name='標楷體', size=10, bold=True)       # 大戶增幅標題設為適當的大小 10 號
+font_date_title_8 = Font(name='標楷體', size=10, bold=True) # 日期標題設為 10 號
+font_data_10 = Font(name='新細明體', size=10)                # 資料列維持 10 號（或您原本習慣的大小）
+font_link = Font(name='新細明體', size=10, color="0000FF", underline="single")
+
+align_header = Alignment(horizontal='center', vertical='center', wrap_text=True)
+align_center = Alignment(horizontal='center', vertical='center')
+align_left = Alignment(horizontal='left', vertical='center')
+
+thin_border = Border(
+    left=Side(style='thin', color='CCCCCC'), right=Side(style='thin', color='CCCCCC'),
+    top=Side(style='thin', color='CCCCCC'), bottom=Side(style='thin', color='CCCCCC')
+)
+
+# ── 1) 處理「資料中心」分頁 ──
+if '資料中心' in wb.sheetnames:
+    ws_data = wb['資料中心']
+    ws_data.sheet_view.showGridLines = True
+    
+    for col_idx in range(1, ws_data.max_column + 1):
+        col_letter = openpyxl.utils.get_column_letter(col_idx)
+        ws_data.column_dimensions[col_letter].width = 10
+
+    ws_data.row_dimensions[1].height = 30
+
+    for r in range(1, ws_data.max_row + 1):
+        for c in range(1, ws_data.max_column + 1):
+            cell = ws_data.cell(row=r, column=c)
+            cell.border = thin_border
+            if r == 1:
+                cell.font = font_header_8  # 💡 表頭改為新細明體 8 號粗體
+                cell.alignment = align_header
+                cell_val_str = str(cell.value) if cell.value else ""
+                if ("差異(%)" in cell_val_str and "持有率" in cell_val_str) or "差異" in cell_val_str:
+                    cell.fill = fill_red
+                else:
+                    cell.fill = fill_blue
+            else:
+                cell.font = font_data_10  # 資料列保持 10 號
+                if c in [2, 3]:
+                    cell.alignment = align_left
+                else:
+                    cell.alignment = align_center
+                cell.fill = PatternFill(fill_type=None)
+
+# ── 2) 處理「大戶增幅前15名」分頁 ──
+if '大戶增幅前15名' in wb.sheetnames:
+    ws_top15 = wb['大戶增幅前15名']
+    ws_top15.sheet_view.showGridLines = True
+    
+    for col_idx in range(1, ws_top15.max_column + 1):
+        col_letter = openpyxl.utils.get_column_letter(col_idx)
+        ws_top15.column_dimensions[col_letter].width = 10
+    
+    ws_top15.merge_cells('A1:D1')
+    ws_top15['A1'].value = "大股東(>400張)股權統計"
+    ws_top15['A1'].font = font_title_8
+    ws_top15['A1'].alignment = align_center
+    ws_top15['A1'].border = thin_border
+    
+    ws_top15.merge_cells('E1:I1')
+    ws_top15['E1'].value = f"收盤價日期:{latest_date_str}"
+    ws_top15['E1'].font = font_date_title_8
+    ws_top15['E1'].alignment = align_center
+    for c in range(5, 10):
+        cell_top1 = ws_top15.cell(row=1, column=c)
+        cell_top1.fill = fill_yellow
+        cell_top1.border = thin_border
+        
+    ws_top15.row_dimensions[1].height = 25
+    ws_top15.row_dimensions[2].height = 28
+
+    link_col_idx = 16
+    for col in range(1, ws_top15.max_column + 1):
+        if ws_top15.cell(row=2, column=col).value == '連結':
+            link_col_idx = col
+            break
+            
+    # 💡 第 2 列表頭設為新細明體 8 號粗體
+    for c in range(1, ws_top15.max_column + 1):
+        cell = ws_top15.cell(row=2, column=c)
+        cell.font = font_header_8
+        cell.alignment = align_header
+        cell.border = thin_border
+        col_name_str = str(cell.value) if cell.value else ""
+        
+        if ("差異(%)" in col_name_str and "持有率" in col_name_str) or col_name_str == "連結" or c == link_col_idx:
+            cell.fill = fill_red
+        else:
+            cell.fill = fill_blue
+
+    # 資料列 (A3 至 Q17) 維持 10 號字體、框線與對齊
+    for r in range(3, 18):
+        for c in range(1, 18):
+            cell = ws_top15.cell(row=r, column=c)
+            cell.font = font_data_10
+            cell.border = thin_border
+            
+            if c in [2, 3]:
+                cell.alignment = align_left
+            else:
+                cell.alignment = align_center
+                
+            if c == link_col_idx:
+                cell_code = ws_top15.cell(row=r, column=1).value
+                cell_name = ws_top15.cell(row=r, column=2).value
+                if cell_code is not None:
+                    cell.value = f'=HYPERLINK("https://norway.twsthr.info/StockHolders.aspx?stock="&A{r}, B{r})'
+                    cell.font = font_link
+
+wb.save(output_path)
+print(f"\n🎉 表頭部分字型大小已成功調整為新細明體 8 號！檔案已儲存至：\n{output_path}")
