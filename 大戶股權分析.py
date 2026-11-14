@@ -7,34 +7,37 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from playwright.sync_api import sync_playwright
 
-output_filename_fixed = "大戶持股最新分析總表.xlsx"
+# 1. 設定目標儲存路徑（支援本機路徑，並同時產出網頁專用的固定總表）
+target_dir = r"D:\2026Q1\下載網站\富邦網站\股權分析"
+if not os.path.exists(target_dir):
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+    except Exception:
+        target_dir = "."  # 如果在雲端環境無法建立 D 槽，則自動改存至根目錄
+
 url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
 
-print("=== 開始執行：最新單週大戶籌碼自動更新系統 (雲端強化版) ===")
+print("=== 開始執行：最新單週大戶籌碼與表頭字體大小 8 號優化系統 ===")
 
 latest_date_str = ""
 latest_week_name = ""
 target_df = None
 
 with sync_playwright() as p:
+    # 💡 雲端背景執行必須設為 headless=True，並加入防沙箱報錯參數
     browser = p.chromium.launch(
         headless=True,
         args=["--no-sandbox", "--disable-setuid-sandbox"]
     )
-    # 模擬真實使用者的 User-Agent，避免被網站簡易阻擋
     context = browser.new_context(
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
     page = context.new_page()
     
     print("正在連線至目標網站...")
-    try:
-        page.goto(url, timeout=60000, wait_until="networkidle")
-    except Exception as e:
-        print(f"網路連線逾時，嘗試直接讀取... {e}")
-        page.goto(url, timeout=60000)
-        
-    time.sleep(5) # 給予充足的載入時間
+    page.goto(url, timeout=60000)
+    page.wait_for_load_state("domcontentloaded")
+    time.sleep(3)
     
     # 擷取網頁最新收盤日期
     try:
@@ -45,14 +48,8 @@ with sync_playwright() as p:
             print(f"📅 成功擷取網頁最新收盤日期：{latest_date_str}")
         else:
             latest_date_str = time.strftime("%Y/%m/%d")
-    except Exception:
+    except Exception as e:
         latest_date_str = time.strftime("%Y/%m/%d")
-
-    # 確保下拉選單已載入
-    try:
-        page.wait_for_selector("select", timeout=15000)
-    except Exception:
-        print("⚠️ 警告：找不到網頁下拉選單，可能遭受網站阻擋或結構變更。")
 
     # 取得選單中的「最新一週」
     select_weeks = page.locator("select").nth(0)
@@ -60,16 +57,16 @@ with sync_playwright() as p:
     week_options = options_locator.all_inner_texts()
     week_values = options_locator.evaluate_all("options => options.map(o => o.value)")
     
-    if week_values and len(week_values) > 0:
+    if week_values:
         latest_week_name = week_options[0].strip()
         latest_val = week_values[0]
-        print(f"正在擷取最新單週別: {latest_week_name} (Value: {latest_val}) ...", end="")
+        print(f"正在擷取最新單週別: {latest_week_name} ...", end="")
         
         for retry in range(3):
             try:
                 select_weeks.select_option(latest_val)
-                # 等待表格內容更新
-                time.sleep(5)
+                page.wait_for_function(f"document.querySelector('select').value === '{latest_val}'", timeout=8000)
+                time.sleep(3.5)
                 
                 html_content = page.content()
                 dfs = pd.read_html(StringIO(html_content))
@@ -80,26 +77,25 @@ with sync_playwright() as p:
                 if target_df is not None and len(target_df) > 0:
                     break
                 else:
-                    time.sleep(3)
-            except Exception as err:
-                print(f"重試中 ({retry+1})... 錯誤: {err}")
-                time.sleep(3)
+                    time.sleep(2)
+            except Exception as e:
+                time.sleep(2)
         print(" ➔ 成功！")
-    else:
-        print("❌ 抓取不到選單選項值。")
         
     browser.close()
 
 if target_df is None or len(target_df) == 0:
-    print("❌ 未能成功擷取最新單週資料（可能因雲端 IP 遭到網站防火牆攔截）。")
+    print("❌ 未能成功擷取最新單週資料。")
     exit(1)
 
-# 根據抓取到的最新日期轉換成純數字格式作為備份檔名
+# 根據抓取到的最新日期轉換成純數字格式作為檔名
 date_digits = re.sub(r'\D', '', latest_date_str)
 if not date_digits or len(date_digits) != 8:
     date_digits = time.strftime("%Y%m%d")
 
-backup_filename = f"大戶持股最新單週{date_digits}分析總表.xlsx"
+output_filename = f"大戶持股最新單週{date_digits}分析總表.xlsx"
+output_path = os.path.join(target_dir, output_filename)
+fixed_output_path = "大戶持股最新分析總表.xlsx"  # 網頁端專用的固定檔名
 
 # 2. 資料清理與欄位對應
 if isinstance(target_df.columns, pd.MultiIndex):
@@ -167,8 +163,17 @@ if '大戶持有率_差異(%)' in clean_data.columns:
     top15_df = top15_raw[top15_cols].copy()
     top15_df['連結'] = ""
 
-# 3. 寫入 Excel 檔案（同時產出備份檔與網頁專用的固定總表檔）
-for path in [output_filename_fixed, backup_filename]:
+# 3. 寫入 Excel 檔案（同時寫入本機備份路徑與網頁根目錄的固定總表）
+paths_to_save = [output_path, fixed_output_path]
+if target_dir == ".":
+    paths_to_save = [fixed_output_path]  # 雲端環境只存根目錄
+
+for path in paths_to_save:
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    except Exception:
+        pass
+
     with pd.ExcelWriter(path, engine='openpyxl') as writer:
         clean_data.to_excel(writer, sheet_name='資料中心', index=False)
         if not top15_df.empty:
@@ -228,7 +233,7 @@ for path in [output_filename_fixed, backup_filename]:
 
     if '大戶增幅前15名' in wb.sheetnames:
         ws_top15 = wb['大戶增幅前15名']
-        ws_top15.sheet_view.showGridLines + True
+        ws_top15.sheet_view.showGridLines = True
         
         for col_idx in range(1, ws_top15.max_column + 1):
             col_letter = openpyxl.utils.get_column_letter(col_idx)
