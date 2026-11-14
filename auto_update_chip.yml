@@ -24,7 +24,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y python3-lxml libxml2-dev libxslt1-dev
         python -m pip install --upgrade pip
-        pip install pandas openpyxl lxml html5lib beautifulsoup4 playwright
+        pip install pandas openpyxl html5lib beautifulsoup4 playwright
         playwright install chromium
         playwright install-deps chromium
 
@@ -36,6 +36,7 @@ jobs:
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git pull origin main --rebase || git pull origin master --rebase
         git add 大戶持股最新分析總表.xlsx
         git diff-index --quiet HEAD || git commit -m "Auto-update: 自動更新最新單週大戶持股分析總表"
         git push
