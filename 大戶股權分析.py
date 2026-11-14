@@ -7,12 +7,9 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from playwright.sync_api import sync_playwright
 
-# 1. 設定目標儲存路徑
-target_dir = r"D:\2026Q1\下載網站\富邦網站\股權分析"
+# 1. 設定目標儲存路徑（直接採用專案根目錄的固定檔名供網頁讀取）
+output_filename_fixed = "大戶持股最新分析總表.xlsx"
 url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
-
-if not os.path.exists(target_dir):
-    os.makedirs(target_dir)
 
 print("=== 開始執行：最新單週大戶籌碼與表頭字體大小 8 號優化系統 ===")
 
@@ -21,7 +18,8 @@ latest_week_name = ""
 target_df = None
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False)
+    # 💡 雲端背景執行必須設為 headless=True
+    browser = p.chromium.launch(headless=True)
     page = browser.new_page()
     
     print("正在連線至目標網站...")
@@ -76,15 +74,14 @@ with sync_playwright() as p:
 
 if target_df is None or len(target_df) == 0:
     print("❌ 未能成功擷取最新單週資料。")
-    exit()
+    exit(1)
 
-# 根據抓取到的最新日期轉換成純數字格式作為檔名
+# 根據抓取到的最新日期轉換成純數字格式作為備份檔名
 date_digits = re.sub(r'\D', '', latest_date_str)
 if not date_digits or len(date_digits) != 8:
     date_digits = time.strftime("%Y%m%d")
 
-output_filename = f"大戶持股最新單週{date_digits}分析總表.xlsx"
-output_path = os.path.join(target_dir, output_filename)
+backup_filename = f"大戶持股最新單週{date_digits}分析總表.xlsx"
 
 # 2. 資料清理與欄位對應
 if isinstance(target_df.columns, pd.MultiIndex):
@@ -152,133 +149,123 @@ if '大戶持有率_差異(%)' in clean_data.columns:
     top15_df = top15_raw[top15_cols].copy()
     top15_df['連結'] = ""
 
-# 3. 寫入 Excel 檔案
-with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-    clean_data.to_excel(writer, sheet_name='資料中心', index=False)
-    if not top15_df.empty:
-        top15_df.to_excel(writer, sheet_name='大戶增幅前15名', index=False, startrow=1)
+# 3. 寫入 Excel 檔案（同時產出備份檔與網頁專用的固定總表檔）
+for path in [output_filename_fixed, backup_filename]:
+    with pd.ExcelWriter(path, engine='openpyxl') as writer:
+        clean_data.to_excel(writer, sheet_name='資料中心', index=False)
+        if not top15_df.empty:
+            top15_df.to_excel(writer, sheet_name='大戶增幅前15名', index=False, startrow=1)
 
-# 4. 透過 openpyxl 進行排版與格式設定
-wb = openpyxl.load_workbook(output_path)
+    # 4. 透過 openpyxl 進行排版與格式設定
+    wb = openpyxl.load_workbook(path)
 
-if "個股查詢" in wb.sheetnames:
-    del wb["個股查詢"]
+    if "個股查詢" in wb.sheetnames:
+        del wb["個股查詢"]
 
-fill_blue = PatternFill(start_color="3172AD", end_color="3172AD", fill_type="solid")
-fill_red = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-fill_yellow = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    fill_blue = PatternFill(start_color="3172AD", end_color="3172AD", fill_type="solid")
+    fill_red = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+    fill_yellow = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
-# 💡 表頭與標題字型大小設定為 8 號粗體
-font_header_8 = Font(name='新細明體', size=8, bold=True, color="FFFFFF")
-font_title_8 = Font(name='標楷體', size=10, bold=True)       # 大戶增幅標題設為適當的大小 10 號
-font_date_title_8 = Font(name='標楷體', size=10, bold=True) # 日期標題設為 10 號
-font_data_10 = Font(name='新細明體', size=10)                # 資料列維持 10 號（或您原本習慣的大小）
-font_link = Font(name='新細明體', size=10, color="0000FF", underline="single")
+    font_header_8 = Font(name='新細明體', size=8, bold=True, color="FFFFFF")
+    font_title_8 = Font(name='標楷體', size=10, bold=True)
+    font_date_title_8 = Font(name='標楷體', size=10, bold=True)
+    font_data_10 = Font(name='新細明體', size=10)
+    font_link = Font(name='新細明體', size=10, color="0000FF", underline="single")
 
-align_header = Alignment(horizontal='center', vertical='center', wrap_text=True)
-align_center = Alignment(horizontal='center', vertical='center')
-align_left = Alignment(horizontal='left', vertical='center')
+    align_header = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
 
-thin_border = Border(
-    left=Side(style='thin', color='CCCCCC'), right=Side(style='thin', color='CCCCCC'),
-    top=Side(style='thin', color='CCCCCC'), bottom=Side(style='thin', color='CCCCCC')
-)
+    thin_border = Border(
+        left=Side(style='thin', color='CCCCCC'), right=Side(style='thin', color='CCCCCC'),
+        top=Side(style='thin', color='CCCCCC'), bottom=Side(style='thin', color='CCCCCC')
+    )
 
-# ── 1) 處理「資料中心」分頁 ──
-if '資料中心' in wb.sheetnames:
-    ws_data = wb['資料中心']
-    ws_data.sheet_view.showGridLines = True
-    
-    for col_idx in range(1, ws_data.max_column + 1):
-        col_letter = openpyxl.utils.get_column_letter(col_idx)
-        ws_data.column_dimensions[col_letter].width = 10
-
-    ws_data.row_dimensions[1].height = 30
-
-    for r in range(1, ws_data.max_row + 1):
-        for c in range(1, ws_data.max_column + 1):
-            cell = ws_data.cell(row=r, column=c)
-            cell.border = thin_border
-            if r == 1:
-                cell.font = font_header_8  # 💡 表頭改為新細明體 8 號粗體
-                cell.alignment = align_header
-                cell_val_str = str(cell.value) if cell.value else ""
-                if ("差異(%)" in cell_val_str and "持有率" in cell_val_str) or "差異" in cell_val_str:
-                    cell.fill = fill_red
-                else:
-                    cell.fill = fill_blue
-            else:
-                cell.font = font_data_10  # 資料列保持 10 號
-                if c in [2, 3]:
-                    cell.alignment = align_left
-                else:
-                    cell.alignment = align_center
-                cell.fill = PatternFill(fill_type=None)
-
-# ── 2) 處理「大戶增幅前15名」分頁 ──
-if '大戶增幅前15名' in wb.sheetnames:
-    ws_top15 = wb['大戶增幅前15名']
-    ws_top15.sheet_view.showGridLines = True
-    
-    for col_idx in range(1, ws_top15.max_column + 1):
-        col_letter = openpyxl.utils.get_column_letter(col_idx)
-        ws_top15.column_dimensions[col_letter].width = 10
-    
-    ws_top15.merge_cells('A1:D1')
-    ws_top15['A1'].value = "大股東(>400張)股權統計"
-    ws_top15['A1'].font = font_title_8
-    ws_top15['A1'].alignment = align_center
-    ws_top15['A1'].border = thin_border
-    
-    ws_top15.merge_cells('E1:I1')
-    ws_top15['E1'].value = f"收盤價日期:{latest_date_str}"
-    ws_top15['E1'].font = font_date_title_8
-    ws_top15['E1'].alignment = align_center
-    for c in range(5, 10):
-        cell_top1 = ws_top15.cell(row=1, column=c)
-        cell_top1.fill = fill_yellow
-        cell_top1.border = thin_border
+    if '資料中心' in wb.sheetnames:
+        ws_data = wb['資料中心']
+        ws_data.sheet_view.showGridLines = True
         
-    ws_top15.row_dimensions[1].height = 25
-    ws_top15.row_dimensions[2].height = 28
+        for col_idx in range(1, ws_data.max_column + 1):
+            col_letter = openpyxl.utils.get_column_letter(col_idx)
+            ws_data.column_dimensions[col_letter].width = 10
 
-    link_col_idx = 16
-    for col in range(1, ws_top15.max_column + 1):
-        if ws_top15.cell(row=2, column=col).value == '連結':
-            link_col_idx = col
-            break
-            
-    # 💡 第 2 列表頭設為新細明體 8 號粗體
-    for c in range(1, ws_top15.max_column + 1):
-        cell = ws_top15.cell(row=2, column=c)
-        cell.font = font_header_8
-        cell.alignment = align_header
-        cell.border = thin_border
-        col_name_str = str(cell.value) if cell.value else ""
+        ws_data.row_dimensions[1].height = 30
+
+        for r in range(1, ws_data.max_row + 1):
+            for c in range(1, ws_data.max_column + 1):
+                cell = ws_data.cell(row=r, column=c)
+                cell.border = thin_border
+                if r == 1:
+                    cell.font = font_header_8
+                    cell.alignment = align_header
+                    cell_val_str = str(cell.value) if cell.value else ""
+                    if ("差異(%)" in cell_val_str and "持有率" in cell_val_str) or "差異" in cell_val_str:
+                        cell.fill = fill_red
+                    else:
+                        cell.fill = fill_blue
+                else:
+                    cell.font = font_data_10
+                    cell.alignment = align_left if c in [2, 3] else align_center
+                    cell.fill = PatternFill(fill_type=None)
+
+    if '大戶增幅前15名' in wb.sheetnames:
+        ws_top15 = wb['大戶增幅前15名']
+        ws_top15.sheet_view.showGridLines = True
         
-        if ("差異(%)" in col_name_str and "持有率" in col_name_str) or col_name_str == "連結" or c == link_col_idx:
-            cell.fill = fill_red
-        else:
-            cell.fill = fill_blue
-
-    # 資料列 (A3 至 Q17) 維持 10 號字體、框線與對齊
-    for r in range(3, 18):
-        for c in range(1, 18):
-            cell = ws_top15.cell(row=r, column=c)
-            cell.font = font_data_10
-            cell.border = thin_border
+        for col_idx in range(1, ws_top15.max_column + 1):
+            col_letter = openpyxl.utils.get_column_letter(col_idx)
+            ws_top15.column_dimensions[col_letter].width = 10
+        
+        ws_top15.merge_cells('A1:D1')
+        ws_top15['A1'].value = "大股東(>400張)股權統計"
+        ws_top15['A1'].font = font_title_8
+        ws_top15['A1'].alignment = align_center
+        ws_top15['A1'].border = thin_border
+        
+        ws_top15.merge_cells('E1:I1')
+        ws_top15['E1'].value = f"收盤價日期:{latest_date_str}"
+        ws_top15['E1'].font = font_date_title_8
+        ws_top15['E1'].alignment = align_center
+        for c in range(5, 10):
+            cell_top1 = ws_top15.cell(row=1, column=c)
+            cell_top1.fill = fill_yellow
+            cell_top1.border = thin_border
             
-            if c in [2, 3]:
-                cell.alignment = align_left
-            else:
-                cell.alignment = align_center
+        ws_top15.row_dimensions[1].height = 25
+        ws_top15.row_dimensions[2].height = 28
+
+        link_col_idx = 16
+        for col in range(1, ws_top15.max_column + 1):
+            if ws_top15.cell(row=2, column=col).value == '連結':
+                link_col_idx = col
+                break
                 
-            if c == link_col_idx:
-                cell_code = ws_top15.cell(row=r, column=1).value
-                cell_name = ws_top15.cell(row=r, column=2).value
-                if cell_code is not None:
-                    cell.value = f'=HYPERLINK("https://norway.twsthr.info/StockHolders.aspx?stock="&A{r}, B{r})'
-                    cell.font = font_link
+        for c in range(1, ws_top15.max_column + 1):
+            cell = ws_top15.cell(row=2, column=c)
+            cell.font = font_header_8
+            cell.alignment = align_header
+            cell.border = thin_border
+            col_name_str = str(cell.value) if cell.value else ""
+            
+            if ("差異(%)" in col_name_str and "持有率" in col_name_str) or col_name_str == "連結" or c == link_col_idx:
+                cell.fill = fill_red
+            else:
+                cell.fill = fill_blue
 
-wb.save(output_path)
-print(f"\n🎉 表頭部分字型大小已成功調整為新細明體 8 號！檔案已儲存至：\n{output_path}")
+        for r in range(3, 18):
+            for c in range(1, 18):
+                cell = ws_top15.cell(row=r, column=c)
+                cell.font = font_data_10
+                cell.border = thin_border
+                cell.alignment = align_left if c in [2, 3] else align_center
+                
+                if c == link_col_idx:
+                    cell_code = ws_top15.cell(row=r, column=1).value
+                    cell_name = ws_top15.cell(row=r, column=2).value
+                    if cell_code is not None:
+                        cell.value = f'=HYPERLINK("https://norway.twsthr.info/StockHolders.aspx?stock="&A{r}, B{r})'
+                        cell.font = font_link
+
+    wb.save(path)
+
+print(f"\n🎉 執行完畢！最新週別：{latest_week_name}，檔案已成功儲存並同步更新！")
