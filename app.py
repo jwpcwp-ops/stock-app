@@ -5,7 +5,6 @@ from io import StringIO
 import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-from playwright.sync_api import sync_playwright
 
 url = "https://norway.twsthr.info/StockHoldersTopWeek.aspx?Show=4"
 output_path = "大戶持股最新分析總表.xlsx"
