@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (右側大字體填滿解盤面板與選單完美對齊)
+# 2. 注入自訂 CSS (右側大字體填滿解盤面板與頂端策略按鈕)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -142,7 +142,7 @@ else:
 plt.rcParams["axes.unicode_minus"] = False
 
 
-def get_bright_effect(stroke_color="#000000", linewidth=1.8):
+def get_bright_effect(stroke_color="#000000", linewidth=2.2):
   return [
       path_effects.withStroke(linewidth=linewidth, foreground=stroke_color),
       path_effects.Normal(),
@@ -294,7 +294,6 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
     cur_vol = float(vol_daily.iloc[-1]) if len(vol_daily) > 0 else 0.0
     vol_20ma_daily = vol_daily.rolling(20).mean()
 
-    # 💡 安全修正 20MA 計算
     val_20ma_raw = vol_20ma_daily.iloc[-1]
     cur_20ma = (
         float(val_20ma_raw)
@@ -365,1353 +364,1335 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
   st.session_state.selected_index = 0
-if "screened_results" not in st.session_state:
-  st.session_state.screened_results = []
+if "selected_strat" not in st.session_state:
+  st.session_state.selected_strat = "主力底部吃貨"
 
 # ---------------------------------------------------------
 # 7. 網頁主介面佈局
 # ---------------------------------------------------------
-if stock_options:
-  # 💡 頂端功能列：將功能模式與「9大策略選單」完美安置在第一行
-  top_row_cols = st.columns([1.5, 2.2, 1.3, 4.5])
-  modes = ["📈 個股籌碼圖表", "⚡ 9大策略選股", "📋 大戶總表", "📊 基本面與圖表"]
+modes = ["📈 個股籌碼圖表", "⚡ 9a策略選股", "📋 大戶總表", "📊 基本面與圖表"]
 
-  with top_row_cols[0]:
-    app_mode = st.selectbox(
-        "功能模式",
-        modes,
-        label_visibility="collapsed",
-        key="mode_select_dropdown",
-    )
+# 💡 頂端第一行佈局：左側放「功能模式」，右側空白處直接用按鈕一列排開 9 大策略！
+top_col1, top_col2 = st.columns([1.5, 8.5])
 
-  # 定義 9 大策略清單
-  all_strategies = [
-      "主力底部吃貨",
-      "突破前高",
-      "MACD 選股",
-      "金剛指標",
-      "均線與MACD篩選",
-      "波段買點",
-      "多空轉折信號",
-      "5均線匯集",
-      "底部量大強漲",
-  ]
-  selected_strat = "主力底部吃貨"
+with top_col1:
+  app_mode = st.selectbox(
+      "功能模式",
+      ["📈 個股籌碼圖表", "⚡ 9大策略選股", "📋 大戶總表", "📊 基本面與圖表"],
+      label_visibility="collapsed",
+      key="mode_select_dropdown",
+  )
 
-  # ⚡ 當切換至「9大策略選股」模式時，策略選單會直接顯示在第一行右側的空洞處！
-  if app_mode == "⚡ 9大策略選股":
-    with top_row_cols[1]:
-      selected_strat = st.selectbox(
-          "選擇策略分類",
-          all_strategies,
-          key="strat_sel_top",
-          label_visibility="collapsed",
-      )
+all_strategies = [
+    "主力底部吃貨",
+    "突破前高",
+    "MACD 選股",
+    "金剛指標",
+    "均線與MACD篩選",
+    "波段買點",
+    "多空轉折信號",
+    "5均線匯集",
+    "底部量大強漲",
+]
 
-  if app_mode == "📈 個股籌碼圖表":
+# ⚡ 如果切換到 9 大策略選股模式，第一行右側直接橫向並排 9 個按鈕！
+if app_mode == "⚡ 9大策略選股":
+  with top_col2:
+    strat_cols = st.columns(len(all_strategies))
+    for idx, strat_name in enumerate(all_strategies):
+      with strat_cols[idx]:
+        is_active = st.session_state.selected_synth_strat == strat_name
+        btn_label = f"🔥 {strat_name}" if is_active else strat_name
+        if st.button(
+            btn_label, key=f"strat_btn_{idx}", use_container_width=True
+        ):
+          st.session_state.selected_synth_strat = strat_name
+          st.rerun()
+
+  selected_strat = st.session_state.get(
+      "selected_synth_strat", "主力底部吃貨"
+  )
+
+if app_mode == "📈 個股籌碼圖表":
+  # 第二行：股票選單、週期選擇
+  sec_row_cols = st.columns([2.0, 1.2, 6.8])
+  with sec_row_cols[0]:
     if st.session_state.selected_index >= len(stock_options):
       st.session_state.selected_index = 0
+    selected_stock = st.selectbox(
+        "股票選單",
+        stock_options,
+        index=st.session_state.selected_index,
+        label_visibility="collapsed",
+        key="stock_select_box",
+    )
+    try:
+      st.session_state.selected_index = stock_options.index(selected_stock)
+    except:
+      st.session_state.selected_index = 0
+    stock_id = selected_stock.split()[0]
+    stock_name = (
+        selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
+    )
 
-    with top_row_cols[1]:
-      selected_stock = st.selectbox(
-          "股票選單",
-          stock_options,
-          index=st.session_state.selected_index,
-          label_visibility="collapsed",
-          key="stock_select_box",
+  with sec_row_cols[1]:
+    chart_period = st.selectbox(
+        "週期",
+        ["日線", "60分", "週線", "月線"],
+        index=0,
+        label_visibility="collapsed",
+        key="select_period_dropdown",
+    )
+    actual_chart_period = chart_period
+
+  # 第三行：均線設定區、技術指標、K線天數
+  third_row_cols = st.columns([1.2, 1.2, 0.6])
+  with third_row_cols[0]:
+    selected_ma = st.pills(
+        "均線",
+        ["5", "10", "20", "35", "60", "120", "200", "分割"],
+        default=["60", "200"],
+        selection_mode="multi",
+        label_visibility="collapsed",
+        key="pills_ma",
+    )
+
+  with third_row_cols[1]:
+    selected_indicator = st.pills(
+        "指標",
+        ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "大戶羊群"],
+        default="MACD",
+        selection_mode="single",
+        label_visibility="collapsed",
+        key="pills_ind",
+    )
+    if not selected_indicator:
+      selected_indicator = "MACD"
+
+  with third_row_cols[2]:
+    k_days_choice_str = st.pills(
+        "天數",
+        ["120", "250", "500"],
+        default="250",
+        selection_mode="single",
+        label_visibility="collapsed",
+        key="pills_k_days",
+    )
+    k_days_choice = int(k_days_choice_str) if k_days_choice_str else 250
+
+  show_ma5 = "5" in selected_ma
+  show_ma10 = "10" in selected_ma
+  show_ma20 = "20" in selected_ma
+  show_ma35 = "35" in selected_ma
+  show_ma60 = "60" in selected_ma
+  show_ma120 = "120" in selected_ma
+  show_ma200 = "200" in selected_ma
+  show_fib = "分割" in selected_ma
+
+  k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
+      get_comprehensive_stock_data(
+          stock_id, target_days=k_days_choice, period_type=actual_chart_period
       )
-      try:
-        st.session_state.selected_index = stock_options.index(selected_stock)
-      except:
-        st.session_state.selected_index = 0
-      stock_id = selected_stock.split()[0]
-      stock_name = (
-          selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
+  )
+
+  df = pd.DataFrame(k_records)
+  s_close = df["close"]
+  s_high = df["high"]
+  s_low = df["low"]
+
+  last_date = df["date"].iloc[-1] if not df.empty else ""
+  last_open = float(df["open"].iloc[-1]) if not df.empty else 0.0
+  last_high = float(df["high"].iloc[-1]) if not df.empty else 0.0
+  last_low = float(df["low"].iloc[-1]) if not df.empty else 0.0
+  last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
+  last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
+
+  ma_config = {
+      "5": (5, show_ma5, "#00FFFF"),
+      "10": (10, show_ma10, "#FFFF00"),
+      "20": (20, show_ma20, "#FF00FF"),
+      "35": (35, show_ma35, "#00FF66"),
+      "60": (60, show_ma60, "#FF9900"),
+      "120": (120, show_ma120, "#CC66FF"),
+      "200": (200, show_ma200, "#FFFFFF"),
+  }
+
+  for ma_name, (period, is_show, color) in ma_config.items():
+    df[f"ma_{period}"] = s_close.rolling(window=period).mean()
+
+  deduct_periods = [5, 35, 65, 120, 200]
+  deduct_indices = {}
+  n_len = len(df)
+  for p in deduct_periods:
+    idx_pos = n_len - p
+    if idx_pos >= 0 and idx_pos < n_len:
+      deduct_indices[p] = idx_pos
+    else:
+      deduct_indices[p] = 0
+
+  ema3 = s_close.ewm(span=3, adjust=False).mean()
+  ema15 = s_close.ewm(span=15, adjust=False).mean()
+  ema30 = s_close.ewm(span=30, adjust=False).mean()
+
+  cond1 = ema3 > ema15
+  cond2 = ema15 < s_close
+  slope_1 = (ema15 / ema30 - 1) * 100
+  a2_1 = 0.0
+  cond3 = slope_1 > a2_1
+  cond4 = ema15 > ema30
+
+  成立 = cond1 & cond2 & cond3 & cond4
+  不成立 = (~cond1) & (~cond2) & (~cond3) & (~cond4)
+
+  red_days, green_days = [], []
+  r_cnt, g_cnt = 999, 999
+  for val_s, val_ns in zip(成立, 不成立):
+    r_cnt = 0 if val_s else r_cnt + 1
+    g_cnt = 0 if val_ns else g_cnt + 1
+    red_days.append(r_cnt)
+    green_days.append(g_cnt)
+  df["red_days"] = red_days
+  df["green_days"] = green_days
+
+  raw_buy = 成立 & (df["red_days"] == 0)
+  raw_sell = 不成立 & (df["green_days"] == 0)
+
+  filtered_buy = []
+  filtered_sell = []
+  last_state = 0
+
+  for b, s in zip(raw_buy, raw_sell):
+    b_flag, s_flag = False, False
+    if b and last_state != 1:
+      b_flag = True
+      last_state = 1
+    elif s and last_state != -1:
+      s_flag = True
+      last_state = -1
+    filtered_buy.append(b_flag)
+    filtered_sell.append(s_flag)
+
+  df["is_buy_signal"] = filtered_buy
+  df["is_sell_signal"] = filtered_sell
+
+  df["band_macd_dif"] = (
+      s_close.ewm(span=5, adjust=False).mean()
+      - s_close.ewm(span=10, adjust=False).mean()
+  )
+  df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
+  df["band_macd_osc"] = (df["band_macd_dif"] - df["band_macd_dem"]) * 2
+
+  df["band_bias_base"] = s_close.rolling(window=20).mean()
+  df["band_bias_val"] = (
+      (s_close - df["band_bias_base"]) / (df["band_bias_base"] + 1e-8)
+  ) * 100
+  df["band_bias_val_rev"] = -1.0 * df["band_bias_val"]
+
+  df["mtm_val"] = s_close - s_close.shift(10)
+  df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
+
+  df["macd_dif"] = (
+      s_close.ewm(span=12, adjust=False).mean()
+      - s_close.ewm(span=26, adjust=False).mean()
+  )
+  df["macd_dem"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
+  df["macd_osc"] = (df["macd_dif"] - df["macd_dem"]) * 2
+
+  df["bias_ma60"] = s_close.rolling(window=60).mean()
+  df["bias_val"] = ((s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)) * 100
+
+  low_min9 = s_low.rolling(9).min()
+  high_max9 = s_high.rolling(9).max()
+  rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
+  df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
+  df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
+  df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
+  df["kdj_diff"] = df["kdj_k"] - df["kdj_d"]
+
+  delta = s_close.diff()
+  gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
+  loss6 = (-delta.where(delta < 0, 0)).rolling(6).mean()
+  rs6 = gain6 / (loss6 + 1e-8)
+  df["rsi_6"] = 100 - (100 / (1 + rs6))
+
+  gain12 = (delta.where(delta > 0, 0)).rolling(12).mean()
+  loss12 = (-delta.where(delta < 0, 0)).rolling(12).mean()
+  rs12 = gain12 / (loss12 + 1e-8)
+  df["rsi_12"] = 100 - (100 / (1 + rs12))
+  df["rsi_diff"] = df["rsi_6"] - df["rsi_12"]
+
+  low_min9_w = s_low.rolling(9).min()
+  high_max9_w = s_high.rolling(9).max()
+  df["w_r"] = (
+      (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
+  )
+
+  df["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
+
+  df["vol_ma5"] = df["vol"].rolling(window=5).mean()
+  df["vol_ma20"] = df["vol"].rolling(window=20).mean()
+
+  cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
+  cur_dem = float(df["macd_dem"].iloc[-1]) if not df.empty else 0.0
+  cur_osc = float(df["macd_osc"].iloc[-1]) if not df.empty else 0.0
+  cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
+  cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
+
+  prev_dif = float(df["macd_dif"].iloc[-2]) if len(df) > 1 else cur_dif
+  dif_arrow = "↑" if cur_dif >= prev_dif else "↓"
+  prev_dem = float(df["macd_dem"].iloc[-2]) if len(df) > 1 else cur_dem
+  dem_arrow = "↑" if cur_dem >= prev_dem else "↓"
+  prev_osc = float(df["macd_osc"].iloc[-2]) if len(df) > 1 else cur_osc
+  osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
+
+  cur_vol_val = last_vol
+  cur_vol_ma5 = (
+      float(df["vol_ma5"].iloc[-1])
+      if not pd.isna(df["vol_ma5"].iloc[-1])
+      else 0.0
+  )
+  cur_vol_ma20 = (
+      float(df["vol_ma20"].iloc[-1])
+      if not pd.isna(df["vol_ma20"].iloc[-1])
+      else 0.0
+  )
+
+  prev_vol_ma5 = (
+      float(df["vol_ma5"].iloc[-2])
+      if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2])
+      else cur_vol_ma5
+  )
+  prev_vol_ma20 = (
+      float(df["vol_ma20"].iloc[-2])
+      if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2])
+      else cur_vol_ma20
+  )
+
+  v5_arrow = "↓" if cur_vol_ma5 < prev_vol_ma5 else "↑"
+  v20_arrow = "↓" if cur_vol_ma20 < prev_vol_ma20 else "↑"
+  vol_today_arrow = (
+      "↓"
+      if last_vol < (float(df["vol"].iloc[-2]) if len(df) > 1 else last_vol)
+      else "↑"
+  )
+
+  v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
+  v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
+
+  cond_trend_long = (
+      (
+          s_close.ewm(span=15, adjust=False).mean()
+          / s_close.ewm(span=30, adjust=False).mean()
+          - 1
       )
+      * 100
+  ) > 0
+  df["long_trend"] = cond_trend_long
 
-    with top_row_cols[2]:
-      chart_period = st.selectbox(
-          "週期",
-          ["日線", "60分", "週線", "月線"],
-          index=0,
-          label_visibility="collapsed",
-          key="select_period_dropdown",
-      )
-      actual_chart_period = chart_period
+  BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
+  BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
 
-    # 第二行：均線設定區、技術指標、K線天數
-    second_row_cols = st.columns([1.2, 1.2, 0.6])
-    with second_row_cols[0]:
-      selected_ma = st.pills(
-          "均線",
-          ["5", "10", "20", "35", "60", "120", "200", "分割"],
-          default=["60", "200"],
-          selection_mode="multi",
-          label_visibility="collapsed",
-          key="pills_ma",
-      )
+  prev_closes = df["close"].shift(1).fillna(df["open"])
+  body_colors = [
+      BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR
+      for o, c, pc in zip(df["open"], df["close"], prev_closes)
+  ]
+  macd_bar_colors = [
+      BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["macd_osc"]
+  ]
+  band_macd_bar_colors = [
+      BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR
+      for osc in df["band_macd_osc"]
+  ]
+  qt_bar_colors = [
+      BAR_UP_COLOR if c >= pc else BAR_DOWN_COLOR
+      for c, pc in zip(df["close"], prev_closes)
+  ]
 
-    with second_row_cols[1]:
-      selected_indicator = st.pills(
-          "指標",
-          ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "大戶羊群"],
-          default="MACD",
-          selection_mode="single",
-          label_visibility="collapsed",
-          key="pills_ind",
-      )
-      if not selected_indicator:
-        selected_indicator = "MACD"
+  plt.style.use("dark_background")
 
-    with second_row_cols[2]:
-      k_days_choice_str = st.pills(
-          "天數",
-          ["120", "250", "500"],
-          default="250",
-          selection_mode="single",
-          label_visibility="collapsed",
-          key="pills_k_days",
-      )
-      k_days_choice = int(k_days_choice_str) if k_days_choice_str else 250
+  chart_col, info_col = st.columns([8.2, 1.8])
 
-    show_ma5 = "5" in selected_ma
-    show_ma10 = "10" in selected_ma
-    show_ma20 = "20" in selected_ma
-    show_ma35 = "35" in selected_ma
-    show_ma60 = "60" in selected_ma
-    show_ma120 = "120" in selected_ma
-    show_ma200 = "200" in selected_ma
-    show_fib = "分割" in selected_ma
+  with chart_col:
+    fig = plt.figure(
+        figsize=(10.0, 4.2 if selected_indicator != "波段" else 5.4)
+    )
 
-    k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
-        get_comprehensive_stock_data(
-            stock_id, target_days=k_days_choice, period_type=actual_chart_period
+    if selected_indicator == "波段":
+      gs = fig.add_gridspec(4, 1, height_ratios=[2.5, 0.8, 0.8, 0.8], hspace=0.10)
+      ax1 = fig.add_subplot(gs[0])
+      ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
+      ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
+      ax_sub3 = fig.add_subplot(gs[3], sharex=ax1)
+      axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
+    else:
+      gs = fig.add_gridspec(3, 1, height_ratios=[2.9, 1.1, 1.1], hspace=0.10)
+      ax1 = fig.add_subplot(gs[0])
+      ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
+      ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
+      axes = [ax1, ax_sub1, ax_sub2]
+
+    for ax in [fig] + list(axes):
+      ax.set_facecolor(BG_COLOR)
+    fig.patch.set_facecolor(BG_COLOR)
+    x = list(range(len(df)))
+
+    ax1.set_facecolor(PANEL_BG)
+    ax1.vlines(
+        x, df["low"], df["high"], color=body_colors, linewidth=0.7, alpha=1.0
+    )
+    body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
+    body_height = [
+        max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])
+    ]
+    ax1.bar(
+        x,
+        body_height,
+        bottom=body_bottom,
+        width=0.8,
+        color=body_colors,
+        edgecolor="none",
+    )
+
+    if not df.empty:
+      p_max = float(df["high"].max())
+      p_min = float(df["low"].min())
+      p_range = p_max - p_min if p_max != p_min else 1.0
+      ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
+      ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
+
+    for count_days in [5, 35, 65, 120, 200]:
+      if count_days in deduct_indices:
+        idx_pos = deduct_indices[count_days]
+        ax1.axvline(
+            x=idx_pos, color="#00FFFF", linestyle="--", linewidth=0.9, alpha=0.4
         )
-    )
-
-    df = pd.DataFrame(k_records)
-    s_close = df["close"]
-    s_high = df["high"]
-    s_low = df["low"]
-
-    last_date = df["date"].iloc[-1] if not df.empty else ""
-    last_open = float(df["open"].iloc[-1]) if not df.empty else 0.0
-    last_high = float(df["high"].iloc[-1]) if not df.empty else 0.0
-    last_low = float(df["low"].iloc[-1]) if not df.empty else 0.0
-    last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
-    last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
-
-    # 主圖均線設定
-    ma_config = {
-        "5": (5, show_ma5, "#00FFFF"),
-        "10": (10, show_ma10, "#FFFF00"),
-        "20": (20, show_ma20, "#FF00FF"),
-        "35": (35, show_ma35, "#00FF66"),
-        "60": (60, show_ma60, "#FF9900"),
-        "120": (120, show_ma120, "#CC66FF"),
-        "200": (200, show_ma200, "#FFFFFF"),
-    }
-
-    for ma_name, (period, is_show, color) in ma_config.items():
-      df[f"ma_{period}"] = s_close.rolling(window=period).mean()
-
-    # 扣抵天數對齊
-    deduct_periods = [5, 35, 65, 120, 200]
-    deduct_indices = {}
-    n_len = len(df)
-    for p in deduct_periods:
-      idx_pos = n_len - p
-      if idx_pos >= 0 and idx_pos < n_len:
-        deduct_indices[p] = idx_pos
-      else:
-        deduct_indices[p] = 0
-
-    # ---------------------------------------------------------
-    # 🎯 波段信號邏輯與「嚴格單次觸發」過濾
-    # ---------------------------------------------------------
-    ema3 = s_close.ewm(span=3, adjust=False).mean()
-    ema15 = s_close.ewm(span=15, adjust=False).mean()
-    ema30 = s_close.ewm(span=30, adjust=False).mean()
-
-    cond1 = ema3 > ema15
-    cond2 = ema15 < s_close
-    slope_1 = (ema15 / ema30 - 1) * 100
-    a2_1 = 0.0
-    cond3 = slope_1 > a2_1
-    cond4 = ema15 > ema30
-
-    成立 = cond1 & cond2 & cond3 & cond4
-    不成立 = (~cond1) & (~cond2) & (~cond3) & (~cond4)
-
-    red_days, green_days = [], []
-    r_cnt, g_cnt = 999, 999
-    for val_s, val_ns in zip(成立, 不成立):
-      r_cnt = 0 if val_s else r_cnt + 1
-      g_cnt = 0 if val_ns else g_cnt + 1
-      red_days.append(r_cnt)
-      green_days.append(g_cnt)
-    df["red_days"] = red_days
-    df["green_days"] = green_days
-
-    raw_buy = 成立 & (df["red_days"] == 0)
-    raw_sell = 不成立 & (df["green_days"] == 0)
-
-    filtered_buy = []
-    filtered_sell = []
-    last_state = 0  # 0: 無 / 1: 多頭 / -1: 空頭
-
-    for b, s in zip(raw_buy, raw_sell):
-      b_flag, s_flag = False, False
-      if b and last_state != 1:
-        b_flag = True
-        last_state = 1
-      elif s and last_state != -1:
-        s_flag = True
-        last_state = -1
-      filtered_buy.append(b_flag)
-      filtered_sell.append(s_flag)
-
-    df["is_buy_signal"] = filtered_buy
-    df["is_sell_signal"] = filtered_sell
-
-    # 其他指標計算
-    df["band_macd_dif"] = (
-        s_close.ewm(span=5, adjust=False).mean()
-        - s_close.ewm(span=10, adjust=False).mean()
-    )
-    df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
-    df["band_macd_osc"] = (df["band_macd_dif"] - df["band_macd_dem"]) * 2
-
-    df["band_bias_base"] = s_close.rolling(window=20).mean()
-    df["band_bias_val"] = (
-        (s_close - df["band_bias_base"]) / (df["band_bias_base"] + 1e-8)
-    ) * 100
-    df["band_bias_val_rev"] = -1.0 * df["band_bias_val"]
-
-    df["mtm_val"] = s_close - s_close.shift(10)
-    df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
-
-    df["macd_dif"] = (
-        s_close.ewm(span=12, adjust=False).mean()
-        - s_close.ewm(span=26, adjust=False).mean()
-    )
-    df["macd_dem"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
-    df["macd_osc"] = (df["macd_dif"] - df["macd_dem"]) * 2
-
-    df["bias_ma60"] = s_close.rolling(window=60).mean()
-    df["bias_val"] = (
-        (s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)
-    ) * 100
-
-    low_min9 = s_low.rolling(9).min()
-    high_max9 = s_high.rolling(9).max()
-    rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
-    df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
-    df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
-    df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
-    df["kdj_diff"] = df["kdj_k"] - df["kdj_d"]
-
-    delta = s_close.diff()
-    gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
-    loss6 = (-delta.where(delta < 0, 0)).rolling(6).mean()
-    rs6 = gain6 / (loss6 + 1e-8)
-    df["rsi_6"] = 100 - (100 / (1 + rs6))
-
-    gain12 = (delta.where(delta > 0, 0)).rolling(12).mean()
-    loss12 = (-delta.where(delta < 0, 0)).rolling(12).mean()
-    rs12 = gain12 / (loss12 + 1e-8)
-    df["rsi_12"] = 100 - (100 / (1 + rs12))
-    df["rsi_diff"] = df["rsi_6"] - df["rsi_12"]
-
-    low_min9_w = s_low.rolling(9).min()
-    high_max9_w = s_high.rolling(9).max()
-    df["w_r"] = (
-        (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
-    )
-
-    df["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
-
-    df["vol_ma5"] = df["vol"].rolling(window=5).mean()
-    df["vol_ma20"] = df["vol"].rolling(window=20).mean()
-
-    cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
-    cur_dem = float(df["macd_dem"].iloc[-1]) if not df.empty else 0.0
-    cur_osc = float(df["macd_osc"].iloc[-1]) if not df.empty else 0.0
-    cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
-    cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
-
-    prev_dif = float(df["macd_dif"].iloc[-2]) if len(df) > 1 else cur_dif
-    dif_arrow = "↑" if cur_dif >= prev_dif else "↓"
-    prev_dem = float(df["macd_dem"].iloc[-2]) if len(df) > 1 else cur_dem
-    dem_arrow = "↑" if cur_dem >= prev_dem else "↓"
-    prev_osc = float(df["macd_osc"].iloc[-2]) if len(df) > 1 else cur_osc
-    osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
-
-    cur_vol_val = last_vol
-    cur_vol_ma5 = (
-        float(df["vol_ma5"].iloc[-1])
-        if not pd.isna(df["vol_ma5"].iloc[-1])
-        else 0.0
-    )
-    cur_vol_ma20 = (
-        float(df["vol_ma20"].iloc[-1])
-        if not pd.isna(df["vol_ma20"].iloc[-1])
-        else 0.0
-    )
-
-    prev_vol_ma5 = (
-        float(df["vol_ma5"].iloc[-2])
-        if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2])
-        else cur_vol_ma5
-    )
-    prev_vol_ma20 = (
-        float(df["vol_ma20"].iloc[-2])
-        if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2])
-        else cur_vol_ma20
-    )
-
-    v5_arrow = "↓" if cur_vol_ma5 < prev_vol_ma5 else "↑"
-    v20_arrow = "↓" if cur_vol_ma20 < prev_vol_ma20 else "↑"
-    vol_today_arrow = (
-        "↓"
-        if last_vol
-        < (float(df["vol"].iloc[-2]) if len(df) > 1 else last_vol)
-        else "↑"
-    )
-
-    v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
-    v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
-
-    cond_trend_long = (
-        (
-            s_close.ewm(span=15, adjust=False).mean()
-            / s_close.ewm(span=30, adjust=False).mean()
-            - 1
-        )
-        * 100
-    ) > 0
-    df["long_trend"] = cond_trend_long
-
-    BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
-    BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
-
-    prev_closes = df["close"].shift(1).fillna(df["open"])
-    body_colors = [
-        BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR
-        for o, c, pc in zip(df["open"], df["close"], prev_closes)
-    ]
-    macd_bar_colors = [
-        BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["macd_osc"]
-    ]
-    band_macd_bar_colors = [
-        BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR
-        for osc in df["band_macd_osc"]
-    ]
-    qt_bar_colors = [
-        BAR_UP_COLOR if c >= pc else BAR_DOWN_COLOR
-        for c, pc in zip(df["close"], prev_closes)
-    ]
-
-    plt.style.use("dark_background")
-
-    # ---------------------------------------------------------
-    # 版面配置：左側圖表區與右側大字體解盤面板欄
-    # ---------------------------------------------------------
-    chart_col, info_col = st.columns([8.2, 1.8])
-
-    with chart_col:
-      fig = plt.figure(
-          figsize=(10.0, 4.2 if selected_indicator != "波段" else 5.4)
-      )
-
-      if selected_indicator == "波段":
-        gs = fig.add_gridspec(
-            4, 1, height_ratios=[2.5, 0.8, 0.8, 0.8], hspace=0.10
-        )
-        ax1 = fig.add_subplot(gs[0])
-        ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
-        ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
-        ax_sub3 = fig.add_subplot(gs[3], sharex=ax1)
-        axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
-      else:
-        gs = fig.add_gridspec(3, 1, height_ratios=[2.9, 1.1, 1.1], hspace=0.10)
-        ax1 = fig.add_subplot(gs[0])
-        ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
-        ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
-        axes = [ax1, ax_sub1, ax_sub2]
-
-      for ax in [fig] + list(axes):
-        ax.set_facecolor(BG_COLOR)
-      fig.patch.set_facecolor(BG_COLOR)
-      x = list(range(len(df)))
-
-      # 層 1：K線主圖
-      ax1.set_facecolor(PANEL_BG)
-      ax1.vlines(
-          x, df["low"], df["high"], color=body_colors, linewidth=0.7, alpha=1.0
-      )
-      body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
-      body_height = [
-          max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])
-      ]
-      ax1.bar(
-          x,
-          body_height,
-          bottom=body_bottom,
-          width=0.8,
-          color=body_colors,
-          edgecolor="none",
-      )
-
-      if not df.empty:
-        p_max = float(df["high"].max())
-        p_min = float(df["low"].min())
-        p_range = p_max - p_min if p_max != p_min else 1.0
-        ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
-        ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
-
-      for count_days in [5, 35, 65, 120, 200]:
-        if count_days in deduct_indices:
-          idx_pos = deduct_indices[count_days]
-          ax1.axvline(
-              x=idx_pos,
-              color="#00FFFF",
-              linestyle="--",
-              linewidth=0.8,
-              alpha=0.35,
-          )
-          t_num = ax1.text(
-              idx_pos,
-              df["low"].min(),
-              f"{count_days}",
-              color="#00FFFF",
-              fontsize=7.5,
-              fontweight="bold",
-              ha="center",
-              va="bottom",
-              alpha=0.9,
-          )
-          t_num.set_path_effects(get_bright_effect("#000000", 1.8))
-
-      legend_labels = []
-      last_idx = len(df) - 1
-      for ma_name, (period, is_show, color) in ma_config.items():
-        if is_show:
-          ma_series = df[f"ma_{period}"]
-          ax1.plot(
-              x, ma_series, linewidth=0.6, color=color, linestyle="-", alpha=1.0
-          )
-          val_now = (
-              float(ma_series.iloc[-1])
-              if not pd.isna(ma_series.iloc[-1])
-              else 0.0
-          )
-          val_prev = (
-              float(ma_series.iloc[-2])
-              if last_idx > 0 and not pd.isna(ma_series.iloc[-2])
-              else val_now
-          )
-          arrow = "↑" if val_now >= val_prev else "↓"
-          legend_labels.append((f"{ma_name}:{val_now:.1f}{arrow}", color))
-
-      if show_fib and not df.empty:
-        max_p = float(df["high"].max())
-        min_p = float(df["low"].min())
-        diff_p = max_p - min_p
-        fib_levels = [
-            (0.0, "0%", max_p),
-            (0.382, "38.2%", max_p - diff_p * 0.382),
-            (0.5, "50.0%", max_p - diff_p * 0.5),
-            (0.618, "61.8%", max_p - diff_p * 0.618),
-            (1.0, "100%", min_p),
-        ]
-        x_right_limit = ax1.get_xlim()[1]
-        for _, label_txt, price_val in fib_levels:
-          ax1.axhline(
-              price_val, color="#00FFFF", linestyle=":", linewidth=1.0, alpha=0.9
-          )
-          t_fib = ax1.text(
-              x_right_limit - 0.8,
-              price_val,
-              f" {price_val:.2f} ({label_txt}) ",
-              color="#FFFFFF",
-              fontsize=7.5,
-              fontweight="bold",
-              va="center",
-              ha="right",
-              backgroundcolor="#111111",
-          )
-          t_fib.set_path_effects(get_bright_effect("#000000", 1.8))
-
-      for i in range(len(df)):
-        if df["is_buy_signal"].iloc[i]:
-          low_p = float(df["low"].iloc[i])
-          ax1.annotate(
-              "↑",
-              xy=(i, low_p),
-              xytext=(i, low_p * 0.985),
-              ha="center",
-              va="top",
-              fontsize=11,
-              fontweight="bold",
-              color="#CC00FF",
-          )
-        if df["is_sell_signal"].iloc[i]:
-          high_p = float(df["high"].iloc[i])
-          ax1.annotate(
-              "↓",
-              xy=(i, high_p),
-              xytext=(i, high_p * 1.015),
-              ha="center",
-              va="bottom",
-              fontsize=11,
-              fontweight="bold",
-              color="#00FFFF",
-          )
-
-      ymin_lim, ymax_lim = ax1.get_ylim()
-      band_height = (ymax_lim - ymin_lim) * 0.035
-      trend_colors = [
-          BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR
-          for is_bull in df["long_trend"]
-      ]
-      for i, col in enumerate(trend_colors):
-        ax1.bar(
-            x[i],
-            band_height,
-            bottom=ymin_lim,
-            width=1.0,
-            color=col,
-            edgecolor="none",
+        t_num = ax1.text(
+            idx_pos,
+            df["low"].min(),
+            f"{count_days}",
+            color="#00FFFF",
+            fontsize=8.0,
+            fontweight="bold",
+            ha="center",
+            va="bottom",
             alpha=1.0,
         )
+        t_num.set_path_effects(get_bright_effect("#000000", 2.5))
 
-      ax1.yaxis.tick_right()
-      ax1.tick_params(axis="y", labelsize=6.5, pad=1.5, colors="#FFFFFF")
-      plt.setp(ax1.get_xticklabels(), visible=False)
-      ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
+    legend_labels = []
+    last_idx = len(df) - 1
+    for ma_name, (period, is_show, color) in ma_config.items():
+      if is_show:
+        ma_series = df[f"ma_{period}"]
+        ax1.plot(
+            x, ma_series, linewidth=0.8, color=color, linestyle="-", alpha=1.0
+        )
+        val_now = (
+            float(ma_series.iloc[-1])
+            if not pd.isna(ma_series.iloc[-1])
+            else 0.0
+        )
+        val_prev = (
+            float(ma_series.iloc[-2])
+            if last_idx > 0 and not pd.isna(ma_series.iloc[-2])
+            else val_now
+        )
+        arrow = "↑" if val_now >= val_prev else "↓"
+        legend_labels.append((f"{ma_name}:{val_now:.1f}{arrow}", color))
 
-      # 💡 股票標題列文字亮度極致強化
-      standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
-      t_header = ax1.text(
-          0.01,
-          0.92,
-          standard_header_str,
-          transform=ax1.transAxes,
+    if show_fib and not df.empty:
+      max_p = float(df["high"].max())
+      min_p = float(df["low"].min())
+      diff_p = max_p - min_p
+      fib_levels = [
+          (0.0, "0%", max_p),
+          (0.382, "38.2%", max_p - diff_p * 0.382),
+          (0.5, "50.0%", max_p - diff_p * 0.5),
+          (0.618, "61.8%", max_p - diff_p * 0.618),
+          (1.0, "100%", min_p),
+      ]
+      x_right_limit = ax1.get_xlim()[1]
+      for _, label_txt, price_val in fib_levels:
+        ax1.axhline(
+            price_val, color="#00FFFF", linestyle=":", linewidth=1.1, alpha=0.95
+        )
+        t_fib = ax1.text(
+            x_right_limit - 0.8,
+            price_val,
+            f" {price_val:.2f} ({label_txt}) ",
+            color="#FFFFFF",
+            fontsize=8.0,
+            fontweight="bold",
+            va="center",
+            ha="right",
+            backgroundcolor="#111111",
+        )
+        t_fib.set_path_effects(get_bright_effect("#000000", 2.5))
+
+    for i in range(len(df)):
+      if df["is_buy_signal"].iloc[i]:
+        low_p = float(df["low"].iloc[i])
+        ax1.annotate(
+            "↑",
+            xy=(i, low_p),
+            xytext=(i, low_p * 0.985),
+            ha="center",
+            va="top",
+            fontsize=12,
+            fontweight="bold",
+            color="#CC00FF",
+        )
+      if df["is_sell_signal"].iloc[i]:
+        high_p = float(df["high"].iloc[i])
+        ax1.annotate(
+            "↓",
+            xy=(i, high_p),
+            xytext=(i, high_p * 1.015),
+            ha="center",
+            va="bottom",
+            fontsize=12,
+            fontweight="bold",
+            color="#00FFFF",
+        )
+
+    ymin_lim, ymax_lim = ax1.get_ylim()
+    band_height = (ymax_lim - ymin_lim) * 0.035
+    trend_colors = [
+        BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR
+        for is_bull in df["long_trend"]
+    ]
+    for i, col in enumerate(trend_colors):
+      ax1.bar(
+          x[i],
+          band_height,
+          bottom=ymin_lim,
+          width=1.0,
+          color=col,
+          edgecolor="none",
+          alpha=1.0,
+      )
+
+    ax1.yaxis.tick_right()
+    ax1.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+    plt.setp(ax1.get_xticklabels(), visible=False)
+    ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
+
+    # 💡 股票標題列文字亮度極致強化 (純白與極粗外框)
+    standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
+    t_header = ax1.text(
+        0.01,
+        0.91,
+        standard_header_str,
+        transform=ax1.transAxes,
+        fontsize=9.0,
+        fontweight="bold",
+        color="#FFFFFF",
+    )
+    t_header.set_path_effects(get_bright_effect("#000000", 3.0))
+
+    ma60_val = (
+        df["ma_60"].iloc[-1]
+        if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1])
+        else 0
+    )
+    is_bull = last_close >= ma60_val
+    trend_status = "【季線多頭】" if is_bull else "【季線空頭】"
+    trend_color = "#FF3333" if is_bull else "#00E64D"
+
+    t_trend_badge = ax1.text(
+        0.57,
+        0.91,
+        trend_status,
+        transform=ax1.transAxes,
+        fontsize=8.0,
+        fontweight="bold",
+        color=trend_color,
+    )
+    t_trend_badge.set_path_effects(get_bright_effect("#000000", 2.5))
+
+    t_period_badge = ax1.text(
+        0.71,
+        0.91,
+        f" {actual_chart_period} ",
+        transform=ax1.transAxes,
+        fontsize=8.0,
+        fontweight="bold",
+        color="#FFFFFF",
+        backgroundcolor="#222222",
+        ha="center",
+        va="center",
+    )
+    t_period_badge.set_path_effects(get_bright_effect("#000000", 2.5))
+
+    if legend_labels:
+      text_x = 0.01
+      text_y = 0.82
+      for l_str, l_col in legend_labels:
+        t_ma = ax1.text(
+            text_x,
+            text_y,
+            l_str,
+            transform=ax1.transAxes,
+            fontsize=8.5,
+            fontweight="bold",
+            color=l_col,
+        )
+        t_ma.set_path_effects(get_bright_effect("#000000", 2.5))
+        text_x += 0.11
+
+    if selected_indicator == "波段":
+      cur_band_dif = (
+          float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
+      )
+      ax_sub1.set_facecolor(PANEL_BG)
+      ax_sub1.bar(
+          x,
+          df["band_macd_osc"],
+          width=0.75,
+          color=band_macd_bar_colors,
+          edgecolor="none",
+          alpha=1.0,
+      )
+      ax_sub1.plot(
+          x, df["band_macd_dif"], linewidth=0.7, color="#FFFF00", label="DIF"
+      )
+      ax_sub1.plot(
+          x, df["band_macd_dem"], linewidth=0.7, color="#FF3333", label="MACD"
+      )
+      ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+      ax_sub1.yaxis.tick_right()
+      ax_sub1.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+      plt.setp(ax_sub1.get_xticklabels(), visible=False)
+      ax_sub1.grid(
+          True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+      )
+      t_s1 = ax_sub1.text(
+          0.015,
+          0.76,
+          f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}",
+          transform=ax_sub1.transAxes,
           fontsize=8.5,
           fontweight="bold",
           color="#FFFFFF",
       )
-      t_header.set_path_effects(get_bright_effect("#000000", 2.2))
+      t_s1.set_path_effects(get_bright_effect("#000000", 2.5))
 
-      ma60_val = (
-          df["ma_60"].iloc[-1]
-          if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1])
-          else 0
+      cur_band_bias = (
+          float(df["band_bias_val"].iloc[-1]) if not df.empty else 0.0
       )
-      is_bull = last_close >= ma60_val
-      trend_status = "【季線多頭】" if is_bull else "【季線空頭】"
-      trend_color = "#FF3333" if is_bull else "#00E64D"
-
-      t_trend_badge = ax1.text(
-          0.57,
-          0.92,
-          trend_status,
-          transform=ax1.transAxes,
-          fontsize=7.5,
-          fontweight="bold",
-          color=trend_color,
+      ax_sub2.set_facecolor(PANEL_BG)
+      ax_sub2.plot(
+          x,
+          df["band_bias_val_rev"],
+          linewidth=0.7,
+          color="#00FFFF",
+          label="BIAS(反向)",
       )
-      t_trend_badge.set_path_effects(get_bright_effect("#000000", 2.0))
-
-      t_period_badge = ax1.text(
-          0.71,
-          0.92,
-          f" {actual_chart_period} ",
-          transform=ax1.transAxes,
-          fontsize=7.5,
+      ax_sub2.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+      ax_sub2.yaxis.tick_right()
+      ax_sub2.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+      plt.setp(ax_sub2.get_xticklabels(), visible=False)
+      ax_sub2.grid(
+          True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+      )
+      t_s2 = ax_sub2.text(
+          0.015,
+          0.76,
+          f"波段 BIAS(反向)  {cur_band_bias:.2f}%",
+          transform=ax_sub2.transAxes,
+          fontsize=8.5,
           fontweight="bold",
           color="#FFFFFF",
-          backgroundcolor="#222222",
-          ha="center",
-          va="center",
       )
-      t_period_badge.set_path_effects(get_bright_effect("#000000", 2.0))
+      t_s2.set_path_effects(get_bright_effect("#000000", 2.5))
 
-      if legend_labels:
-        text_x = 0.01
-        text_y = 0.83
-        for l_str, l_col in legend_labels:
-          t_ma = ax1.text(
-              text_x,
-              text_y,
-              l_str,
-              transform=ax1.transAxes,
-              fontsize=8.0,
-              fontweight="bold",
-              color=l_col,
-          )
-          t_ma.set_path_effects(get_bright_effect("#000000", 2.0))
-          text_x += 0.11
-
-      if selected_indicator == "波段":
-        cur_band_dif = (
-            float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
-        )
-        ax_sub1.set_facecolor(PANEL_BG)
+      ax_sub3.set_facecolor(PANEL_BG)
+      ax_sub3.plot(
+          x, df["mtm_val"], linewidth=0.7, color="#FFFF00", label="MTM"
+      )
+      ax_sub3.plot(
+          x, df["mtm_ma1"], linewidth=0.7, color="#00FF66", label="Avg"
+      )
+      ax_sub3.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+      ax_sub3.yaxis.tick_right()
+      ax_sub3.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+      ax_sub3.tick_params(axis="x", labelsize=8.0, colors="#FFFFFF")
+      plt.setp(ax_sub3.get_xticklabels(), visible=True)
+      for label in ax_sub3.get_xticklabels():
+        label.set_color("#FFFFFF")
+        label.set_fontsize(8.0)
+      ax_sub3.grid(
+          True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+      )
+      t_s3 = ax_sub3.text(
+          0.015,
+          0.76,
+          f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}",
+          transform=ax_sub3.transAxes,
+          fontsize=8.5,
+          fontweight="bold",
+          color="#FFFFFF",
+      )
+      t_s3.set_path_effects(get_bright_effect("#000000", 2.5))
+    else:
+      ax_sub1.set_facecolor(PANEL_BG)
+      if selected_indicator == "MACD":
         ax_sub1.bar(
             x,
-            df["band_macd_osc"],
+            df["macd_osc"],
             width=0.75,
-            color=band_macd_bar_colors,
+            color=macd_bar_colors,
             edgecolor="none",
             alpha=1.0,
         )
         ax_sub1.plot(
-            x, df["band_macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF"
+            x, df["macd_dif"], linewidth=0.7, color="#FF00FF", label="DIF"
         )
         ax_sub1.plot(
-            x, df["band_macd_dem"], linewidth=0.6, color="#FF3333", label="MACD"
+            x, df["macd_dem"], linewidth=0.7, color="#00FFFF", label="DEA"
         )
-        ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
-        ax_sub1.yaxis.tick_right()
-        ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.5, colors="#FFFFFF")
-        plt.setp(ax_sub1.get_xticklabels(), visible=False)
-        ax_sub1.grid(
-            True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+        osc_color = "#FF3333" if cur_osc >= 0 else "#00E64D"
+        macd_tokens = [
+            ("MACD(長) ", "#FFFFFF"),
+            ("DIF:", "#FF00FF"),
+            (f"{cur_dif:.2f} {dif_arrow} ", "#FF00FF"),
+            ("DEA:", "#00FFFF"),
+            (f"{cur_dem:.2f} {dem_arrow} ", "#00FFFF"),
+            ("MACD:", osc_color),
+            (f"{cur_osc:.2f} {osc_arrow}", osc_color),
+        ]
+        start_x_m = 0.015
+        for m_txt, m_col in macd_tokens:
+          t_m = ax_sub1.text(
+              start_x_m,
+              0.84,
+              m_txt,
+              transform=ax_sub1.transAxes,
+              fontsize=8.0,
+              fontweight="bold",
+              color=m_col,
+          )
+          t_m.set_path_effects(get_bright_effect("#000000", 2.5))
+          start_x_m += len(m_txt) * 0.007
+
+      elif selected_indicator == "BIAS":
+        ax_sub1.plot(
+            x,
+            df["bias_val"],
+            linewidth=0.7,
+            color="#FFFF00",
+            label="BIAS(60)",
         )
         t_s1 = ax_sub1.text(
             0.015,
-            0.76,
-            f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}",
+            0.84,
+            f"BIAS(60)  {cur_bias:.2f}%",
             transform=ax_sub1.transAxes,
             fontsize=8.0,
             fontweight="bold",
-            color="#FFFFFF",
+            color="#FFFF00",
         )
-        t_s1.set_path_effects(get_bright_effect("#000000", 2.0))
+        t_s1.set_path_effects(get_bright_effect("#000000", 2.5))
 
-        cur_band_bias = (
-            float(df["band_bias_val"].iloc[-1]) if not df.empty else 0.0
+      elif selected_indicator == "KDJ":
+        cur_k = float(df["kdj_k"].iloc[-1]) if not df.empty else 0.0
+        cur_d = float(df["kdj_d"].iloc[-1]) if not df.empty else 0.0
+        cur_j = float(df["kdj_j"].iloc[-1]) if not df.empty else 0.0
+        cur_diff = float(df["kdj_diff"].iloc[-1]) if not df.empty else 0.0
+        diff_arrow = "↑" if cur_diff >= 0 else "↓"
+
+        ax_sub1.plot(
+            x, df["kdj_k"], linewidth=0.7, color="#FF00FF", label="K"
         )
-        ax_sub2.set_facecolor(PANEL_BG)
-        ax_sub2.plot(
-            x,
-            df["band_bias_val_rev"],
-            linewidth=0.6,
-            color="#00FFFF",
-            label="BIAS(反向)",
+        ax_sub1.plot(
+            x, df["kdj_d"], linewidth=0.7, color="#00FFFF", label="D"
         )
-        ax_sub2.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
-        ax_sub2.yaxis.tick_right()
-        ax_sub2.tick_params(axis="y", labelsize=6.5, pad=1.5, colors="#FFFFFF")
-        plt.setp(ax_sub2.get_xticklabels(), visible=False)
-        ax_sub2.grid(
-            True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+        ax_sub1.plot(
+            x, df["kdj_j"], linewidth=0.7, color="#FFFFFF", label="J"
         )
-        t_s2 = ax_sub2.text(
+
+        kdj_tokens = [
+            ("KD(9,3,3)  ", "#FFFFFF"),
+            ("K:", "#FF00FF"),
+            (f"{cur_k:.2f}  ", "#FF00FF"),
+            ("D:", "#00FFFF"),
+            (f"{cur_d:.2f}  ", "#00FFFF"),
+            ("J:", "#FFFFFF"),
+            (f"{cur_j:.2f}  ", "#FFFFFF"),
+            ("乖離:", "#FFFF00"),
+            (f"{cur_diff:.2f} {diff_arrow}", "#FFFF00"),
+        ]
+        start_x_k = 0.015
+        for k_txt, k_col in kdj_tokens:
+          t_k = ax_sub1.text(
+              start_x_k,
+              0.84,
+              k_txt,
+              transform=ax_sub1.transAxes,
+              fontsize=8.0,
+              fontweight="bold",
+              color=k_col,
+          )
+          t_k.set_path_effects(get_bright_effect("#000000", 2.5))
+          start_x_k += len(k_txt) * 0.007
+
+      elif selected_indicator == "RSI":
+        cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
+        cur_r12 = float(df["rsi_12"].iloc[-1]) if not df.empty else 0.0
+        cur_rdiff = float(df["rsi_diff"].iloc[-1]) if not df.empty else 0.0
+        rdiff_arrow = "↑" if cur_rdiff >= 0 else "↓"
+        ax_sub1.plot(
+            x, df["rsi_6"], linewidth=0.7, color="#FF00FF", label="RSI6"
+        )
+        ax_sub1.plot(
+            x, df["rsi_12"], linewidth=0.7, color="#00FFFF", label="RSI12"
+        )
+
+        rsi_tokens = [
+            ("RSI(6,12)  ", "#FFFFFF"),
+            ("RSI6:", "#FF00FF"),
+            (f"{cur_r6:.2f}  ", "#FF00FF"),
+            ("RSI12:", "#00FFFF"),
+            (f"{cur_r12:.2f}  ", "#00FFFF"),
+            ("差值:", "#FFFF00"),
+            (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00"),
+        ]
+        start_x_r = 0.015
+        for r_txt, r_col in rsi_tokens:
+          t_r = ax_sub1.text(
+              start_x_r,
+              0.84,
+              r_txt,
+              transform=ax_sub1.transAxes,
+              fontsize=8.0,
+              fontweight="bold",
+              color=r_col,
+          )
+          t_r.set_path_effects(get_bright_effect("#000000", 2.5))
+          start_x_r += len(r_txt) * 0.007
+
+      elif selected_indicator == "W%":
+        cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
+        ax_sub1.plot(x, df["w_r"], linewidth=0.7, color="#FFFF00", label="W%")
+        t_wr = ax_sub1.text(
             0.015,
-            0.76,
-            f"波段 BIAS(反向)  {cur_band_bias:.2f}%",
-            transform=ax_sub2.transAxes,
+            0.84,
+            f"W% (威廉指標)  W%:{cur_wr:.2f}%",
+            transform=ax_sub1.transAxes,
             fontsize=8.0,
             fontweight="bold",
-            color="#FFFFFF",
+            color="#FFFF00",
         )
-        t_s2.set_path_effects(get_bright_effect("#000000", 2.0))
+        t_wr.set_path_effects(get_bright_effect("#000000", 2.5))
 
-        ax_sub3.set_facecolor(PANEL_BG)
-        ax_sub3.plot(
-            x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM"
-        )
-        ax_sub3.plot(
-            x, df["mtm_ma1"], linewidth=0.6, color="#00FF66", label="Avg"
-        )
-        ax_sub3.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
-        ax_sub3.yaxis.tick_right()
-        ax_sub3.tick_params(axis="y", labelsize=6.5, pad=1.5, colors="#FFFFFF")
-        ax_sub3.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
-        plt.setp(ax_sub3.get_xticklabels(), visible=True)
-        for label in ax_sub3.get_xticklabels():
-          label.set_color("#FFFFFF")
-          label.set_fontsize(7.5)
-        ax_sub3.grid(
-            True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
-        )
-        t_s3 = ax_sub3.text(
-            0.015,
-            0.76,
-            f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}",
-            transform=ax_sub3.transAxes,
-            fontsize=8.0,
-            fontweight="bold",
-            color="#FFFFFF",
-        )
-        t_s3.set_path_effects(get_bright_effect("#000000", 2.0))
-      else:
-        ax_sub1.set_facecolor(PANEL_BG)
-        if selected_indicator == "MACD":
-          ax_sub1.bar(
-              x,
-              df["macd_osc"],
-              width=0.75,
-              color=macd_bar_colors,
-              edgecolor="none",
-              alpha=1.0,
-          )
-          ax_sub1.plot(
-              x, df["macd_dif"], linewidth=0.6, color="#FF00FF", label="DIF"
-          )
-          ax_sub1.plot(
-              x, df["macd_dem"], linewidth=0.6, color="#00FFFF", label="DEA"
-          )
-          osc_color = "#FF3333" if cur_osc >= 0 else "#00E64D"
-          macd_tokens = [
-              ("MACD(長) ", "#FFFFFF"),
-              ("DIF:", "#FF00FF"),
-              (f"{cur_dif:.2f} {dif_arrow} ", "#FF00FF"),
-              ("DEA:", "#00FFFF"),
-              (f"{cur_dem:.2f} {dem_arrow} ", "#00FFFF"),
-              ("MACD:", osc_color),
-              (f"{cur_osc:.2f} {osc_arrow}", osc_color),
-          ]
-          start_x_m = 0.015
-          for m_txt, m_col in macd_tokens:
-            t_m = ax_sub1.text(
-                start_x_m,
-                0.85,
-                m_txt,
-                transform=ax_sub1.transAxes,
-                fontsize=7.5,
-                fontweight="bold",
-                color=m_col,
-            )
-            t_m.set_path_effects(get_bright_effect("#000000", 2.0))
-            start_x_m += len(m_txt) * 0.007
-
-        elif selected_indicator == "BIAS":
-          ax_sub1.plot(
-              x,
-              df["bias_val"],
-              linewidth=0.6,
-              color="#FFFF00",
-              label="BIAS(60)",
-          )
-          t_s1 = ax_sub1.text(
-              0.015,
-              0.85,
-              f"BIAS(60)  {cur_bias:.2f}%",
-              transform=ax_sub1.transAxes,
-              fontsize=7.5,
-              fontweight="bold",
-              color="#FFFF00",
-          )
-          t_s1.set_path_effects(get_bright_effect("#000000", 2.0))
-
-        elif selected_indicator == "KDJ":
-          cur_k = float(df["kdj_k"].iloc[-1]) if not df.empty else 0.0
-          cur_d = float(df["kdj_d"].iloc[-1]) if not df.empty else 0.0
-          cur_j = float(df["kdj_j"].iloc[-1]) if not df.empty else 0.0
-          cur_diff = float(df["kdj_diff"].iloc[-1]) if not df.empty else 0.0
-          diff_arrow = "↑" if cur_diff >= 0 else "↓"
-
-          ax_sub1.plot(
-              x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K"
-          )
-          ax_sub1.plot(
-              x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D"
-          )
-          ax_sub1.plot(
-              x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J"
-          )
-
-          kdj_tokens = [
-              ("KD(9,3,3)  ", "#FFFFFF"),
-              ("K:", "#FF00FF"),
-              (f"{cur_k:.2f}  ", "#FF00FF"),
-              ("D:", "#00FFFF"),
-              (f"{cur_d:.2f}  ", "#00FFFF"),
-              ("J:", "#FFFFFF"),
-              (f"{cur_j:.2f}  ", "#FFFFFF"),
-              ("乖離:", "#FFFF00"),
-              (f"{cur_diff:.2f} {diff_arrow}", "#FFFF00"),
-          ]
-          start_x_k = 0.015
-          for k_txt, k_col in kdj_tokens:
-            t_k = ax_sub1.text(
-                start_x_k,
-                0.85,
-                k_txt,
-                transform=ax_sub1.transAxes,
-                fontsize=7.5,
-                fontweight="bold",
-                color=k_col,
-            )
-            t_k.set_path_effects(get_bright_effect("#000000", 2.0))
-            start_x_k += len(k_txt) * 0.007
-
-        elif selected_indicator == "RSI":
-          cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
-          cur_r12 = float(df["rsi_12"].iloc[-1]) if not df.empty else 0.0
-          cur_rdiff = float(df["rsi_diff"].iloc[-1]) if not df.empty else 0.0
-          rdiff_arrow = "↑" if cur_rdiff >= 0 else "↓"
-          ax_sub1.plot(
-              x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6"
-          )
-          ax_sub1.plot(
-              x, df["rsi_12"], linewidth=0.6, color="#00FFFF", label="RSI12"
-          )
-
-          rsi_tokens = [
-              ("RSI(6,12)  ", "#FFFFFF"),
-              ("RSI6:", "#FF00FF"),
-              (f"{cur_r6:.2f}  ", "#FF00FF"),
-              ("RSI12:", "#00FFFF"),
-              (f"{cur_r12:.2f}  ", "#FF00FF"),
-              ("差值:", "#FFFF00"),
-              (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00"),
-          ]
-          start_x_r = 0.015
-          for r_txt, r_col in rsi_tokens:
-            t_r = ax_sub1.text(
-                start_x_r,
-                0.85,
-                r_txt,
-                transform=ax_sub1.transAxes,
-                fontsize=7.5,
-                fontweight="bold",
-                color=r_col,
-            )
-            t_r.set_path_effects(get_bright_effect("#000000", 2.0))
-            start_x_r += len(r_txt) * 0.007
-
-        elif selected_indicator == "W%":
-          cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
-          ax_sub1.plot(
-              x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%"
-          )
-          t_wr = ax_sub1.text(
-              0.015,
-              0.85,
-              f"W% (威廉指標)  W%:{cur_wr:.2f}%",
-              transform=ax_sub1.transAxes,
-              fontsize=7.5,
-              fontweight="bold",
-              color="#FFFF00",
-          )
-          t_wr.set_path_effects(get_bright_effect("#000000", 2.0))
-
-        elif selected_indicator == "QT":
-          cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
-          ax_sub1.bar(
-              x,
-              df["qt"],
-              width=0.75,
-              color=qt_bar_colors,
-              edgecolor="none",
-              alpha=1.0,
-          )
-          t_qt = ax_sub1.text(
-              0.015,
-              0.85,
-              f"QT (量價波動)  QT:{cur_qt:.2f}",
-              transform=ax_sub1.transAxes,
-              fontsize=7.5,
-              fontweight="bold",
-              color="#00FF66",
-          )
-          t_qt.set_path_effects(get_bright_effect("#000000", 2.0))
-
-        elif selected_indicator == "大戶羊群":
-          if len(big_holder) > 0 and len(sheep_holder) > 0:
-            b_plot = big_holder[-len(df) :]
-            s_plot = sheep_holder[-len(df) :]
-            ax_sub1.plot(
-                x,
-                b_plot,
-                color="#FF3333",
-                linewidth=0.6,
-                linestyle="-",
-                label="大戶(%)",
-            )
-            ax_sub1.plot(
-                x,
-                s_plot,
-                color="#00E64D",
-                linewidth=0.6,
-                linestyle="-",
-                label="羊群(%)",
-            )
-            cur_b = float(b_plot[-1])
-            cur_s = float(s_plot[-1])
-            t_sh = ax_sub1.text(
-                0.015,
-                0.85,
-                f"大戶羊群指標  大戶:{cur_b:.1f}%  散戶:{cur_s:.1f}%",
-                transform=ax_sub1.transAxes,
-                fontsize=7.5,
-                fontweight="bold",
-                color="#FF3333",
-            )
-            t_sh.set_path_effects(get_bright_effect("#000000", 2.0))
-
-        ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
-        ax_sub1.yaxis.tick_right()
-        ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.5, colors="#FFFFFF")
-        plt.setp(ax_sub1.get_xticklabels(), visible=False)
-        ax_sub1.grid(
-            True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
-        )
-
-        ax_sub2.set_facecolor(PANEL_BG)
-        ax_sub2.bar(
+      elif selected_indicator == "QT":
+        cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
+        ax_sub1.bar(
             x,
-            df["vol"],
+            df["qt"],
             width=0.75,
-            color=body_colors,
+            color=qt_bar_colors,
             edgecolor="none",
             alpha=1.0,
         )
-        ax_sub2.plot(
-            x,
-            df["vol_ma5"],
-            linewidth=0.6,
-            color="#FFFF00",
-            label="Vol MA5",
-            alpha=0.95,
+        t_qt = ax_sub1.text(
+            0.015,
+            0.84,
+            f"QT (量價波動)  QT:{cur_qt:.2f}",
+            transform=ax_sub1.transAxes,
+            fontsize=8.0,
+            fontweight="bold",
+            color="#00FF66",
         )
-        ax_sub2.plot(
-            x,
-            df["vol_ma20"],
-            linewidth=0.6,
-            color="#FF9900",
-            label="Vol MA20",
-            alpha=0.95,
-        )
-        ax_sub2.yaxis.tick_right()
-        ax_sub2.tick_params(axis="y", labelsize=6.5, pad=1.5, colors="#FFFFFF")
-        ax_sub2.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
-        plt.setp(ax_sub2.get_xticklabels(), visible=True)
-        for label in ax_sub2.get_xticklabels():
-          label.set_color("#FFFFFF")
-          label.set_fontsize(7.5)
-        ax_sub2.grid(
-            True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
-        )
+        t_qt.set_path_effects(get_bright_effect("#000000", 2.5))
 
-        vol_str_parts = [
-            ("今日 ", "#FFFFFF"),
-            (f"量:{int(cur_vol_val)}", "#FF3333"),
-            (f"{vol_today_arrow}", "#FF3333"),
-            ("  ", "#FFFFFF"),
-            ("日5:", "#FFFF00"),
-            (f"{int(cur_vol_ma5)}", "#FFFF00"),
-            (f"{v5_arrow}", "#FFFF00"),
-            ("  ", "#FFFFFF"),
-            ("值5:", "#FFFF00"),
-            (f"{v5_val_ratio:.2f}", "#FFFF00"),
-            (f"{v5_arrow}", "#FFFF00"),
-            ("  ", "#FFFFFF"),
-            ("日20:", "#FF9900"),
-            (f"{int(cur_vol_ma20)}", "#FF9900"),
-            (f"{v20_arrow}", "#FF9900"),
-            ("  ", "#FFFFFF"),
-            ("值20:", "#FF9900"),
-            (f"{v20_val_ratio:.2f}", "#FF9900"),
-            (f"{v20_arrow}", "#FF9900"),
-        ]
-
-        start_x_vol = 0.015
-        for v_txt, v_col in vol_str_parts:
-          t_v = ax_sub2.text(
-              start_x_vol,
-              0.85,
-              v_txt,
-              transform=ax_sub2.transAxes,
-              fontsize=7.5,
-              fontweight="bold",
-              color=v_col,
+      elif selected_indicator == "大戶羊群":
+        if len(big_holder) > 0 and len(sheep_holder) > 0:
+          b_plot = big_holder[-len(df) :]
+          s_plot = sheep_holder[-len(df) :]
+          ax_sub1.plot(
+              x,
+              b_plot,
+              color="#FF3333",
+              linewidth=0.7,
+              linestyle="-",
+              label="大戶(%)",
           )
-          t_v.set_path_effects(get_bright_effect("#000000", 2.0))
-          start_x_vol += len(v_txt) * 0.007
+          ax_sub1.plot(
+              x,
+              s_plot,
+              color="#00E64D",
+              linewidth=0.7,
+              linestyle="-",
+              label="羊群(%)",
+          )
+          cur_b = float(b_plot[-1])
+          cur_s = float(s_plot[-1])
+          t_sh = ax_sub1.text(
+              0.015,
+              0.84,
+              f"大戶羊群指標  大戶:{cur_b:.1f}%  散戶:{cur_s:.1f}%",
+              transform=ax_sub1.transAxes,
+              fontsize=8.0,
+              fontweight="bold",
+              color="#FF3333",
+          )
+          t_sh.set_path_effects(get_bright_effect("#000000", 2.5))
 
-      for ax in axes:
-        for spine in ax.spines.values():
-          spine.set_visible(True)
-          spine.set_color("#666666")
-          spine.set_linewidth(1.2)
-
-      plt.subplots_adjust(
-          left=0.01, right=0.99, top=0.98, bottom=0.08, hspace=0.10
-      )
-      st.pyplot(fig, use_container_width=True, dpi=150)
-
-    with info_col:
-      ma5_val = (
-          float(df["ma_5"].iloc[-1])
-          if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1])
-          else 0
-      )
-      ma20_val = (
-          float(df["ma_20"].iloc[-1])
-          if "ma_20" in df.columns and not pd.isna(df["ma_20"].iloc[-1])
-          else 0
-      )
-      ma60_val = (
-          float(df["ma_60"].iloc[-1])
-          if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1])
-          else 0
-      )
-      ma_status = (
-          "多頭排列"
-          if ma5_val > ma20_val > ma60_val
-          else ("空頭排列" if ma5_val < ma20_val < ma60_val else "均線交錯")
-      )
-      ma_color_class = "t-val-red" if ma5_val > ma20_val else "t-val-green"
-
-      recent_high_val = (
-          float(df["high"].tail(30).max()) if not df.empty else last_high
-      )
-      recent_low_val = (
-          float(df["low"].tail(30).min()) if not df.empty else last_low
-      )
-      calc_drop = (
-          ((recent_high_val - last_low) / recent_high_val) * 100
-          if recent_high_val > 0
-          else 0.0
-      )
-      calc_rise = (
-          ((last_high / recent_low_val) - 1) * 100
-          if recent_low_val > 0
-          else 0.0
+      ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+      ax_sub1.yaxis.tick_right()
+      ax_sub1.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+      plt.setp(ax_sub1.get_xticklabels(), visible=False)
+      ax_sub1.grid(
+          True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
       )
 
-      cur_k = float(df["kdj_k"].iloc[-1]) if "kdj_k" in df.columns else 0.0
-      cur_d = float(df["kdj_d"].iloc[-1]) if "kdj_d" in df.columns else 0.0
-      cur_j = float(df["kdj_j"].iloc[-1]) if "kdj_j" in df.columns else 0.0
-      prev_k = float(df["kdj_k"].iloc[-2]) if len(df) > 1 else cur_k
-      prev_d = float(df["kdj_d"].iloc[-2]) if len(df) > 1 else cur_d
-      k_diff_kd = cur_k - cur_d
-
-      is_golden_cross = prev_k <= prev_d and cur_k > cur_d
-      is_dead_cross = prev_k >= prev_d and cur_k < cur_d
-
-      kdj_signal = "中立觀望"
-      kdj_sig_cls = "t-val-white"
-
-      if cur_k > 90:
-        kdj_signal, kdj_sig_cls = "【強力賣出】K>90超買", "t-val-green"
-      elif cur_j > 100:
-        kdj_signal, kdj_sig_cls = "【強力賣出】J>100超買", "t-val-green"
-      elif k_diff_kd > 18:
-        kdj_signal, kdj_sig_cls = "【強力賣出】正乖離>+18", "t-val-green"
-      elif is_dead_cross:
-        kdj_signal, kdj_sig_cls = "【賣出訊號】KD死叉", "t-val-green"
-      elif cur_k < 9:
-        kdj_signal, kdj_sig_cls = "【強力買進】K<9超賣", "t-val-red"
-      elif cur_k < 9 and cur_d < 9:
-        kdj_signal, kdj_sig_cls = "【強力買進】KD雙跌破9", "t-val-red"
-      elif cur_j < 0:
-        kdj_signal, kdj_sig_cls = "【強力買進】J<0超賣", "t-val-red"
-      elif k_diff_kd < -18:
-        kdj_signal, kdj_sig_cls = "【強力買進】負乖離<-18", "t-val-red"
-      elif is_golden_cross:
-        kdj_signal, kdj_sig_cls = "【買進訊號】KD金交叉", "t-val-red"
-
-      is_buy_signal_today = (
-          bool(df["is_buy_signal"].iloc[-1])
-          if "is_buy_signal" in df.columns
-          else False
+      ax_sub2.set_facecolor(PANEL_BG)
+      ax_sub2.bar(
+          x,
+          df["vol"],
+          width=0.75,
+          color=body_colors,
+          edgecolor="none",
+          alpha=1.0,
       )
-      is_sell_signal_today = (
-          bool(df["is_sell_signal"].iloc[-1])
-          if "is_sell_signal" in df.columns
-          else False
+      ax_sub2.plot(
+          x,
+          df["vol_ma5"],
+          linewidth=0.7,
+          color="#FFFF00",
+          label="Vol MA5",
+          alpha=0.95,
+      )
+      ax_sub2.plot(
+          x,
+          df["vol_ma20"],
+          linewidth=0.7,
+          color="#FF9900",
+          label="Vol MA20",
+          alpha=0.95,
+      )
+      ax_sub2.yaxis.tick_right()
+      ax_sub2.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+      ax_sub2.tick_params(axis="x", labelsize=8.0, colors="#FFFFFF")
+      plt.setp(ax_sub2.get_xticklabels(), visible=True)
+      for label in ax_sub2.get_xticklabels():
+        label.set_color("#FFFFFF")
+        label.set_fontsize(8.0)
+      ax_sub2.grid(
+          True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
       )
 
-      wave_status = "持倉中 / 觀望"
-      wave_cls = "t-val-white"
-      if is_buy_signal_today:
-        wave_status, wave_cls = "★ 今日波段買進", "t-val-red"
-      elif is_sell_signal_today:
-        wave_status, wave_cls = "✖ 今日波段賣出", "t-val-cyan"
-      elif df["red_days"].iloc[-1] < df["green_days"].iloc[-1]:
-        wave_status, wave_cls = "多方波段運行中", "t-val-red"
-      else:
-        wave_status, wave_cls = "空方波段整理中", "t-val-green"
+      # 💡 成交量數據面板亮度極致強化
+      vol_str_parts = [
+          ("今日 ", "#FFFFFF"),
+          (f"量:{int(cur_vol_val)}", "#FF3333"),
+          (f"{vol_today_arrow}", "#FF3333"),
+          ("  ", "#FFFFFF"),
+          ("日5:", "#FFFF00"),
+          (f"{int(cur_vol_ma5)}", "#FFFF00"),
+          (f"{v5_arrow}", "#FFFF00"),
+          ("  ", "#FFFFFF"),
+          ("值5:", "#FFFF00"),
+          (f"{v5_val_ratio:.2f}", "#FFFF00"),
+          (f"{v5_arrow}", "#FFFF00"),
+          ("  ", "#FFFFFF"),
+          ("日20:", "#FF9900"),
+          (f"{int(cur_vol_ma20)}", "#FF9900"),
+          (f"{v20_arrow}", "#FF9900"),
+          ("  ", "#FFFFFF"),
+          ("值20:", "#FF9900"),
+          (f"{v20_val_ratio:.2f}", "#FF9900"),
+          (f"{v20_arrow}", "#FF9900"),
+      ]
 
-      red_days_val = int(df["red_days"].iloc[-1])
-      green_days_val = int(df["green_days"].iloc[-1])
+      start_x_vol = 0.015
+      for v_txt, v_col in vol_str_parts:
+        t_v = ax_sub2.text(
+            start_x_vol,
+            0.84,
+            v_txt,
+            transform=ax_sub2.transAxes,
+            fontsize=8.0,
+            fontweight="bold",
+            color=v_col,
+        )
+        t_v.set_path_effects(get_bright_effect("#000000", 2.5))
+        start_x_vol += len(v_txt) * 0.007
 
-      vol_status = "量能平穩" if v_ratio < 1.5 else "量能顯著放大"
-      vol_cls = "t-val-white" if v_ratio < 1.5 else "t-val-red"
-      trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
-      trend_cls = "t-val-red" if is_bull else "t-val-green"
+    for ax in axes:
+      for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_color("#777777")
+        spine.set_linewidth(1.3)
 
-      st.markdown(
-          f"""
-                <div class="terminal-panel">
-                    <div class="terminal-title">【均線解盤】</div>
-                    <div class="t-row"><span class="t-label">狀態:</span><span class="{ma_color_class}">{ma_status}</span></div>
-                    <div class="t-row"><span class="t-label">MA5:</span><span class="t-val-cyan">{ma5_val:.1f}</span></div>
-                    <div class="t-row"><span class="t-label">MA20:</span><span class="t-val-cyan">{ma20_val:.1f}</span></div>
-                    <div class="t-row"><span class="t-label">季60:</span><span class="t-val-cyan">{ma60_val:.1f}</span></div>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
+    plt.subplots_adjust(
+        left=0.01, right=0.99, top=0.98, bottom=0.08, hspace=0.10
+    )
+    st.pyplot(fig, use_container_width=True, dpi=150)
 
-      st.markdown(
-          f"""
-                <div class="terminal-panel">
-                    <div class="terminal-title">【區間漲跌幅】</div>
-                    <div class="t-row"><span class="t-label">近30高:</span><span class="t-val-cyan">{recent_high_val:.2f}</span></div>
-                    <div class="t-row"><span class="t-label">近30低:</span><span class="t-val-cyan">{recent_low_val:.2f}</span></div>
-                    <div class="t-row"><span class="t-label">回檔幅:</span><span class="t-val-green">-{calc_drop:.2f}%</span></div>
-                    <div class="t-row"><span class="t-label">彈升幅:</span><span class="t-val-red">+{calc_rise:.2f}%</span></div>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
+  with info_col:
+    ma5_val = (
+        float(df["ma_5"].iloc[-1])
+        if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1])
+        else 0
+    )
+    ma20_val = (
+        float(df["ma_20"].iloc[-1])
+        if "ma_20" in df.columns and not pd.isna(df["ma_20"].iloc[-1])
+        else 0
+    )
+    ma60_val = (
+        float(df["ma_60"].iloc[-1])
+        if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1])
+        else 0
+    )
+    ma_status = (
+        "多頭排列"
+        if ma5_val > ma20_val > ma60_val
+        else ("空頭排列" if ma5_val < ma20_val < ma60_val else "均線交錯")
+    )
+    ma_color_class = "t-val-red" if ma5_val > ma20_val else "t-val-green"
 
-      st.markdown(
-          f"""
-                <div class="terminal-panel">
-                    <div class="terminal-title">【KDJ綜合解盤】</div>
-                    <div class="t-row"><span class="t-label">判定:</span><span class="{kdj_sig_cls}">{kdj_signal}</span></div>
-                    <div class="t-row"><span class="t-label">K/D:</span><span class="t-val-white">{cur_k:.1f} / {cur_d:.1f}</span></div>
-                    <div class="t-row"><span class="t-label">J值:</span><span class="t-val-cyan">{cur_j:.1f}</span></div>
-                    <div class="t-row"><span class="t-label">K-D乖離:</span><span class="t-val-white">{k_diff_kd:+.1f}</span></div>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
+    recent_high_val = (
+        float(df["high"].tail(30).max()) if not df.empty else last_high
+    )
+    recent_low_val = (
+        float(df["low"].tail(30).min()) if not df.empty else last_low
+    )
+    calc_drop = (
+        ((recent_high_val - last_low) / recent_high_val) * 100
+        if recent_high_val > 0
+        else 0.0
+    )
+    calc_rise = (
+        ((last_high / recent_low_val) - 1) * 100
+        if recent_low_val > 0
+        else 0.0
+    )
 
-      st.markdown(
-          f"""
-                <div class="terminal-panel">
-                    <div class="terminal-title">【成交量解盤】</div>
-                    <div class="t-row"><span class="t-label">5日均量比:</span><span class="{vol_cls}">{v_ratio:.2f}倍</span></div>
-                    <div class="t-row"><span class="t-label">現況:</span><span class="t-val-white">{vol_status}</span></div>
-                    <div class="t-row"><span class="t-label">當日量:</span><span class="t-val-cyan">{int(last_vol):,}張</span></div>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
+    cur_k = float(df["kdj_k"].iloc[-1]) if "kdj_k" in df.columns else 0.0
+    cur_d = float(df["kdj_d"].iloc[-1]) if "kdj_d" in df.columns else 0.0
+    cur_j = float(df["kdj_j"].iloc[-1]) if "kdj_j" in df.columns else 0.0
+    prev_k = float(df["kdj_k"].iloc[-2]) if len(df) > 1 else cur_k
+    prev_d = float(df["kdj_d"].iloc[-2]) if len(df) > 1 else cur_d
+    k_diff_kd = cur_k - cur_d
 
-      st.markdown(
-          f"""
-                <div class="terminal-panel">
-                    <div class="terminal-title">【多空與波段判定】</div>
-                    <div class="t-row"><span class="t-label">多空:</span><span class="{trend_cls}">{trend_txt}</span></div>
-                    <div class="t-row"><span class="t-label">波段狀態:</span><span class="{wave_cls}">{wave_status}</span></div>
-                    <div class="t-row"><span class="t-label">紅天數:</span><span class="t-val-red">{red_days_val}日</span></div>
-                    <div class="t-row"><span class="t-label">綠天數:</span><span class="t-val-green">{green_days_val}日</span></div>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
+    is_golden_cross = prev_k <= prev_d and cur_k > cur_d
+    is_dead_cross = prev_k >= prev_d and cur_k < cur_d
 
-  # =========================================================
-  # 分頁二：9大策略選股
-  # =========================================================
-  elif app_mode == "⚡ 9大策略選股":
+    kdj_signal = "中立觀望"
+    kdj_sig_cls = "t-val-white"
+
+    if cur_k > 90:
+      kdj_signal, kdj_sig_cls = "【強力賣出】K>90超買", "t-val-green"
+    elif cur_j > 100:
+      kdj_signal, kdj_sig_cls = "【強力賣出】J>100超買", "t-val-green"
+    elif k_diff_kd > 18:
+      kdj_signal, kdj_sig_cls = "【強力賣出】正乖離>+18", "t-val-green"
+    elif is_dead_cross:
+      kdj_signal, kdj_sig_cls = "【賣出訊號】KD死叉", "t-val-green"
+    elif cur_k < 9:
+      kdj_signal, kdj_sig_cls = "【強力買進】K<9超賣", "t-val-red"
+    elif cur_k < 9 and cur_d < 9:
+      kdj_signal, kdj_sig_cls = "【強力買進】KD雙跌破9", "t-val-red"
+    elif cur_j < 0:
+      kdj_signal, kdj_sig_cls = "【強力買進】J<0超賣", "t-val-red"
+    elif k_diff_kd < -18:
+      kdj_signal, kdj_sig_cls = "【強力買進】負乖離<-18", "t-val-red"
+    elif is_golden_cross:
+      kdj_signal, kdj_sig_cls = "【買進訊號】KD金交叉", "t-val-red"
+
+    is_buy_signal_today = (
+        bool(df["is_buy_signal"].iloc[-1])
+        if "is_buy_signal" in df.columns
+        else False
+    )
+    is_sell_signal_today = (
+        bool(df["is_sell_signal"].iloc[-1])
+        if "is_sell_signal" in df.columns
+        else False
+    )
+
+    wave_status = "持倉中 / 觀望"
+    wave_cls = "t-val-white"
+    if is_buy_signal_today:
+      wave_status, wave_cls = "★ 今日波段買進", "t-val-red"
+    elif is_sell_signal_today:
+      wave_status, wave_cls = "✖ 今日波段賣出", "t-val-cyan"
+    elif df["red_days"].iloc[-1] < df["green_days"].iloc[-1]:
+      wave_status, wave_cls = "多方波段運行中", "t-val-red"
+    else:
+      wave_status, wave_cls = "空方波段整理中", "t-val-green"
+
+    red_days_val = int(df["red_days"].iloc[-1])
+    green_days_val = int(df["green_days"].iloc[-1])
+
+    vol_status = "量能平穩" if v_ratio < 1.5 else "量能顯著放大"
+    vol_cls = "t-val-white" if v_ratio < 1.5 else "t-val-red"
+    trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
+    trend_cls = "t-val-red" if is_bull else "t-val-green"
+
     st.markdown(
-        '<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果</p>',
+        f"""
+            <div class="terminal-panel">
+                <div class="terminal-title">【均線解盤】</div>
+                <div class="t-row"><span class="t-label">狀態:</span><span class="{ma_color_class}">{ma_status}</span></div>
+                <div class="t-row"><span class="t-label">MA5:</span><span class="t-val-cyan">{ma5_val:.1f}</span></div>
+                <div class="t-row"><span class="t-label">MA20:</span><span class="t-val-cyan">{ma20_val:.1f}</span></div>
+                <div class="t-row"><span class="t-label">季60:</span><span class="t-val-cyan">{ma60_val:.1f}</span></div>
+            </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    output_csv = "smart_selected_output.csv"
-    if os.path.exists(output_csv):
-      try:
-        df_res = pd.read_csv(output_csv, dtype={"代碼": str})
-      except:
-        df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
-    else:
-      df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
-
-    # 過濾出該策略的結果
-    if not df_res.empty and "策略名稱" in df_res.columns:
-      filtered_df = df_res[df_res["策略名稱"] == selected_strat].copy()
-    else:
-      filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
-
-    # 檢查是否為空或只有「無」
-    if filtered_df.empty or (
-        len(filtered_df) == 1
-        and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]
-    ):
-      st.info(f"【{selected_strat}】目前尚無符合條件的股票標的。")
-    else:
-      # 補上股票名稱對照
-      id_to_name = dict(
-          zip(
-              stock_df["代碼"].astype(str).str.zfill(4),
-              stock_df["名稱"].astype(str),
-          )
-      )
-      if "代碼" in filtered_df.columns:
-        filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
-
-      st.success(f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。")
-      st.dataframe(filtered_df, use_container_width=True, hide_index=True)
-
-  # =========================================================
-  # 分頁三：大戶總表 (純讀取 Excel，無爬蟲)
-  # =========================================================
-  elif app_mode == "📋 大戶總表":
-    excel_filename = "大戶持股最新分析總表.xlsx"
-    if os.path.exists(excel_filename):
-      try:
-        df_meta = pd.read_excel(
-            excel_filename, sheet_name="大戶增幅前15名", nrows=1, header=None
-        )
-        week_info = (
-            str(df_meta.iloc[0, 0])
-            if not pd.isna(df_meta.iloc[0, 0])
-            else "最新單週"
-        )
-        date_info = (
-            str(df_meta.iloc[0, 4])
-            if df_meta.shape[1] > 4 and not pd.isna(df_meta.iloc[0, 4])
-            else ""
-        )
-
-        df_top15 = pd.read_excel(
-            excel_filename, sheet_name="大戶增幅前15名", header=1
-        )
-        df_display = pd.DataFrame()
-        df_display["代碼"] = df_top15["代碼"].apply(
-            lambda x: str(x).strip().zfill(4)
-        )
-        df_display["名稱"] = df_top15["名稱"].astype(str).str.strip()
-        if "大戶持有率_差異(%)" in df_top15.columns:
-          df_display["大戶增幅(%)"] = df_top15["大戶持有率_差異(%)"].apply(
-              lambda x: f"+{float(x):.2f}%" if pd.notna(x) else ""
-          )
-        df_display["趨勢圖連結"] = df_top15["代碼"].apply(
-            lambda x: (
-                "https://norway.twsthr.info/StockHolders.aspx?stock="
-                f"{str(x).strip().zfill(4)}"
-            )
-        )
-
-        c_title, c_btn = st.columns([3, 1])
-        with c_title:
-          st.markdown(
-              f'<p class="sub-header-14">📋 籌碼增幅榜 ｜ {week_info} ｜'
-              f" {date_info}</p>",
-              unsafe_allow_html=True,
-          )
-        with c_btn:
-          with open(excel_filename, "rb") as file:
-            st.download_button(
-                "📥 下載 Excel",
-                data=file,
-                file_name="大戶持股最新分析總表.xlsx",
-                use_container_width=True,
-            )
-
-        col_l, col_r = st.columns(2)
-        with col_l:
-          st.dataframe(
-              df_display.iloc[:8],
-              column_config={
-                  "趨勢圖連結": st.column_config.LinkColumn(
-                      "🔗 連結", display_text="📈 金字塔"
-                  )
-              },
-              use_container_width=True,
-              hide_index=True,
-          )
-        with col_r:
-          st.dataframe(
-              df_display.iloc[8:],
-              column_config={
-                  "趨勢圖連結": st.column_config.LinkColumn(
-                      "🔗 連結", display_text="📈 金字塔"
-                  )
-              },
-              use_container_width=True,
-              hide_index=True,
-          )
-      except Exception as e:
-        st.error(f"讀取總表格式發生錯誤：{e}")
-    else:
-      st.warning(
-          "找不到總表檔案 (`大戶持股最新分析總表.xlsx`)，請確認背景自動更新排程已順利執行。"
-      )
-
-  # =========================================================
-  # 分頁四：基本面與圖表
-  # =========================================================
-  elif app_mode == "📊 基本面與圖表":
     st.markdown(
-        '<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True
-    )
-    selected_fund_stock = st.selectbox(
-        "選擇股票", stock_options, label_visibility="collapsed"
-    )
-    target_code = selected_fund_stock.split()[0]
-    target_name = (
-        selected_fund_stock.split()[1]
-        if len(selected_fund_stock.split()) > 1
-        else ""
+        f"""
+            <div class="terminal-panel">
+                <div class="terminal-title">【區間漲跌幅】</div>
+                <div class="t-row"><span class="t-label">近30高:</span><span class="t-val-cyan">{recent_high_val:.2f}</span></div>
+                <div class="t-row"><span class="t-label">近30低:</span><span class="t-val-cyan">{recent_low_val:.2f}</span></div>
+                <div class="t-row"><span class="t-label">回檔幅:</span><span class="t-val-green">-{calc_drop:.2f}%</span></div>
+                <div class="t-row"><span class="t-label">彈升幅:</span><span class="t-val-red">+{calc_rise:.2f}%</span></div>
+            </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
-    data_sets = [
-        {
-            "title": "毛利率與營業利益率",
-            "val1": [15.2, 16.5, 18.0, 17.2, 19.1],
-            "val2": [8.1, 9.0, 10.5, 9.8, 11.2],
-        },
-        {
-            "title": "單季營業收入與年增率",
-            "val1": [12.5, 13.2, 14.1, 13.8, 15.0],
-            "val2": [5.2, 6.1, 8.3, 7.0, 9.2],
-        },
-        {
-            "title": "每股盈餘 (EPS)",
-            "val1": [0.85, 0.92, 1.15, 1.02, 1.30],
-            "val2": [],
-        },
-    ]
+    st.markdown(
+        f"""
+            <div class="terminal-panel">
+                <div class="terminal-title">【KDJ綜合解盤】</div>
+                <div class="t-row"><span class="t-label">判定:</span><span class="{kdj_sig_cls}">{kdj_signal}</span></div>
+                <div class="t-row"><span class="t-label">K/D:</span><span class="t-val-white">{cur_k:.1f} / {cur_d:.1f}</span></div>
+                <div class="t-row"><span class="t-label">J值:</span><span class="t-val-cyan">{cur_j:.1f}</span></div>
+                <div class="t-row"><span class="t-label">K-D乖離:</span><span class="t-val-white">{k_diff_kd:+.1f}</span></div>
+            </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    plt.style.use("dark_background")
-    cols = st.columns(2)
-    for idx, ds in enumerate(data_sets):
-      fig, ax = plt.subplots(figsize=(4.2, 2.0))
+    st.markdown(
+        f"""
+            <div class="terminal-panel">
+                <div class="terminal-title">【成交量解盤】</div>
+                <div class="t-row"><span class="t-label">5日均量比:</span><span class="{vol_cls}">{v_ratio:.2f}倍</span></div>
+                <div class="t-row"><span class="t-label">現況:</span><span class="t-val-white">{vol_status}</span></div>
+                <div class="t-row"><span class="t-label">當日量:</span><span class="t-val-cyan">{int(last_vol):,}張</span></div>
+            </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+            <div class="terminal-panel">
+                <div class="terminal-title">【多空與波段判定】</div>
+                <div class="t-row"><span class="t-label">多空:</span><span class="{trend_cls}">{trend_txt}</span></div>
+                <div class="t-row"><span class="t-label">波段狀態:</span><span class="{wave_cls}">{wave_status}</span></div>
+                <div class="t-row"><span class="t-label">紅天數:</span><span class="t-val-red">{red_days_val}日</span></div>
+                <div class="t-row"><span class="t-label">綠天數:</span><span class="t-val-green">{green_days_val}日</span></div>
+            </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# =========================================================
+# 分頁二：9大策略選股
+# =========================================================
+elif app_mode == "⚡ 9大策略選股":
+  st.markdown(
+      f'<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【'
+      f"{selected_strat}】</p>",
+      unsafe_allow_html=True,
+  )
+
+  output_csv = "smart_selected_output.csv"
+  if os.path.exists(output_csv):
+    try:
+      df_res = pd.read_csv(output_csv, dtype={"代碼": str})
+    except:
+      df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
+  else:
+    df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
+
+  if not df_res.empty and "策略名稱" in df_res.columns:
+    filtered_df = df_res[df_res["策略名稱"] == selected_strat].copy()
+  else:
+    filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
+
+  if filtered_df.empty or (
+      len(filtered_df) == 1
+      and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]
+  ):
+    st.info(f"【{selected_strat}】目前尚無符合條件的股票標的。")
+  else:
+    id_to_name = dict(
+        zip(
+            stock_df["代碼"].astype(str).str.zfill(4),
+            stock_df["名稱"].astype(str),
+        )
+    )
+    if "代碼" in filtered_df.columns:
+      filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
+
+    st.success(f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。")
+    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+
+# =========================================================
+# 分頁三：大戶總表 (純讀取 Excel，無爬蟲)
+# =========================================================
+elif app_mode == "📋 大戶總表":
+  excel_filename = "大戶持股最新分析總表.xlsx"
+  if os.path.exists(excel_filename):
+    try:
+      df_meta = pd.read_excel(
+          excel_filename, sheet_name="大戶增幅前15名", nrows=1, header=None
+      )
+      week_info = (
+          str(df_meta.iloc[0, 0])
+          if not pd.isna(df_meta.iloc[0, 0])
+          else "最新單週"
+      )
+      date_info = (
+          str(df_meta.iloc[0, 4])
+          if df_meta.shape[1] > 4 and not pd.isna(df_meta.iloc[0, 4])
+          else ""
+      )
+
+      df_top15 = pd.read_excel(
+          excel_filename, sheet_name="大戶增幅前15名", header=1
+      )
+      df_display = pd.DataFrame()
+      df_display["代碼"] = df_top15["代碼"].apply(
+          lambda x: str(x).strip().zfill(4)
+      )
+      df_display["名稱"] = df_top15["名稱"].astype(str).str.strip()
+      if "大戶持有率_差異(%)" in df_top15.columns:
+        df_display["大戶增幅(%)"] = df_top15["大戶持有率_差異(%)"].apply(
+            lambda x: f"+{float(x):.2f}%" if pd.notna(x) else ""
+        )
+      df_display["趨勢圖連結"] = df_top15["代碼"].apply(
+          lambda x: (
+              "https://norway.twsthr.info/StockHolders.aspx?stock="
+              f"{str(x).strip().zfill(4)}"
+          )
+      )
+
+      c_title, c_btn = st.columns([3, 1])
+      with c_title:
+        st.markdown(
+            f'<p class="sub-header-14">📋 籌碼增幅榜 ｜ {week_info} ｜'
+            f" {date_info}</p>",
+            unsafe_allow_html=True,
+        )
+      with c_btn:
+        with open(excel_filename, "rb") as file:
+          st.download_button(
+              "📥 下載 Excel",
+              data=file,
+              file_name="大戶持股最新分析總表.xlsx",
+              use_container_width=True,
+          )
+
+      col_l, col_r = st.columns(2)
+      with col_l:
+        st.dataframe(
+            df_display.iloc[:8],
+            column_config={
+                "趨勢圖連結": st.column_config.LinkColumn(
+                    "🔗 連結", display_text="📈 金字塔"
+                )
+            },
+            use_container_width=True,
+            hide_index=True,
+        )
+      with col_r:
+        st.dataframe(
+            df_display.iloc[8:],
+            column_config={
+                "趨勢圖連結": st.column_config.LinkColumn(
+                    "🔗 連結", display_text="📈 金字塔"
+                )
+            },
+            use_container_width=True,
+            hide_index=True,
+        )
+    except Exception as e:
+      st.error(f"讀取總表格式發生錯誤：{e}")
+  else:
+    st.warning(
+        "找不到總表檔案 (`大戶持股最新分析總表.xlsx`)，請確認背景自動更新排程已順利執行。"
+    )
+
+# =========================================================
+# 分頁四：基本面與圖表
+# =========================================================
+elif app_mode == "📊 基本面與圖表":
+  st.markdown(
+      '<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True
+  )
+  selected_fund_stock = st.selectbox(
+      "選擇股票", stock_options, label_visibility="collapsed"
+  )
+  target_code = selected_fund_stock.split()[0]
+  target_name = (
+      selected_fund_stock.split()[1]
+      if len(selected_fund_stock.split()) > 1
+      else ""
+  )
+
+  quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
+  data_sets = [
+      {
+          "title": "毛利率與營業利益率",
+          "val1": [15.2, 16.5, 18.0, 17.2, 19.1],
+          "val2": [8.1, 9.0, 10.5, 9.8, 11.2],
+      },
+      {
+          "title": "單季營業收入與年增率",
+          "val1": [12.5, 13.2, 14.1, 13.8, 15.0],
+          "val2": [5.2, 6.1, 8.3, 7.0, 9.2],
+      },
+      {
+          "title": "每股盈餘 (EPS)",
+          "val1": [0.85, 0.92, 1.15, 1.02, 1.30],
+          "val2": [],
+      },
+  ]
+
+  plt.style.use("dark_background")
+  cols = st.columns(2)
+  for idx, ds in enumerate(data_sets):
+    fig, ax = plt.subplots(figsize=(4.2, 2.0))
+    ax.plot(
+        quarters,
+        ds["val1"],
+        marker="o",
+        markersize=3,
+        color="#00FF66",
+        linewidth=1.5,
+    )
+    if ds["val2"]:
       ax.plot(
           quarters,
-          ds["val1"],
-          marker="o",
+          ds["val2"],
+          marker="s",
           markersize=3,
-          color="#00FF66",
+          color="#00FFFF",
           linewidth=1.5,
       )
-      if ds["val2"]:
-        ax.plot(
-            quarters,
-            ds["val2"],
-            marker="s",
-            markersize=3,
-            color="#00FFFF",
-            linewidth=1.5,
-        )
-      ax.set_title(
-          f"[{target_code}] {ds['title']}",
-          color="white",
-          fontsize=9.0,
-          fontweight="bold",
-      )
-      ax.tick_params(axis="both", labelsize=7.0, colors="#FFFFFF")
-      ax.grid(True, linestyle=":", color="#555555", alpha=0.5)
-      fig.tight_layout(pad=0.3)
+    ax.set_title(
+        f"[{target_code}] {ds['title']}",
+        color="white",
+        fontsize=9.0,
+        fontweight="bold",
+    )
+    ax.tick_params(axis="both", labelsize=7.0, colors="#FFFFFF")
+    ax.grid(True, linestyle=":", color="#555555", alpha=0.5)
+    fig.tight_layout(pad=0.3)
 
-      with cols[idx % 2]:
-        with st.expander(f"📊 {ds['title']} (放大)", expanded=False):
-          st.pyplot(fig, use_container_width=True)
-
-else:
-  st.warning("請確認 StockIDs.xlsx 檔案已就位。")
+    with cols[idx % 2]:
+      with st.expander(f"📊 {ds['title']} (放大)", expanded=False):
+        st.pyplot(fig, use_container_width=True)
