@@ -557,9 +557,6 @@ if stock_options:
           unsafe_allow_html=True,
       )
 
-  # =========================================================
-  # 分頁二：9大策略選股 (支援全部 9 種策略)
-  # =========================================================
 # =========================================================
   # 分頁二：9大策略選股 (強制完整顯示 9 大策略分類)
   # =========================================================
@@ -570,7 +567,7 @@ if stock_options:
     )
 
     output_csv = "smart_selected_output.csv"
-    
+
     # 定義固定的 9 大策略標準清單
     all_strategies = [
         "主力底部吃貨",
@@ -581,7 +578,7 @@ if stock_options:
         "波段買點",
         "多空轉折信號",
         "5均線匯集",
-        "底部量大強漲"
+        "底部量大強漲",
     ]
 
     # 讀取 CSV 或建立預設結構
@@ -594,7 +591,9 @@ if stock_options:
       df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
 
     # 下拉選單直接使用固定的 9 大策略，確保一個不漏！
-    selected_strat = st.selectbox("選擇策略分類", all_strategies, key="strat_sel")
+    selected_strat = st.selectbox(
+        "選擇策略分類", all_strategies, key="strat_sel"
+    )
 
     # 過濾出該策略的結果
     if not df_res.empty and "策略名稱" in df_res.columns:
@@ -603,7 +602,10 @@ if stock_options:
       filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
 
     # 檢查是否為空或只有「無」
-    if filtered_df.empty or (len(filtered_df) == 1 and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]):
+    if filtered_df.empty or (
+        len(filtered_df) == 1
+        and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]
+    ):
       st.info(f"【{selected_strat}】目前尚無符合條件的股票標的。")
     else:
       # 補上股票名稱對照
