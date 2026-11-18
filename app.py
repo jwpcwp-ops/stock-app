@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (強制修正提示文字顏色，確保清晰可讀)
+# 2. 注入自訂 CSS (放大標題與拉開綠色提示框間距，徹底避免重疊)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -29,26 +29,30 @@ st.markdown(
         footer { display: none !important; }
         
         .block-container {
-            padding-top: 0.05rem !important;
+            padding-top: 0.15rem !important;
             padding-bottom: 0.0rem !important;
-            padding-left: 0.2rem !important;
-            padding-right: 0.2rem !important;
+            padding-left: 0.25rem !important;
+            padding-right: 0.25rem !important;
             max-width: 100% !important;
         }
         .sub-header-14 {
-            font-size: 13px !important;
-            font-weight: bold;
-            color: #ffffff;
-            margin-top: 6px !important;
-            margin-bottom: 6px !important;
-            line-height: 1.4 !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            color: #ffffff !important;
+            margin-top: 8px !important;
+            margin-bottom: 10px !important;
+            padding: 4px 2px !important;
+            line-height: 1.5 !important;
+            display: block !important;
+            position: relative !important;
+            z-index: 10 !important;
         }
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
             gap: 4px !important;
             align-items: center !important;
-            margin-bottom: 2px !important;
+            margin-bottom: 4px !important;
         }
         .stButton button {
             font-size: 8.5px !important;
@@ -80,17 +84,23 @@ st.markdown(
             flex-wrap: wrap !important;
         }
         [data-testid="stVerticalBlock"] {
-            gap: 2px !important;
+            gap: 4px !important;
         }
         
-        /* 專屬綠色提示框文字強制白色 */
+        /* 專屬綠色提示框：增加上方間距避免往上疊蓋標題 */
         .stAlert {
             color: #ffffff !important;
             background-color: #0b2e13 !important;
             border: 1px solid #1e7e34 !important;
+            margin-top: 8px !important;
+            padding-top: 10px !important;
+            padding-bottom: 10px !important;
+            position: relative !important;
+            z-index: 1 !important;
         }
         .stAlert p {
             color: #ffffff !important;
+            font-size: 14px !important;
             font-weight: bold !important;
         }
         
@@ -1158,7 +1168,7 @@ if app_mode == "📈 個股籌碼圖表":
             ("RSI6:", "#FF00FF"),
             (f"{cur_r6:.2f}  ", "#FF00FF"),
             ("RSI12:", "#00FFFF"),
-            (f"{cur_r12:.2f}  ", "#FF00FF"),
+            (f"{cur_r12:.2f}  ", "#00FFFF"),
             ("差值:", "#FFFF00"),
             (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00"),
         ]
