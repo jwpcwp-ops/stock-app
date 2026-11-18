@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (右側大字體填滿解盤面板與頂端策略按鈕)
+# 2. 注入自訂 CSS (強制修正提示文字顏色，確保清晰可讀)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -80,6 +80,17 @@ st.markdown(
         }
         [data-testid="stVerticalBlock"] {
             gap: 2px !important;
+        }
+        
+        /* 專屬綠色提示框文字強制白色 */
+        .stAlert {
+            color: #ffffff !important;
+            background-color: #0b2e13 !important;
+            border: 1px solid #1e7e34 !important;
+        }
+        .stAlert p {
+            color: #ffffff !important;
+            font-weight: bold !important;
         }
         
         /* 專屬右側解盤面板樣式：模仿專業看盤軟體填滿、黑底紅框綠字大字體 */
@@ -360,7 +371,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 
 
 # ---------------------------------------------------------
-# 6. Session State 初始化 (修正 KeyError)
+# 6. Session State 初始化
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
   st.session_state.selected_index = 0
@@ -871,7 +882,6 @@ if app_mode == "📈 個股籌碼圖表":
     plt.setp(ax1.get_xticklabels(), visible=False)
     ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-    # 💡 股票標題列文字亮度極致強化 (純白與超粗外框)
     standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
     t_header = ax1.text(
         0.01,
@@ -1147,7 +1157,7 @@ if app_mode == "📈 個股籌碼圖表":
             ("RSI6:", "#FF00FF"),
             (f"{cur_r6:.2f}  ", "#FF00FF"),
             ("RSI12:", "#00FFFF"),
-            (f"{cur_r12:.2f}  ", "#00FFFF"),
+            (f"{cur_r12:.2f}  ", "#FF00FF"),
             ("差值:", "#FFFF00"),
             (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00"),
         ]
