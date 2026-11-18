@@ -36,11 +36,12 @@ st.markdown(
             max-width: 100% !important;
         }
         .sub-header-14 {
-            font-size: 11px !important;
+            font-size: 13px !important;
             font-weight: bold;
             color: #ffffff;
-            margin-top: 1px;
-            margin-bottom: 1px;
+            margin-top: 6px !important;
+            margin-bottom: 6px !important;
+            line-height: 1.4 !important;
         }
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
