@@ -207,7 +207,6 @@ def parse_date_to_yyyymmdd(raw_date):
     return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
   return d_str
 
-
 def get_comprehensive_stock_data(stock_id, target_days=250):
   """優先讀取 GitHub 倉庫中 txt_data/ 內的飛狐格式 TXT 檔案"""
   txt_path = os.path.join(TXT_DIR, f"TW{stock_id}.txt")
@@ -273,20 +272,26 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
     })
     k_records = df_k.to_dict(orient="records")
 
-        vol_series = df_k["vol"]
-        cur_vol = float(vol_series.iloc[-1]) if len(vol_series) > 0 else 0.0
-        vol_20ma = vol_series.rolling(20).mean()
-        
-        # 修正後的 20 日均量安全取值
-        val_20 = vol_20ma.iloc[-1] if len(vol_20ma) > 0 and not pd.isna(vol_20ma.iloc[-1]) else 0.0
-        cur_20ma = float(val_20) if val_20 > 0 else 1.0
-        
-        ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
+  vol_series = df_k["vol"]
+  cur_vol = float(vol_series.iloc[-1]) if len(vol_series) > 0 else 0.0
+  vol_20ma = vol_series.rolling(20).mean()
+
+  val_20 = (
+      vol_20ma.iloc[-1]
+      if len(vol_20ma) > 0 and not pd.isna(vol_20ma.iloc[-1])
+      else 0.0
+  )
+  cur_20ma = float(val_20) if val_20 > 0 else 1.0
+
+  ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
 
   # 模擬大戶持股曲線 (可對接真實大戶資料)
   cache_dict = load_local_cache_cached()
   today_str = datetime.today().strftime("%Y-%m-%d")
-  if stock_id in cache_dict and cache_dict[stock_id].get("update_date") == today_str:
+  if (
+      stock_id in cache_dict
+      and cache_dict[stock_id].get("update_date") == today_str
+  ):
     cached = cache_dict[stock_id]
     big_holder = np.array(cached.get("big_holder", [40.0] * len(k_records)))
     sheep_holder = np.array(cached.get("sheep_holder", [42.0] * len(k_records)))
@@ -301,7 +306,6 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
     )
 
   return k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio
-
 
 # ---------------------------------------------------------
 # 6. Session State 初始化
