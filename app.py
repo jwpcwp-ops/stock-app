@@ -1361,6 +1361,20 @@ if app_mode == "📈 個股籌碼圖表":
     st.pyplot(fig, use_container_width=True, dpi=150)
 
   with info_col:
+    # ⚡ 個股籌碼圖表右側面板：3大快捷切換
+    st.markdown(
+        '<div class="terminal-title">【功能快捷切換】</div>', unsafe_allow_html=True
+    )
+    if st.button("📈 個股籌碼圖表", use_container_width=True, key="btn_go_chart"):
+      st.session_state.app_mode_state = "📈 個股籌碼圖表"
+      st.rerun()
+    if st.button("⚡ 9大策略選股", use_container_width=True, key="btn_go_strat"):
+      st.session_state.app_mode_state = "⚡ 9大策略選股"
+      st.rerun()
+    if st.button("📊 基本面與圖表", use_container_width=True, key="btn_go_fund"):
+      st.session_state.app_mode_state = "📊 基本面與圖表"
+      st.rerun()
+
     ma5_val = (
         float(df["ma_5"].iloc[-1])
         if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1])
@@ -1527,7 +1541,7 @@ if app_mode == "📈 個股籌碼圖表":
     )
 
 # =========================================================
-# 分頁二：⚡ 9大策略選股 (加入點擊跳轉個股籌碼圖表功能)
+# 分頁二：⚡ 9大策略選股 (點擊後出現3大導航功能區)
 # =========================================================
 elif app_mode == "⚡ 9大策略選股":
   st.markdown(
@@ -1593,8 +1607,37 @@ elif app_mode == "⚡ 9大策略選股":
 
       if matching_option_idx != -1:
         st.session_state.selected_index = matching_option_idx
-        st.session_state.app_mode_state = "📈 個股籌碼圖表"
-        st.rerun()
+
+      # ⚡ 點選後即時顯示 3 大去處導航面板
+      st.markdown("---")
+      st.markdown(
+          f"👉 您目前選中：**`{target_code}` {target_name}**，請選擇要前往的功能區："
+      )
+
+      nav_col1, nav_col2, nav_col3 = st.columns(3)
+      with nav_col1:
+        if st.button(
+            "📈 1. 前往個股籌碼圖表",
+            key="go_chart_from_strat",
+            use_container_width=True,
+        ):
+          st.session_state.app_mode_state = "📈 個股籌碼圖表"
+          st.rerun()
+      with nav_col2:
+        if st.button(
+            "📊 2. 前往基本面與圖表",
+            key="go_fund_from_strat",
+            use_container_width=True,
+        ):
+          st.session_state.app_mode_state = "📊 基本面與圖表"
+          st.rerun()
+      with nav_col3:
+        if st.button(
+            "⚡ 3. 留在9大策略選股",
+            key="stay_strat",
+            use_container_width=True,
+        ):
+          st.rerun()
 
 # =========================================================
 # 分頁三：📋 大戶總表
