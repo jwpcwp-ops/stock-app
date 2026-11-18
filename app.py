@@ -409,9 +409,7 @@ if "app_mode_state" not in st.session_state:
 # ---------------------------------------------------------
 # 7. 網頁主介面佈局 (頂部選單區右側整合 3 大快捷直達車)
 # ---------------------------------------------------------
-top_col1, top_col2, btn_col1, btn_col2, btn_col3 = st.columns(
-    [1.5, 1.5, 1.5, 1.5, 1.5]
-)
+top_col1, btn_col1, btn_col2, btn_col3 = st.columns([2.5, 2.5, 2.5, 2.5])
 
 mode_options = [
     "📈 個股籌碼圖表",
@@ -459,11 +457,6 @@ all_strategies = [
     "5均線匯集",
     "底部量大強漲",
 ]
-
-if app_mode == "⚡ 9大策略選股":
-  with top_col2:
-    # 策略選單的按鈕區
-    pass
 
 # =========================================================
 # 分頁一：📈 個股籌碼圖表
@@ -1385,7 +1378,6 @@ if app_mode == "📈 個股籌碼圖表":
     st.pyplot(fig, use_container_width=True, dpi=150)
 
   with info_col:
-    # 右側面板保持純粹的籌碼解盤資訊，維持原汁原味的美觀
     ma5_val = (
         float(df["ma_5"].iloc[-1])
         if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1])
@@ -1555,6 +1547,20 @@ if app_mode == "📈 個股籌碼圖表":
 # 分頁二：⚡ 9大策略選股 (點擊後直接直達目標頁面與股票)
 # =========================================================
 elif app_mode == "⚡ 9大策略選股":
+  # 💡 修正：在此處正確宣告並渲染 9 大策略按鈕列與標題
+  strat_cols = st.columns(len(all_strategies))
+  for idx, strat_name in enumerate(all_strategies):
+    with strat_cols[idx]:
+      is_active = st.session_state.selected_synth_strat == strat_name
+      btn_label = f"🔥 {strat_name}" if is_active else strat_name
+      if st.button(
+          btn_label, key=f"strat_btn_{idx}", use_container_width=True
+      ):
+        st.session_state.selected_synth_strat = strat_name
+        st.rerun()
+
+  selected_strat = st.session_state.selected_synth_strat
+
   st.markdown(
       f'<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【'
       f"{selected_strat}】</p>",
