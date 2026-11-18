@@ -273,11 +273,15 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
     })
     k_records = df_k.to_dict(orient="records")
 
-  vol_series = df_k["vol"]
-  cur_vol = float(vol_series.iloc[-1]) if len(vol_series) > 0 else 0.0
-  vol_20ma = vol_series.rolling(20).mean()
-  cur_20ma = float(vol_20ma.iloc[-1]) if len(vol_20ma.iloc[-1] if not pd.isna(vol_20ma.iloc[-1]) else 0.0) else 1.0
-  ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
+        vol_series = df_k["vol"]
+        cur_vol = float(vol_series.iloc[-1]) if len(vol_series) > 0 else 0.0
+        vol_20ma = vol_series.rolling(20).mean()
+        
+        # 修正後的 20 日均量安全取值
+        val_20 = vol_20ma.iloc[-1] if len(vol_20ma) > 0 and not pd.isna(vol_20ma.iloc[-1]) else 0.0
+        cur_20ma = float(val_20) if val_20 > 0 else 1.0
+        
+        ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
 
   # 模擬大戶持股曲線 (可對接真實大戶資料)
   cache_dict = load_local_cache_cached()
