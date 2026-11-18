@@ -142,7 +142,7 @@ else:
 plt.rcParams["axes.unicode_minus"] = False
 
 
-def get_bright_effect(stroke_color="#000000", linewidth=2.2):
+def get_bright_effect(stroke_color="#000000", linewidth=2.5):
   return [
       path_effects.withStroke(linewidth=linewidth, foreground=stroke_color),
       path_effects.Normal(),
@@ -360,19 +360,16 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 
 
 # ---------------------------------------------------------
-# 6. Session State 初始化
+# 6. Session State 初始化 (修正 KeyError)
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
   st.session_state.selected_index = 0
-if "selected_strat" not in st.session_state:
-  st.session_state.selected_strat = "主力底部吃貨"
+if "selected_synth_strat" not in st.session_state:
+  st.session_state.selected_synth_strat = "主力底部吃貨"
 
 # ---------------------------------------------------------
 # 7. 網頁主介面佈局
 # ---------------------------------------------------------
-modes = ["📈 個股籌碼圖表", "⚡ 9a策略選股", "📋 大戶總表", "📊 基本面與圖表"]
-
-# 💡 頂端第一行佈局：左側放「功能模式」，右側空白處直接用按鈕一列排開 9 大策略！
 top_col1, top_col2 = st.columns([1.5, 8.5])
 
 with top_col1:
@@ -395,7 +392,7 @@ all_strategies = [
     "底部量大強漲",
 ]
 
-# ⚡ 如果切換到 9 大策略選股模式，第一行右側直接橫向並排 9 個按鈕！
+# ⚡ 當切換至「9大策略選股」模式時，第一行右側橫向並排 9 個按鈕！
 if app_mode == "⚡ 9大策略選股":
   with top_col2:
     strat_cols = st.columns(len(all_strategies))
@@ -409,12 +406,9 @@ if app_mode == "⚡ 9大策略選股":
           st.session_state.selected_synth_strat = strat_name
           st.rerun()
 
-  selected_strat = st.session_state.get(
-      "selected_synth_strat", "主力底部吃貨"
-  )
+  selected_strat = st.session_state.selected_synth_strat
 
 if app_mode == "📈 個股籌碼圖表":
-  # 第二行：股票選單、週期選擇
   sec_row_cols = st.columns([2.0, 1.2, 6.8])
   with sec_row_cols[0]:
     if st.session_state.selected_index >= len(stock_options):
@@ -445,7 +439,6 @@ if app_mode == "📈 個股籌碼圖表":
     )
     actual_chart_period = chart_period
 
-  # 第三行：均線設定區、技術指標、K線天數
   third_row_cols = st.columns([1.2, 1.2, 0.6])
   with third_row_cols[0]:
     selected_ma = st.pills(
@@ -878,7 +871,7 @@ if app_mode == "📈 個股籌碼圖表":
     plt.setp(ax1.get_xticklabels(), visible=False)
     ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-    # 💡 股票標題列文字亮度極致強化 (純白與極粗外框)
+    # 💡 股票標題列文字亮度極致強化 (純白與超粗外框)
     standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
     t_header = ax1.text(
         0.01,
@@ -1284,7 +1277,6 @@ if app_mode == "📈 個股籌碼圖表":
           True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
       )
 
-      # 💡 成交量數據面板亮度極致強化
       vol_str_parts = [
           ("今日 ", "#FFFFFF"),
           (f"量:{int(cur_vol_val)}", "#FF3333"),
