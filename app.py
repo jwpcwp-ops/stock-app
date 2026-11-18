@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (調整文字與排版)
+# 2. 注入自訂 CSS (調整文字、排版與按鈕高亮)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -60,6 +60,23 @@ st.markdown(
             min-height: 22px !important;
             height: 22px !important;
         }
+        
+        /* 策略選股下方 3 大導航按鈕美化 */
+        div[data-testid="stHorizontalBlock"] button {
+            background-color: #1a1a1a !important;
+            color: #00ffff !important;
+            border: 1px solid #00ffff !important;
+            font-weight: bold !important;
+            border-radius: 4px !important;
+            height: 34px !important;
+            font-size: 12px !important;
+        }
+        div[data-testid="stHorizontalBlock"] button:hover {
+            background-color: #00ffff !important;
+            color: #000000 !important;
+            border: 1px solid #ffffff !important;
+        }
+
         [data-testid="stSelectbox"] {
             margin-bottom: 0px !important;
         }
@@ -450,6 +467,7 @@ if app_mode == "📈 個股籌碼圖表":
     if st.session_state.selected_index >= len(stock_options):
       st.session_state.selected_index = 0
 
+    # 💡 關鍵：此處強烈綁定 st.session_state.selected_index，點擊直達車後會自動對應到該檔股票
     selected_stock = st.selectbox(
         "股票選單",
         stock_options,
@@ -1541,7 +1559,7 @@ if app_mode == "📈 個股籌碼圖表":
     )
 
 # =========================================================
-# 分頁二：⚡ 9大策略選股 (點擊後出現3大導航功能區)
+# 分頁二：⚡ 9大策略選股 (點擊後直接直達目標頁面與股票)
 # =========================================================
 elif app_mode == "⚡ 9大策略選股":
   st.markdown(
@@ -1599,6 +1617,7 @@ elif app_mode == "⚡ 9大策略選股":
           else ""
       )
 
+      # 尋找該股票在總選單中的索引
       matching_option_idx = -1
       for i, opt in enumerate(stock_options):
         if opt.startswith(target_code):
@@ -1608,16 +1627,16 @@ elif app_mode == "⚡ 9大策略選股":
       if matching_option_idx != -1:
         st.session_state.selected_index = matching_option_idx
 
-      # ⚡ 點選後即時顯示 3 大去處導航面板
+      # ⚡ 點選某一檔股票後，即時顯示直達車按鈕
       st.markdown("---")
       st.markdown(
-          f"👉 您目前選中：**`{target_code}` {target_name}**，請選擇要前往的功能區："
+          f"👉 您目前選中：**`{target_code}` {target_name}**，請選擇要直達的功能區："
       )
 
       nav_col1, nav_col2, nav_col3 = st.columns(3)
       with nav_col1:
         if st.button(
-            "📈 1. 前往個股籌碼圖表",
+            "📈 1. 直達個股籌碼圖表",
             key="go_chart_from_strat",
             use_container_width=True,
         ):
@@ -1625,7 +1644,7 @@ elif app_mode == "⚡ 9大策略選股":
           st.rerun()
       with nav_col2:
         if st.button(
-            "📊 2. 前往基本面與圖表",
+            "📊 2. 直達基本面與圖表",
             key="go_fund_from_strat",
             use_container_width=True,
         ):
@@ -1726,15 +1745,29 @@ elif app_mode == "📋 大戶總表":
     )
 
 # =========================================================
-# 分頁四：📊 基本面與圖表
+# 分頁四：📊 基本面與圖表 (加入股票選單與直達連動)
 # =========================================================
 elif app_mode == "📊 基本面與圖表":
   st.markdown(
       '<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True
   )
+
+  # 💡 關鍵：基本面頁面也綁定 st.session_state.selected_index，讓直達車也能直接對應正確股票
+  if st.session_state.selected_index >= len(stock_options):
+    st.session_state.selected_index = 0
+
   selected_fund_stock = st.selectbox(
-      "選擇股票", stock_options, label_visibility="collapsed"
+      "選擇股票",
+      stock_options,
+      index=st.session_state.selected_index,
+      label_visibility="collapsed",
+      key="fund_stock_select_box",
   )
+  try:
+    st.session_state.selected_index = stock_options.index(selected_fund_stock)
+  except:
+    st.session_state.selected_index = 0
+
   target_code = selected_fund_stock.split()[0]
   target_name = (
       selected_fund_stock.split()[1]
