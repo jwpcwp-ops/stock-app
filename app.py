@@ -422,10 +422,13 @@ with top_col1:
   if st.session_state.app_mode_state not in mode_options:
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
 
+  # 💡 關鍵修復：取得目前模式在選單列表中的索引，確保點擊上方按鈕時選單同步切換
+  current_mode_index = mode_options.index(st.session_state.app_mode_state)
+
   app_mode = st.selectbox(
       "功能模式",
       mode_options,
-      index=mode_options.index(st.session_state.app_mode_state),
+      index=current_mode_index,
       label_visibility="collapsed",
       key="mode_select_dropdown",
   )
@@ -1547,7 +1550,6 @@ if app_mode == "📈 個股籌碼圖表":
 # 分頁二：⚡ 9大策略選股 (點擊後直接直達目標頁面與股票)
 # =========================================================
 elif app_mode == "⚡ 9大策略選股":
-  # 💡 修正：在此處正確宣告並渲染 9 大策略按鈕列與標題
   strat_cols = st.columns(len(all_strategies))
   for idx, strat_name in enumerate(all_strategies):
     with strat_cols[idx]:
@@ -1616,7 +1618,6 @@ elif app_mode == "⚡ 9大策略選股":
           else ""
       )
 
-      # 尋找該股票在總選單中的索引
       matching_option_idx = -1
       for i, opt in enumerate(stock_options):
         if opt.startswith(target_code):
@@ -1626,7 +1627,6 @@ elif app_mode == "⚡ 9大策略選股":
       if matching_option_idx != -1:
         st.session_state.selected_index = matching_option_idx
 
-      # ⚡ 點選某一檔股票後，即時顯示直達車按鈕
       st.markdown("---")
       st.markdown(
           f"👉 您目前選中：**`{target_code}` {target_name}**，請選擇要直達的功能區："
