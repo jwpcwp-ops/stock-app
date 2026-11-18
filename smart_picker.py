@@ -4,37 +4,46 @@ import pandas as pd
 import yfinance as yf
 
 # ===========================================================
-# 參數設定區 (對應你原本的 9 大策略參數)
+# 9 大策略參數設定區
 # ===========================================================
 LOOKBACK_DAYS = 250
 LOW_PRICE_RATIO = 1.10
 VOL_MA_PERIOD = 20
 
+# 1. 主力底部吃貨
 MIN_VOLUME = 500
 VOL_MULTIPLIER = 2.0
 
+# 2. 突破前高
 MIN_BREAKOUT_VOLUME = 10000
 VOLUME_FACTOR = 2.0
 
+# 3. MACD 選股
 MIN_MACD_VOLUME = 500
 MACD_VOL_MULTIPLIER = 1.5
 
+# 4. 金剛指標
 MIN_KINGKONG_VOLUME = 10000
 KINGKONG_VOL_MULTIPLIER = 3.0
 
+# 5. 均線與MACD篩選
 MIN_MA_MACD_VOLUME = 5000
 MA_MACD_VOL_MULTIPLIER = 2.0
 
+# 6. 波段買點
 MIN_SWING_VOLUME = 5000
 SWING_VOL_MULTIPLIER = 2.0
 
+# 7. 多空轉折信號
 MIN_TREND_REV_VOLUME = 5000
 TREND_REV_VOL_MULTIPLIER = 2.0
 
+# 8. 5均線匯集 + 動能確認
 MIN_MA_CONV_VOLUME = 500
 MA_CONV_VOL_MULTIPLIER = 1.5
 MA_CONV_THRESHOLD = 0.025
 
+# 9. 底部量大強漲
 MIN_BOTTOM_SURGE_VOLUME = 1000
 BOTTOM_VOL_MA_PERIOD = 20
 BOTTOM_SURGE_MULTIPLIER_MIN = 1.4
@@ -59,6 +68,7 @@ df_ids["代碼"] = (
 end_date = datetime.today().strftime("%Y-%m-%d")
 start_date = (datetime.today() - timedelta(days=450)).strftime("%Y-%m-%d")
 
+# 完整 9 大策略清單初始化
 strategy_results = {
     "主力底部吃貨": [],
     "突破前高": [],
@@ -71,8 +81,9 @@ strategy_results = {
     "底部量大強漲": [],
 }
 
+
 # ==========================================
-# 策略判斷函數 (與你原本完全一致)
+# 9 大策略判斷函數
 # ==========================================
 def check_accumulation_signal(k_records):
   if len(k_records) < LOOKBACK_DAYS:
@@ -315,9 +326,9 @@ for _, row in df_ids.iterrows():
       df_dl.columns = df_dl.columns.get_level_values(0)
 
     df_dl = df_dl[["Open", "High", "Low", "Close", "Volume"]].dropna()
-    df_dl = df_dl.tail(300)  # 滾動維持 300 個交易日
+    df_dl = df_dl.tail(300)  # 滾動維持精準 300 個交易日
 
-    # 1. 寫入或更新你習慣的飛狐 TXT 格式至 txt_data/
+    # 1. 寫入或更新飛狐 TXT 格式至 txt_data/
     txt_path = os.path.join(TXT_DIR, f"TW{code}.txt")
     k_records = []
     with open(txt_path, "w", encoding="utf-8") as f:
@@ -335,7 +346,7 @@ for _, row in df_ids.iterrows():
             {"date": date_str, "open": o, "high": h, "low": l, "close": c, "vol": v}
         )
 
-    # 2. 執行 9 大策略掃描
+    # 2. 執行完整的 9 大策略掃描
     if check_accumulation_signal(k_records):
       strategy_results["主力底部吃貨"].append(code)
     if check_breakout_signal(k_records):
@@ -369,5 +380,5 @@ for strat_name, codes in strategy_results.items():
 res_df = pd.DataFrame(output_data)
 res_df.to_csv("smart_selected_output.csv", index=False, encoding="utf-8-sig")
 print(
-    "\n🎉 雲端 9 大策略掃描完畢！結果已儲存至 smart_selected_output.csv。"
+    "\n🎉 雲端 9 大策略掃描完畢！結果已完整儲存至 smart_selected_output.csv。"
 )
