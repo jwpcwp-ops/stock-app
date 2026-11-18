@@ -1564,7 +1564,7 @@ elif app_mode == "⚡ 9大策略選股":
   selected_strat = st.session_state.selected_synth_strat
 
   st.markdown(
-      f'<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【'
+      f'<p class="sub-header-14">⚡  9 大策略選股結果 ｜當前策略：【'
       f"{selected_strat}】</p>",
       unsafe_allow_html=True,
   )
