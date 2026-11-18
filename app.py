@@ -61,15 +61,15 @@ st.markdown(
             height: 22px !important;
         }
         
-        /* 策略選股下方 3 大導航按鈕美化 */
+        /* 💡 上方快捷導航列按鈕美化 (青色外框、暗灰底、懸停發亮) */
         div[data-testid="stHorizontalBlock"] button {
             background-color: #1a1a1a !important;
             color: #00ffff !important;
             border: 1px solid #00ffff !important;
             font-weight: bold !important;
             border-radius: 4px !important;
-            height: 34px !important;
-            font-size: 12px !important;
+            height: 28px !important;
+            font-size: 11px !important;
         }
         div[data-testid="stHorizontalBlock"] button:hover {
             background-color: #00ffff !important;
@@ -407,9 +407,11 @@ if "app_mode_state" not in st.session_state:
   st.session_state.app_mode_state = "📈 個股籌碼圖表"
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (含模式切換連動)
+# 7. 網頁主介面佈局 (頂部選單區右側整合 3 大快捷直達車)
 # ---------------------------------------------------------
-top_col1, top_col2 = st.columns([1.5, 8.5])
+top_col1, top_col2, btn_col1, btn_col2, btn_col3 = st.columns(
+    [1.5, 1.5, 1.5, 1.5, 1.5]
+)
 
 mode_options = [
     "📈 個股籌碼圖表",
@@ -431,6 +433,21 @@ with top_col1:
   )
   st.session_state.app_mode_state = app_mode
 
+with btn_col1:
+  if st.button("📈 個股籌碼圖表", use_container_width=True, key="top_go_chart"):
+    st.session_state.app_mode_state = "📈 個股籌碼圖表"
+    st.rerun()
+
+with btn_col2:
+  if st.button("⚡ 9大策略選股", use_container_width=True, key="top_go_strat"):
+    st.session_state.app_mode_state = "⚡ 9大策略選股"
+    st.rerun()
+
+with btn_col3:
+  if st.button("📊 基本面與圖表", use_container_width=True, key="top_go_fund"):
+    st.session_state.app_mode_state = "📊 基本面與圖表"
+    st.rerun()
+
 all_strategies = [
     "主力底部吃貨",
     "突破前高",
@@ -445,18 +462,8 @@ all_strategies = [
 
 if app_mode == "⚡ 9大策略選股":
   with top_col2:
-    strat_cols = st.columns(len(all_strategies))
-    for idx, strat_name in enumerate(all_strategies):
-      with strat_cols[idx]:
-        is_active = st.session_state.selected_synth_strat == strat_name
-        btn_label = f"🔥 {strat_name}" if is_active else strat_name
-        if st.button(
-            btn_label, key=f"strat_btn_{idx}", use_container_width=True
-        ):
-          st.session_state.selected_synth_strat = strat_name
-          st.rerun()
-
-  selected_strat = st.session_state.selected_synth_strat
+    # 策略選單的按鈕區
+    pass
 
 # =========================================================
 # 分頁一：📈 個股籌碼圖表
@@ -467,7 +474,6 @@ if app_mode == "📈 個股籌碼圖表":
     if st.session_state.selected_index >= len(stock_options):
       st.session_state.selected_index = 0
 
-    # 💡 關鍵：此處強烈綁定 st.session_state.selected_index，點擊直達車後會自動對應到該檔股票
     selected_stock = st.selectbox(
         "股票選單",
         stock_options,
@@ -1379,20 +1385,7 @@ if app_mode == "📈 個股籌碼圖表":
     st.pyplot(fig, use_container_width=True, dpi=150)
 
   with info_col:
-    # ⚡ 個股籌碼圖表右側面板：3大快捷切換
-    st.markdown(
-        '<div class="terminal-title">【功能快捷切換】</div>', unsafe_allow_html=True
-    )
-    if st.button("📈 個股籌碼圖表", use_container_width=True, key="btn_go_chart"):
-      st.session_state.app_mode_state = "📈 個股籌碼圖表"
-      st.rerun()
-    if st.button("⚡ 9大策略選股", use_container_width=True, key="btn_go_strat"):
-      st.session_state.app_mode_state = "⚡ 9大策略選股"
-      st.rerun()
-    if st.button("📊 基本面與圖表", use_container_width=True, key="btn_go_fund"):
-      st.session_state.app_mode_state = "📊 基本面與圖表"
-      st.rerun()
-
+    # 右側面板保持純粹的籌碼解盤資訊，維持原汁原味的美觀
     ma5_val = (
         float(df["ma_5"].iloc[-1])
         if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1])
@@ -1745,14 +1738,13 @@ elif app_mode == "📋 大戶總表":
     )
 
 # =========================================================
-# 分頁四：📊 基本面與圖表 (加入股票選單與直達連動)
+# 分頁四：📊 基本面與圖表
 # =========================================================
 elif app_mode == "📊 基本面與圖表":
   st.markdown(
       '<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True
   )
 
-  # 💡 關鍵：基本面頁面也綁定 st.session_state.selected_index，讓直達車也能直接對應正確股票
   if st.session_state.selected_index >= len(stock_options):
     st.session_state.selected_index = 0
 
