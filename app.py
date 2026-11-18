@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (放大標題與拉開綠色提示框間距，徹底避免重疊)
+# 2. 注入自訂 CSS (調整文字與排版)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -87,7 +87,6 @@ st.markdown(
             gap: 4px !important;
         }
         
-        /* 專屬綠色提示框：增加上方間距避免往上疊蓋標題 */
         .stAlert {
             color: #ffffff !important;
             background-color: #0b2e13 !important;
@@ -104,7 +103,6 @@ st.markdown(
             font-weight: bold !important;
         }
         
-        /* 專屬右側解盤面板樣式：模仿專業看盤軟體填滿、黑底紅框綠字大字體 */
         .terminal-panel {
             background-color: #0b0b0b;
             border: 1px solid #cc0000;
@@ -382,25 +380,41 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 
 
 # ---------------------------------------------------------
-# 6. Session State 初始化
+# 6. Session State 初始化 (加入跨頁連動狀態)
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
   st.session_state.selected_index = 0
 if "selected_synth_strat" not in st.session_state:
   st.session_state.selected_synth_strat = "主力底部吃貨"
+if "app_mode_state" not in st.session_state:
+  st.session_state.app_mode_state = "📈 個股籌碼圖表"
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局
+# 7. 網頁主介面佈局 (含模式切換連動)
 # ---------------------------------------------------------
 top_col1, top_col2 = st.columns([1.5, 8.5])
 
+mode_options = [
+    "📈 個股籌碼圖表",
+    "⚡ 9大策略選股",
+    "📋 大戶總表",
+    "📊 基本面與圖表",
+]
+
 with top_col1:
+  # 確保下拉選單能正確反映當前模式狀態
+  if st.session_state.app_mode_state not in mode_options:
+    st.session_state.app_mode_state = "📈 個股籌碼圖表"
+
   app_mode = st.selectbox(
       "功能模式",
-      ["📈 個股籌碼圖表", "⚡ 9大策略選股", "📋 大戶總表", "📊 基本面與圖表"],
+      mode_options,
+      index=mode_options.index(st.session_state.app_mode_state),
       label_visibility="collapsed",
       key="mode_select_dropdown",
   )
+  # 同步狀態
+  st.session_state.app_mode_state = app_mode
 
 all_strategies = [
     "主力底部吃貨",
@@ -414,7 +428,6 @@ all_strategies = [
     "底部量大強漲",
 ]
 
-# ⚡ 當切換至「9大策略選股」模式時，第一行右側橫向並排 9 個按鈕！
 if app_mode == "⚡ 9大策略選股":
   with top_col2:
     strat_cols = st.columns(len(all_strategies))
@@ -430,11 +443,15 @@ if app_mode == "⚡ 9大策略選股":
 
   selected_strat = st.session_state.selected_synth_strat
 
+# =========================================================
+# 分頁一：📈 個股籌碼圖表
+# =========================================================
 if app_mode == "📈 個股籌碼圖表":
   sec_row_cols = st.columns([2.0, 1.2, 6.8])
   with sec_row_cols[0]:
     if st.session_state.selected_index >= len(stock_options):
       st.session_state.selected_index = 0
+
     selected_stock = st.selectbox(
         "股票選單",
         stock_options,
@@ -540,7 +557,7 @@ if app_mode == "📈 個股籌碼圖表":
   n_len = len(df)
   for p in deduct_periods:
     idx_pos = n_len - p
-    if idx_pos >= 0 and idx_pos < n_len:
+    if 0 <= idx_pos < n_len:
       deduct_indices[p] = idx_pos
     else:
       deduct_indices[p] = 0
@@ -1168,7 +1185,7 @@ if app_mode == "📈 個股籌碼圖表":
             ("RSI6:", "#FF00FF"),
             (f"{cur_r6:.2f}  ", "#FF00FF"),
             ("RSI12:", "#00FFFF"),
-            (f"{cur_r12:.2f}  ", "#00FFFF"),
+            (f"{cur_r12:.2f}  ", "#FF00FF"),
             ("差值:", "#FFFF00"),
             (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00"),
         ]
@@ -1512,7 +1529,7 @@ if app_mode == "📈 個股籌碼圖表":
     )
 
 # =========================================================
-# 分頁二：9大策略選股
+# 分頁二：⚡ 9大策略選股 (加入點擊跳轉個股籌碼圖表功能)
 # =========================================================
 elif app_mode == "⚡ 9大策略選股":
   st.markdown(
@@ -1551,10 +1568,42 @@ elif app_mode == "⚡ 9大策略選股":
       filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
 
     st.success(f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。")
-    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+
+    # 使用 st.dataframe 呈現，並加上 selection_mode="single-row" 讓使用者點擊某一列股票
+    event = st.dataframe(
+        filtered_df,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+    )
+
+    # 當使用者在表格中點選了某一檔股票時觸發跳轉
+    selected_rows = event.selection.rows if hasattr(event, "selection") else []
+    if selected_rows:
+      row_idx = selected_rows[0]
+      target_code = str(filtered_df.iloc[row_idx]["代碼"]).strip().zfill(4)
+      target_name = (
+          str(filtered_df.iloc[row_idx]["名稱"])
+          if "名稱" in filtered_df.columns
+          else ""
+      )
+
+      # 尋找該股票在 stock_options 中的索引位置
+      matching_option_idx = -1
+      for i, opt in enumerate(stock_options):
+        if opt.startswith(target_code):
+          matching_option_idx = i
+          break
+
+      if matching_option_idx != -1:
+        # 自動設定跳轉過去的股票索引與切換至籌碼圖表分頁
+        st.session_state.selected_index = matching_option_idx
+        st.session_state.app_mode_state = "📈 個股籌碼圖表"
+        st.rerun()
 
 # =========================================================
-# 分頁三：大戶總表 (純讀取 Excel，無爬蟲)
+# 分頁三：📋 大戶總表
 # =========================================================
 elif app_mode == "📋 大戶總表":
   excel_filename = "大戶持股最新分析總表.xlsx"
@@ -1630,6 +1679,7 @@ elif app_mode == "📋 大戶總表":
                 )
             },
             use_container_width=True,
+            hide_index,
             hide_index=True,
         )
     except Exception as e:
@@ -1640,7 +1690,7 @@ elif app_mode == "📋 大戶總表":
     )
 
 # =========================================================
-# 分頁四：基本面與圖表
+# 分頁四：📊 基本面與圖表
 # =========================================================
 elif app_mode == "📊 基本面與圖表":
   st.markdown(
@@ -1703,7 +1753,8 @@ elif app_mode == "📊 基本面與圖表":
         fontweight="bold",
     )
     ax.tick_params(axis="both", labelsize=7.0, colors="#FFFFFF")
-    ax.grid(True, linestyle=":", color="#555555", alpha=0.5)
+    grid_color = "#555555"
+    ax.grid(True, linestyle=":", color=grid_color, alpha=0.5)
     fig.tight_layout(pad=0.3)
 
     with cols[idx % 2]:
