@@ -402,7 +402,6 @@ mode_options = [
 ]
 
 with top_col1:
-  # 確保下拉選單能正確反映當前模式狀態
   if st.session_state.app_mode_state not in mode_options:
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
 
@@ -413,7 +412,6 @@ with top_col1:
       label_visibility="collapsed",
       key="mode_select_dropdown",
   )
-  # 同步狀態
   st.session_state.app_mode_state = app_mode
 
 all_strategies = [
@@ -1569,7 +1567,6 @@ elif app_mode == "⚡ 9大策略選股":
 
     st.success(f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。")
 
-    # 使用 st.dataframe 呈現，並加上 selection_mode="single-row" 讓使用者點擊某一列股票
     event = st.dataframe(
         filtered_df,
         use_container_width=True,
@@ -1578,7 +1575,6 @@ elif app_mode == "⚡ 9大策略選股":
         selection_mode="single-row",
     )
 
-    # 當使用者在表格中點選了某一檔股票時觸發跳轉
     selected_rows = event.selection.rows if hasattr(event, "selection") else []
     if selected_rows:
       row_idx = selected_rows[0]
@@ -1589,7 +1585,6 @@ elif app_mode == "⚡ 9大策略選股":
           else ""
       )
 
-      # 尋找該股票在 stock_options 中的索引位置
       matching_option_idx = -1
       for i, opt in enumerate(stock_options):
         if opt.startswith(target_code):
@@ -1597,7 +1592,6 @@ elif app_mode == "⚡ 9大策略選股":
           break
 
       if matching_option_idx != -1:
-        # 自動設定跳轉過去的股票索引與切換至籌碼圖表分頁
         st.session_state.selected_index = matching_option_idx
         st.session_state.app_mode_state = "📈 個股籌碼圖表"
         st.rerun()
@@ -1679,7 +1673,6 @@ elif app_mode == "📋 大戶總表":
                 )
             },
             use_container_width=True,
-            hide_index,
             hide_index=True,
         )
     except Exception as e:
