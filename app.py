@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (右側大字體填滿解盤面板)
+# 2. 注入自訂 CSS (改善擁擠現象與介面排版)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -29,57 +29,28 @@ st.markdown(
         footer { display: none !important; }
         
         .block-container {
-            padding-top: 0.05rem !important;
-            padding-bottom: 0.0rem !important;
-            padding-left: 0.2rem !important;
-            padding-right: 0.2rem !important;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
             max-width: 100% !important;
         }
         .sub-header-14 {
-            font-size: 11px !important;
+            font-size: 14px !important;
             font-weight: bold;
-            color: #ffffff;
-            margin-top: 1px;
-            margin-bottom: 1px;
+            color: #00ffff;
+            margin-top: 5px;
+            margin-bottom: 8px;
         }
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            gap: 4px !important;
+            gap: 12px !important;
             align-items: center !important;
-            margin-bottom: 2px !important;
+            margin-bottom: 10px !important;
         }
-        .stButton button {
-            font-size: 8.5px !important;
-            padding: 2px 4px !important;
-            min-height: 22px !important;
-            height: 22px !important;
-        }
-        [data-testid="stSelectbox"] {
-            margin-bottom: 0px !important;
-        }
-        [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 22px !important;
-            height: 22px !important;
-            font-size: 9.0px !important;
-            padding-left: 4px !important;
-            padding-right: 4px !important;
-        }
-        div[data-testid="stPills"] button {
-            font-size: 8.5px !important;
-            padding: 2px 6px !important;
-            margin: 0px 1px !important;
-            min-height: 22px !important;
-            height: 22px !important;
-            border-radius: 4px !important;
-            line-height: 1.1 !important;
-        }
-        div[data-testid="stPills"] {
-            gap: 2px !important;
-            flex-wrap: wrap !important;
-        }
-        [data-testid="stVerticalBlock"] {
-            gap: 2px !important;
+        .stSelectbox {
+            font-size: 13px !important;
         }
         
         /* 專屬右側解盤面板樣式：模仿專業看盤軟體填滿、黑底紅框綠字大字體 */
@@ -171,9 +142,6 @@ def load_stock_list():
 
 stock_options, stock_df = load_stock_list()
 
-# ---------------------------------------------------------
-# 5. 讀取本地 TXT 資料與籌碼支援
-# ---------------------------------------------------------
 TXT_DIR = "txt_data"
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -207,8 +175,8 @@ def parse_date_to_yyyymmdd(raw_date):
     return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
   return d_str
 
+
 def get_comprehensive_stock_data(stock_id, target_days=250):
-  """優先讀取 GitHub 倉庫中 txt_data/ 內的飛狐格式 TXT 檔案"""
   txt_path = os.path.join(TXT_DIR, f"TW{stock_id}.txt")
   k_records = []
 
@@ -226,14 +194,13 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
                   "high": float(parts[2]),
                   "low": float(parts[3]),
                   "close": float(parts[4]),
-                  "vol": float(parts[5]),  # 已經是張數
+                  "vol": float(parts[5]),
               })
             except:
               continue
     except Exception as e:
       print(f"讀取 TXT 失敗: {e}")
 
-  # 如果 TXT 不存在，退回用 yfinance 抓取
   if not k_records:
     yf_ticker = "^TWII" if stock_id == "99991" else f"{stock_id}.TW"
     try:
@@ -255,12 +222,10 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
     except:
       pass
 
-  # 確保取指定天數
   if k_records:
     k_records = k_records[-target_days:]
     df_k = pd.DataFrame(k_records)
   else:
-    # 預防性空資料
     dates = pd.date_range(end=datetime.today(), periods=target_days, freq="B")
     df_k = pd.DataFrame({
         "date": dates.strftime("%Y-%m-%d"),
@@ -282,10 +247,8 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
       else 0.0
   )
   cur_20ma = float(val_20) if val_20 > 0 else 1.0
-
   ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
 
-  # 模擬大戶持股曲線 (可對接真實大戶資料)
   cache_dict = load_local_cache_cached()
   today_str = datetime.today().strftime("%Y-%m-%d")
   if (
@@ -307,24 +270,19 @@ def get_comprehensive_stock_data(stock_id, target_days=250):
 
   return k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio
 
-# ---------------------------------------------------------
-# 6. Session State 初始化
-# ---------------------------------------------------------
+
 if "selected_index" not in st.session_state:
   st.session_state.selected_index = 0
 
-# ---------------------------------------------------------
-# 7. 網頁主介面佈局
-# ---------------------------------------------------------
 if stock_options:
-  top_row_cols = st.columns([1.5, 1.8, 1.2, 5.0])
+  top_row_cols = st.columns([2.0, 2.5, 1.5, 4.0])
   modes = ["📈 個股籌碼圖表", "⚡ 9大策略選股", "📋 大戶總表", "📊 基本面與圖表"]
 
   with top_row_cols[0]:
     app_mode = st.selectbox(
         "功能模式",
         modes,
-        label_visibility="collapsed",
+        label_visibility="visible",
         key="mode_select_dropdown",
     )
 
@@ -337,7 +295,7 @@ if stock_options:
           "股票選單",
           stock_options,
           index=st.session_state.selected_index,
-          label_visibility="collapsed",
+          label_visibility="visible",
           key="stock_select_box",
       )
       try:
@@ -354,30 +312,29 @@ if stock_options:
           "週期",
           ["日線", "週線", "月線"],
           index=0,
-          label_visibility="collapsed",
+          label_visibility="visible",
           key="select_period_dropdown",
       )
       actual_chart_period = chart_period
 
-    # 第二行：均線設定區、技術指標、K線天數
-    second_row_cols = st.columns([1.2, 1.2, 0.6])
+    second_row_cols = st.columns([1.5, 1.5, 0.8])
     with second_row_cols[0]:
       selected_ma = st.pills(
           "均線",
           ["5", "10", "20", "35", "60", "120", "200", "分割"],
           default=["60", "200"],
           selection_mode="multi",
-          label_visibility="collapsed",
+          label_visibility="visible",
           key="pills_ma",
       )
 
     with second_row_cols[1]:
       selected_indicator = st.pills(
-          "指標",
+          "技術指標",
           ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "大戶羊群"],
           default="MACD",
           selection_mode="single",
-          label_visibility="collapsed",
+          label_visibility="visible",
           key="pills_ind",
       )
       if not selected_indicator:
@@ -385,11 +342,11 @@ if stock_options:
 
     with second_row_cols[2]:
       k_days_choice_str = st.pills(
-          "天數",
+          "歷史天數",
           ["120", "250", "300"],
           default="250",
           selection_mode="single",
-          label_visibility="collapsed",
+          label_visibility="visible",
           key="pills_k_days",
       )
       k_days_choice = int(k_days_choice_str) if k_days_choice_str else 250
@@ -419,7 +376,6 @@ if stock_options:
     last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
     last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
-    # 主圖均線設定
     ma_config = {
         "5": (5, show_ma5, "#00FFFF"),
         "10": (10, show_ma10, "#FFFF00"),
@@ -433,27 +389,12 @@ if stock_options:
     for ma_name, (period, is_show, color) in ma_config.items():
       df[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
-    # 指標計算
     df["macd_dif"] = (
         s_close.ewm(span=12, adjust=False).mean()
         - s_close.ewm(span=26, adjust=False).mean()
     )
     df["macd_dem"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
     df["macd_osc"] = (df["macd_dif"] - df["macd_dem"]) * 2
-
-    df["bias_ma60"] = s_close.rolling(window=60).mean()
-    df["bias_val"] = (
-        (s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)
-    ) * 100
-
-    low_min9 = s_low.rolling(9).min()
-    high_max9 = s_high.rolling(9).max()
-    rsv = (
-        (s_close - low_min9) / (high_max9 - low_min9 + 1e-8)
-    ) * 100
-    df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
-    df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
-    df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
 
     df["vol_ma5"] = df["vol"].rolling(window=5).mean()
     df["vol_ma20"] = df["vol"].rolling(window=20).mean()
@@ -485,7 +426,6 @@ if stock_options:
       fig.patch.set_facecolor(BG_COLOR)
       x = list(range(len(df)))
 
-      # K線主圖
       ax1.set_facecolor(PANEL_BG)
       ax1.vlines(
           x, df["low"], df["high"], color=body_colors, linewidth=0.7, alpha=1.0
@@ -510,19 +450,12 @@ if stock_options:
         ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
         ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
 
-      legend_labels = []
       for ma_name, (period, is_show, color) in ma_config.items():
         if is_show:
           ma_series = df[f"ma_{period}"]
           ax1.plot(
               x, ma_series, linewidth=0.5, color=color, linestyle="-", alpha=1.0
           )
-          val_now = (
-              float(ma_series.iloc[-1])
-              if not pd.isna(ma_series.iloc[-1])
-              else 0.0
-          )
-          legend_labels.append((f"{ma_name}:{val_now:.1f}", color))
 
       ax1.yaxis.tick_right()
       ax1.tick_params(axis="y", labelsize=5.8, pad=1.5, colors="#FFFFFF")
@@ -533,7 +466,7 @@ if stock_options:
       t_header = ax1.text(
           0.01,
           0.93,
-      standard_header_str,
+          standard_header_str,
           transform=ax1.transAxes,
           fontsize=8.0,
           fontweight="bold",
@@ -541,7 +474,6 @@ if stock_options:
       )
       t_header.set_path_effects(get_bright_effect("#000000", 1.5))
 
-      # 副圖 1 (MACD)
       ax_sub1.set_facecolor(PANEL_BG)
       ax_sub1.bar(
           x,
@@ -563,7 +495,6 @@ if stock_options:
       plt.setp(ax_sub1.get_xticklabels(), visible=False)
       ax_sub1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-      # 副圖 2 (成交量)
       ax_sub2.set_facecolor(PANEL_BG)
       ax_sub2.bar(
           x,
@@ -627,7 +558,7 @@ if stock_options:
       )
 
   # =========================================================
-  # 分頁二：9大策略選股 (完美對接 smart_selected_output.csv)
+  # 分頁二：9大策略選股 (支援全部 9 種策略)
   # =========================================================
   elif app_mode == "⚡ 9大策略選股":
     st.markdown(
@@ -650,7 +581,6 @@ if stock_options:
               f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。"
           )
 
-          # 整合股票名稱對照
           id_to_name = dict(
               zip(
                   stock_df["代碼"].astype(str).str.zfill(4),
@@ -669,7 +599,7 @@ if stock_options:
     else:
       st.warning(
           "找不到 `smart_selected_output.csv` 選股結果檔案，請確認 GitHub Actions"
-          " 排程已執行或手動執行過 `smart_picker.py`。"
+          " 排程已執行。"
       )
 
   # =========================================================
@@ -740,7 +670,7 @@ if stock_options:
         '<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True
     )
     selected_fund_stock = st.selectbox(
-        "選擇股票", stock_options, label_visibility="collapsed"
+        "選擇股票", stock_options, label_visibility="visible"
     )
     target_code = selected_fund_stock.split()[0]
     target_name = (
