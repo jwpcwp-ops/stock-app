@@ -3,94 +3,96 @@ import os
 import pandas as pd
 import yfinance as yf
 
-print("=== 開始執行：300日歷史資料累積與智慧選股 ===")
+TXT_DIR = "txt_data"
+os.makedirs(TXT_DIR, exist_ok=True)
 
-# 1. 讀取你的股票清單 (從 StockIDs.xlsx 或現有大戶總表)
-stock_list_file = "StockIDs.xlsx"
-if os.path.exists(stock_list_file):
-  df_stocks = pd.read_excel(
-      stock_list_file, sheet_name="StockIDs", dtype={"代碼": str}
-  )
-  df_stocks["代碼"] = (
-      df_stocks["代碼"].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
-  )
-  tickers = df_stocks["代碼"].tolist()
-  names = df_stocks["名稱"].tolist()
-else:
-  # 備用預設清單
-  tickers = ["2330", "2317", "2454"]
-  names = ["台積電", "鴻海", "聯發科"]
+STOCK_IDS_PATH = "StockIDs.xlsx"
 
-DATA_DIR = "stock_data_300days"
-os.makedirs(DATA_DIR, exist_ok=True)
+print("=== 開始執行：GitHub 雲端自動更新 TXT 與選股作業 ===")
+
+# 1. 讀取 StockIDs.xlsx
+if not os.path.exists(STOCK_IDS_PATH):
+  print(f"❌ 找不到股票代碼檔: {STOCK_IDS_PATH}")
+  exit(1)
+
+df_ids = pd.read_excel(STOCK_IDS_PATH, sheet_name="StockIDs", dtype={"代碼": str})
+df_ids["代碼"] = (
+    df_ids["代碼"].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
+)
 
 selected_results = []
+end_date = datetime.today().strftime("%Y-%m-%d")
+start_date = (datetime.today() - timedelta(days=450)).strftime(
+    "%Y-%m-%d"
+)  # 確保有充足的 300 個交易日
 
-# 2. 迴圈抓取每一檔股票的 300 日資料
-for ticker, name in zip(tickers, names):
-  # 略過加權指數等特殊代號或處理台股后缀
-  if ticker == "99991":
-    yf_ticker = "^TWII"
-  else:
-    yf_ticker = f"{ticker}.TW"  # 如果有上櫃需求可自行擴充判斷 .TWO
+for _, row in df_ids.iterrows():
+  code = str(row.iloc[0]).zfill(4)
+  name = str(row.iloc[1]) if len(row) > 1 else ""
 
-  file_path = os.path.join(DATA_DIR, f"{ticker}.csv")
+  yf_ticker = "^TWII" if code == "99991" else f"{code}.TW"
 
   try:
-    # 抓取最近 450 天（確保扣除例假日後，穩穩擁有 300 個交易日）
-    end_date = datetime.today().strftime("%Y-%m-%d")
-    start_date = (datetime.today() - timedelta(days=450)).strftime("%Y-%m-%d")
-
-    df = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
-
-    if df.empty:
-      continue
-
-    # 處理 MultiIndex 欄位
-    if isinstance(df.columns, pd.MultiIndex):
-      df.columns = df.columns.get_level_values(0)
-
-    df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
-
-    # 嚴格保留最後 300 個交易日（滾動視窗機制）
-    df = df.tail(300)
-
-    # 儲存至倉庫內的資料夾
-    df.to_csv(file_path)
-
-    # 3. 執行智慧選股策略運算（例如：長線多頭 + 均線黃金交叉 + 籌碼濾網）
-    if len(df) >= 200:
-      df["MA50"] = df["Close"].rolling(window=50).mean()
-      df["MA200"] = df["Close"].rolling(window=200).mean()
-
-      latest = df.iloc[-1]
-      prev = df.iloc[-2]
-
-      # 範例智慧選股條件：
-      # 條件一：收盤價站上 200 日年線
-      # 條件二：50日均線向上穿越 200日年線 (黃金交叉) 或者 50日線持續向上
-      is_long_term_bull = latest["Close"] > latest["MA200"]
-      is_ma_golden = (prev["MA50"] <= prev["MA200"]) and (
-          latest["MA50"] > latest["MA200"]
+    # 抓取歷史資料
+    df_dl = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
+    if df_dl.empty and code != "99991":
+      df_dl = yf.download(
+          f"{code}.TWO", start=start_date, end=end_date, progress=False
       )
 
-      if is_long_term_bull and (is_ma_golden or latest["MA50"] > latest["MA200"]):
+    if df_dl.empty:
+      continue
+
+    if isinstance(df_dl.columns, pd.MultiIndex):
+      df_dl.columns = df_dl.columns.get_level_values(0)
+
+    df_dl = df_dl[["Open", "High", "Low", "Close", "Volume"]].dropna()
+    df_dl = df_dl.tail(300)  # 嚴格維持 300 個交易日
+
+    # 2. 自動產生並覆寫為你習慣的飛狐 TXT 格式 (日期 開 高 低 收 量)
+    txt_path = os.path.join(TXT_DIR, f"TW{code}.txt")
+    with open(txt_path, "w", encoding="utf-8") as f:
+      for idx, r in df_dl.iterrows():
+        date_str = idx.strftime("%Y/%m/%d")
+        o, h, l, c, v = (
+            float(r["Open"]),
+            float(r["High"]),
+            float(r["Low"]),
+            float(r["Close"]),
+            int(r["Volume"]),
+        )
+        f.write(f"{date_str} {o:.2f} {h:.2f} {l:.2f} {c:.2f} {v}\n")
+
+    # 3. 執行策略選股運算 (範例：收盤價站上 200 日年線且帶量)
+    closes = df_dl["Close"].values
+    volumes = df_dl["Volume"].values
+    s_close = pd.Series(closes)
+    s_vol = pd.Series(volumes)
+
+    if len(df_dl) >= 200:
+      ma200 = s_close.rolling(window=200).mean().iloc[-1]
+      vol_ma20 = s_vol.rolling(window=20).mean().iloc[-1]
+
+      if closes[-1] > ma200 and volumes[-1] > vol_ma20 * 1.5:
         selected_results.append({
-            "代碼": ticker,
+            "代碼": code,
             "名稱": name,
-            "收盤價": round(float(latest["Close"]), 2),
-            "MA200": round(float(latest["MA200"]), 2),
+            "收盤價": round(float(closes[-1]), 2),
+            "年線(200MA)": round(float(ma200), 2),
             "更新日期": datetime.today().strftime("%Y-%m-%d"),
         })
 
   except Exception as e:
-    print(f"處理 {ticker} 發生錯誤: {e}")
+    print(f"處理 {code} 發生錯誤: {e}")
 
-# 4. 輸出選股結果總表
+# 4. 輸出選股結果給網頁讀取
 output_csv = "smart_selected_output.csv"
 if selected_results:
-  result_df = pd.DataFrame(selected_results)
-  result_df.to_csv(output_csv, index=False, encoding="utf-8-sig")
-  print(f"\n🎉 選股完成！共篩選出 {len(result_df)} 檔標的，已儲存至 {output_csv}")
+  res_df = pd.DataFrame(selected_results)
+  res_df.to_csv(output_csv, index=False, encoding="utf-8-sig")
+  print(
+      f"\n🎉 雲端選股完成！共篩選出 {len(res_df)} 檔標的，已儲存至"
+      f" {output_csv}"
+  )
 else:
   print("\n今日無符合條件標的。")
