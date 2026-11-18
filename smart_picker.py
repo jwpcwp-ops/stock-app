@@ -10,40 +10,31 @@ LOOKBACK_DAYS = 250
 LOW_PRICE_RATIO = 1.10
 VOL_MA_PERIOD = 20
 
-# 1. 主力底部吃貨
 MIN_VOLUME = 500
 VOL_MULTIPLIER = 2.0
 
-# 2. 突破前高
 MIN_BREAKOUT_VOLUME = 10000
 VOLUME_FACTOR = 2.0
 
-# 3. MACD 選股
 MIN_MACD_VOLUME = 500
 MACD_VOL_MULTIPLIER = 1.5
 
-# 4. 金剛指標
 MIN_KINGKONG_VOLUME = 10000
 KINGKONG_VOL_MULTIPLIER = 3.0
 
-# 5. 均線與MACD篩選
 MIN_MA_MACD_VOLUME = 5000
 MA_MACD_VOL_MULTIPLIER = 2.0
 
-# 6. 波段買點
 MIN_SWING_VOLUME = 5000
 SWING_VOL_MULTIPLIER = 2.0
 
-# 7. 多空轉折信號
 MIN_TREND_REV_VOLUME = 5000
 TREND_REV_VOL_MULTIPLIER = 2.0
 
-# 8. 5均線匯集 + 動能確認
 MIN_MA_CONV_VOLUME = 500
 MA_CONV_VOL_MULTIPLIER = 1.5
 MA_CONV_THRESHOLD = 0.025
 
-# 9. 底部量大強漲
 MIN_BOTTOM_SURGE_VOLUME = 1000
 BOTTOM_VOL_MA_PERIOD = 20
 BOTTOM_SURGE_MULTIPLIER_MIN = 1.4
@@ -68,18 +59,20 @@ df_ids["代碼"] = (
 end_date = datetime.today().strftime("%Y-%m-%d")
 start_date = (datetime.today() - timedelta(days=450)).strftime("%Y-%m-%d")
 
-# 完整 9 大策略清單初始化
-strategy_results = {
-    "主力底部吃貨": [],
-    "突破前高": [],
-    "MACD 選股": [],
-    "金剛指標": [],
-    "均線與MACD篩選": [],
-    "波段買點": [],
-    "多空轉折信號": [],
-    "5均線匯集": [],
-    "底部量大強漲": [],
-}
+# 定義完整的 9 大策略名稱清單
+strategy_names = [
+    "主力底部吃貨",
+    "突破前高",
+    "MACD 選股",
+    "金剛指標",
+    "均線與MACD篩選",
+    "波段買點",
+    "多空轉折信號",
+    "5均線匯集",
+    "底部量大強漲",
+]
+
+strategy_results = {name: [] for name in strategy_names}
 
 
 # ==========================================
@@ -310,7 +303,6 @@ def check_bottom_surge_signal(k_records):
 # ==========================================
 for _, row in df_ids.iterrows():
   code = str(row.iloc[0]).zfill(4)
-  name = str(row.iloc[1]) if len(row) > 1 else ""
   yf_ticker = "^TWII" if code == "99991" else f"{code}.TW"
 
   try:
@@ -326,7 +318,7 @@ for _, row in df_ids.iterrows():
       df_dl.columns = df_dl.columns.get_level_values(0)
 
     df_dl = df_dl[["Open", "High", "Low", "Close", "Volume"]].dropna()
-    df_dl = df_dl.tail(300)  # 滾動維持精準 300 個交易日
+    df_dl = df_dl.tail(300)
 
     # 1. 寫入或更新飛狐 TXT 格式至 txt_data/
     txt_path = os.path.join(TXT_DIR, f"TW{code}.txt")
@@ -346,7 +338,7 @@ for _, row in df_ids.iterrows():
             {"date": date_str, "open": o, "high": h, "low": l, "close": c, "vol": v}
         )
 
-    # 2. 執行完整的 9 大策略掃描
+    # 2. 執行 9 大策略掃描
     if check_accumulation_signal(k_records):
       strategy_results["主力底部吃貨"].append(code)
     if check_breakout_signal(k_records):
@@ -370,15 +362,20 @@ for _, row in df_ids.iterrows():
     print(f"處理代號 {code} 發生錯誤: {e}")
 
 # ==========================================
-# 3. 輸出總表 CSV 供網頁 app.py 讀取展示
+# 3. 輸出總表 CSV (確保 9 個策略分類全部寫入)
 # ==========================================
 output_data = []
 for strat_name, codes in strategy_results.items():
-  for c in codes:
-    output_data.append({"策略名稱": strat_name, "代碼": c})
+  if codes:
+    for c in codes:
+      output_data.append({"策略名稱": strat_name, "代碼": c})
+  else:
+    # 就算該策略當天沒有符合的股票，也寫入一筆空記錄，確保選單永遠能看到全部 9 種策略
+    output_data.append({"策略名稱": strat_name, "代碼": "無符合股票"})
 
 res_df = pd.DataFrame(output_data)
 res_df.to_csv("smart_selected_output.csv", index=False, encoding="utf-8-sig")
 print(
-    "\n🎉 雲端 9 大策略掃描完畢！結果已完整儲存至 smart_selected_output.csv。"
+    "\n🎉 雲端 9 大策略掃描完畢！已強制寫入全部 9 大策略分類至"
+    " smart_selected_output.csv。"
 )
