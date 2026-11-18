@@ -560,6 +560,9 @@ if stock_options:
   # =========================================================
   # 分頁二：9大策略選股 (支援全部 9 種策略)
   # =========================================================
+# =========================================================
+  # 分頁二：9大策略選股 (強制完整顯示 9 大策略分類)
+  # =========================================================
   elif app_mode == "⚡ 9大策略選股":
     st.markdown(
         '<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果</p>',
@@ -567,31 +570,54 @@ if stock_options:
     )
 
     output_csv = "smart_selected_output.csv"
+    
+    # 定義固定的 9 大策略標準清單
+    all_strategies = [
+        "主力底部吃貨",
+        "突破前高",
+        "MACD 選股",
+        "金剛指標",
+        "均線與MACD篩選",
+        "波段買點",
+        "多空轉折信號",
+        "5均線匯集",
+        "底部量大強漲"
+    ]
+
+    # 讀取 CSV 或建立預設結構
     if os.path.exists(output_csv):
       try:
         df_res = pd.read_csv(output_csv, dtype={"代碼": str})
-        if not df_res.empty:
-          strategies_list = df_res["策略名稱"].unique().tolist()
-          selected_strat = st.selectbox(
-              "選擇策略分類", strategies_list, key="strat_sel"
-          )
+      except:
+        df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
+    else:
+      df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
 
-          filtered_df = df_res[df_res["策略名稱"] == selected_strat]
-          st.success(
-              f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。"
-          )
+    # 下拉選單直接使用固定的 9 大策略，確保一個不漏！
+    selected_strat = st.selectbox("選擇策略分類", all_strategies, key="strat_sel")
 
-          id_to_name = dict(
-              zip(
-                  stock_df["代碼"].astype(str).str.zfill(4),
-                  stock_df["名稱"].astype(str),
-              )
-          )
-          filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
+    # 過濾出該策略的結果
+    if not df_res.empty and "策略名稱" in df_res.columns:
+      filtered_df = df_res[df_res["策略名稱"] == selected_strat].copy()
+    else:
+      filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
 
-          st.dataframe(
-              filtered_df, use_container_width=True, hide_index=True
+    # 檢查是否為空或只有「無」
+    if filtered_df.empty or (len(filtered_df) == 1 and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]):
+      st.info(f"【{selected_strat}】目前尚無符合條件的股票標的。")
+    else:
+      # 補上股票名稱對照
+      id_to_name = dict(
+          zip(
+              stock_df["代碼"].astype(str).str.zfill(4),
+              stock_df["名稱"].astype(str),
           )
+      )
+      if "代碼" in filtered_df.columns:
+        filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
+
+      st.success(f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。")
+      st.dataframe(filtered_df, use_container_width=True, hide_index=True)
         else:
           st.info("目前選股清單為空。")
       except Exception as e:
