@@ -594,8 +594,7 @@ elif app_mode == "⚡ 9大策略選股":
         filtered_df = df_res[df_res["策略名稱"] == selected_strat].copy()
     else:
         filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
-
-    # 檢查是否為空或只有「無」
+# 檢查是否為空或只有「無」
     if filtered_df.empty or (len(filtered_df) == 1 and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]):
         st.info(f"【{selected_strat}】目前尚無符合條件的股票標的。")
     else:
@@ -610,7 +609,8 @@ elif app_mode == "⚡ 9大策略選股":
             filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
 
         st.success(f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。")
-        st.dataframe(filtered_df, use_container_width=True, hide_index=True)        else:
+        st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+        else:
           st.info("目前選股清單為空。")
       except Exception as e:
         st.error(f"讀取選股結果發生錯誤: {e}")
