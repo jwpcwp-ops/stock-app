@@ -1,4 +1,6 @@
+import base64
 from datetime import datetime
+from io import BytesIO
 import json
 import os
 import urllib.request
@@ -8,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 import yfinance as yf
 
 # ---------------------------------------------------------
@@ -1473,7 +1476,139 @@ if app_mode == "📈 個股籌碼圖表":
     plt.subplots_adjust(
         left=0.01, right=0.99, top=0.98, bottom=bottom_margin, hspace=0.10
     )
-    st.pyplot(fig, use_container_width=True, dpi=150)
+
+    # ---------------------------------------------------------
+    # 飛狐式滑鼠即時跟隨十字線查價區塊
+    # ---------------------------------------------------------
+    buf = BytesIO()
+    fig.savefig(
+        buf, format="png", dpi=150, facecolor=BG_COLOR, edgecolor="none"
+    )
+    plt.close(fig)
+    img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    payload_rows = []
+    for idx_r in range(len(df)):
+      r = df.iloc[idx_r]
+      ma_txt_parts = []
+      for ma_name, (period, is_show, _) in ma_config.items():
+        if is_show:
+          v_now = float(r[f"ma_{period}"])
+          v_prev = (
+              float(df[f"ma_{period}"].iloc[idx_r - 1])
+              if idx_r > 0
+              else v_now
+          )
+          arr = "↑" if v_now >= v_prev else "↓"
+          ma_txt_parts.append(f"{ma_name}:{v_now:.1f}{arr}")
+
+      payload_rows.append({
+          "date": str(r["date"]),
+          "open": round(float(r["open"]), 2),
+          "high": round(float(r["high"]), 2),
+          "low": round(float(r["low"]), 2),
+          "close": round(float(r["close"]), 2),
+          "vol": int(round(float(r["vol"]))),
+          "ma_summary": "  ".join(ma_txt_parts),
+      })
+
+    rows_json = json.dumps(payload_rows, ensure_ascii=False)
+    plot_height = 540 if is_wave_mode else 465
+
+    interactive_html = f"""
+    <div id="fx-chart-wrap" style="position:relative; width:100%; background:#000; user-select:none;">
+      <div id="fx-hud" style="
+        position:absolute; top:4px; left:8px; z-index:10;
+        background:rgba(10,12,16,0.82); border:1px solid #00ffff;
+        color:#ffffff; font-family:'Courier New',monospace; font-size:11px;
+        padding:3px 7px; border-radius:3px; pointer-events:none;
+        white-space:nowrap; overflow:hidden; max-width:96%;
+      ">
+        [{stock_id}] {stock_name}  |  移動滑鼠即時查價
+      </div>
+      <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block;" />
+      <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
+    </div>
+
+    <script>
+    (function() {{
+      const rows = {rows_json};
+      const img = document.getElementById("fx-base-img");
+      const canvas = document.getElementById("fx-cross-canvas");
+      const hud = document.getElementById("fx-hud");
+      const ctx = canvas.getContext("2d");
+
+      const totalBars = rows.length;
+      const padRightBars = Math.max(4, Math.floor(totalBars * 0.12));
+      const xMinBar = -1.0;
+      const xMaxBar = totalBars + padRightBars;
+
+      function syncSize() {{
+        canvas.width = img.clientWidth;
+        canvas.height = img.clientHeight;
+      }}
+
+      function drawCross(clientX, clientY) {{
+        syncSize();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const rect = canvas.getBoundingClientRect();
+        const plotLeft = canvas.width * 0.01;
+        const plotRight = canvas.width * 0.965;
+        const plotW = Math.max(10, plotRight - plotLeft);
+
+        const relX = clientX - rect.left;
+        const frac = (relX - plotLeft) / plotW;
+        const barPos = xMinBar + frac * (xMaxBar - xMinBar);
+        const idx = Math.round(barPos);
+
+        if (idx < 0 || idx >= totalBars) return;
+
+        const r = rows[idx];
+        const fracIdx = (idx - xMinBar) / (xMaxBar - xMinBar);
+        const lineX = plotLeft + fracIdx * plotW;
+        const lineY = clientY ? (clientY - rect.top) : (canvas.height * 0.35);
+
+        ctx.save();
+        ctx.strokeStyle = "#00ffff";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+
+        ctx.beginPath();
+        ctx.moveTo(lineX, 0);
+        ctx.lineTo(lineX, canvas.height);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(plotLeft, lineY);
+        ctx.lineTo(plotRight, lineY);
+        ctx.stroke();
+        ctx.restore();
+
+        hud.innerHTML =
+          `<span style="color:#00ffff;font-weight:bold;">[${{idx - (totalBars - 1)}}]</span> ` +
+          `<span style="color:#ffff00;">${{r.date}}</span>  ` +
+          `開:<b>${{r.open}}</b> 高:<span style="color:#ff3333;"><b>${{r.high}}</b></span> ` +
+          `低:<span style="color:#00e64d;"><b>${{r.low}}</b></span> 收:<b>${{r.close}}</b> ` +
+          `量:<span style="color:#00ffff;">${{r.vol.toLocaleString()}}</span>張` +
+          (r.ma_summary ? `  |  <span style="color:#ffcc66;">${{r.ma_summary}}</span>` : "");
+      }}
+
+      img.addEventListener("load", syncSize);
+      window.addEventListener("resize", syncSize);
+
+      canvas.addEventListener("mousemove", function(e) {{
+        drawCross(e.clientX, e.clientY);
+      }});
+
+      canvas.addEventListener("mouseleave", function() {{
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hud.innerHTML = "[{stock_id}] {stock_name}  |  移動滑鼠即時查價";
+      }});
+    }})();
+    </script>
+    """
+    components.html(interactive_html, height=plot_height, scrolling=False)
 
   with info_col:
     ma5_val = (
