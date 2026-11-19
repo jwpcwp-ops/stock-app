@@ -44,7 +44,7 @@ st.markdown(
     <style>
         header[data-testid="stHeader"] { display: none !important; }
         footer { display: none !important; }
-        
+
         .block-container {
             padding-top: 0.15rem !important;
             padding-bottom: 0.0rem !important;
@@ -77,7 +77,7 @@ st.markdown(
             min-height: 22px !important;
             height: 22px !important;
         }
-        
+
         /* 第一行快捷導航列按鈕美化 */
         div[data-testid="stHorizontalBlock"] > div > div > .stButton > button {
             background-color: #1a1a1a !important;
@@ -141,7 +141,7 @@ st.markdown(
         [data-testid="stVerticalBlock"] {
             gap: 4px !important;
         }
-        
+
         .stAlert {
             color: #ffffff !important;
             background-color: #0b2e13 !important;
@@ -167,45 +167,43 @@ st.markdown(
 # ---------------------------------------------------------
 font_path = "NotoSansTC-Regular.ttf"
 if not os.path.exists(font_path):
-  font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf"
-  try:
+    font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf"
+    try:
     urllib.request.urlretrieve(font_url, font_path)
-  except Exception as e:
+    except Exception as e:
     print(f"字型下載失敗: {e}")
 
 if os.path.exists(font_path):
-  fm.fontManager.addfont(font_path)
-  plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
+    fm.fontManager.addfont(font_path)
+    plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
 else:
-  plt.rcParams["font.sans-serif"] = [
-      "Microsoft JhengHei",
-      "Arial Unicode MS",
-      "sans-serif",
-  ]
+    plt.rcParams["font.sans-serif"] = [
+            "Microsoft JhengHei",
+            "Arial Unicode MS",
+            "sans-serif",
+    ]
 
 plt.rcParams["axes.unicode_minus"] = False
 
-
 def get_bright_effect(stroke_color="#000000", linewidth=2.5):
-  return [
-      path_effects.withStroke(linewidth=linewidth, foreground=stroke_color),
-      path_effects.Normal(),
-  ]
-
+    return [
+            path_effects.withStroke(linewidth=linewidth, foreground=stroke_color),
+            path_effects.Normal(),
+    ]
 
 # ---------------------------------------------------------
 # 4. 讀取股票清單 (StockIDs.xlsx)
 # ---------------------------------------------------------
 @st.cache_data
 def load_stock_list():
-  try:
+    try:
     df = pd.read_excel("StockIDs.xlsx", sheet_name="StockIDs", dtype={"代碼": str})
     df["代碼"] = (
         df["代碼"].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
     )
     options = df["代碼"] + " " + df["名稱"].astype(str)
     return options.tolist(), df
-  except Exception:
+    except Exception:
     default_data = pd.DataFrame({
         "代碼": ["99991", "1477", "2428", "6669"],
         "名稱": ["加權指數", "聚陽", "興勤", "緯穎"],
@@ -213,104 +211,99 @@ def load_stock_list():
     options = default_data["代碼"] + " " + default_data["名稱"]
     return options.tolist(), default_data
 
-
 stock_options, stock_df = load_stock_list()
 
-
 def find_stock_index_by_code(code_str):
-  clean_code = str(code_str).strip().replace(".0", "")
-  candidates = [clean_code, clean_code.zfill(4)]
-  for i, opt in enumerate(stock_options):
+    clean_code = str(code_str).strip().replace(".0", "")
+    candidates = [clean_code, clean_code.zfill(4)]
+    for i, opt in enumerate(stock_options):
     opt_code = opt.split()[0].strip() if opt.split() else ""
     if opt_code in candidates:
-      return i
-  return -1
-
+            return i
+    return -1
 
 # ---------------------------------------------------------
 # 5. 本地快取支援與資料抓取
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
-
 @st.cache_data
 def load_local_cache_cached():
-  cache_dict = {}
-  if os.path.exists(CACHE_FILE):
+    cache_dict = {}
+    if os.path.exists(CACHE_FILE):
     try:
-      with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
         for line in f:
-          if line.strip():
+                    if line.strip():
             data = json.loads(line)
             s_id = data.get("stock_id")
             if s_id:
-              cache_dict[s_id] = data
+                            cache_dict[s_id] = data
     except Exception:
-      pass
-  return cache_dict
-
+            pass
+    return cache_dict
 
 @st.cache_data(ttl=300)
 def fetch_raw_history(stock_id, period_type, fetch_len):
-  df_yf = pd.DataFrame()
-  index_ticker_map = {"99991": "^TWII"}
+    df_yf = pd.DataFrame()
+    index_ticker_map = {"99991": "^TWII"}
 
-  if stock_id in index_ticker_map:
+    if stock_id in index_ticker_map:
     tickers_to_try = [index_ticker_map[stock_id]]
-  else:
+    else:
     tickers_to_try = [stock_id + ".TW", stock_id + ".TWO"]
 
-  yf_interval = "1d"
-  yf_period = "5y"
-  if period_type in ["60分", "60分鐘"]:
+    yf_interval = "1d"
+    yf_period = "5y"
+    if period_type in ["60分", "60分鐘"]:
     yf_interval = "60m"
     yf_period = "120d"
-  elif period_type == "週線":
+    elif period_type == "週線":
     yf_interval = "1wk"
     yf_period = "max"
-  elif period_type == "月線":
+    elif period_type == "月線":
     yf_interval = "1mo"
     yf_period = "max"
-  elif period_type == "日線":
+    elif period_type == "日線":
     yf_interval = "1d"
     yf_period = "5y" if fetch_len > 350 else "3y"
 
-  for ticker in tickers_to_try:
+    for ticker in tickers_to_try:
     try:
-      t_obj = yf.Ticker(ticker)
-      temp_df = t_obj.history(
-          period=yf_period, interval=yf_interval, auto_adjust=True
-      )
-      if not temp_df.empty and "Close" in temp_df.columns:
+            t_obj = yf.Ticker(ticker)
+            temp_df = t_obj.history(
+                    period=yf_period, interval=yf_interval, auto_adjust=True
+            )
+            if not temp_df.empty and "Close" in temp_df.columns:
         if hasattr(temp_df.index, "tz") and temp_df.index.tz is not None:
-          temp_df.index = (
-              temp_df.index.tz_convert("Asia/Taipei").tz_localize(None)
-          )
+                    temp_df.index = (
+                            temp_df.index.tz_convert("Asia/Taipei").tz_localize(None)
+                    )
         else:
-          temp_df.index = pd.to_datetime(temp_df.index).tz_localize(None)
+                    temp_df.index = pd.to_datetime(temp_df.index).tz_localize(None)
         df_yf = temp_df
         break
     except Exception:
-      continue
+            continue
 
-  if period_type == "日線" and not df_yf.empty:
+    if period_type == "日線" and not df_yf.empty:
     try:
-      t_obj = yf.Ticker(tickers_to_try[0])
-      temp_60m = t_obj.history(period="5d", interval="60m", auto_adjust=True)
-      if not temp_60m.empty:
+            t_obj = yf.Ticker(tickers_to_try[0])
+            temp_60m = t_obj.history(period="5d", interval="60m", auto_adjust=True)
+            if not temp_60m.empty:
         if hasattr(temp_60m.index, "tz") and temp_60m.index.tz is not None:
-          temp_60m.index = (
-              temp_60m.index.tz_convert("Asia/Taipei").tz_localize(None)
-          )
+                    temp_60m.index = (
+                            temp_60m.index.tz_convert("Asia/Taipei").tz_localize(None)
+                    )
         else:
-          temp_60m.index = pd.to_datetime(temp_60m.index).tz_localize(None)
+                    temp_60m.index = pd.to_datetime(temp_60m.index).tz_localize(None)
 
         latest_60m_date = temp_60m.index[-1].normalize()
         last_daily_date = df_yf.index[-1].normalize()
 
         if latest_60m_date > last_daily_date:
-          day_data = temp_60m[temp_60m.index.normalize() == latest_60m_date]
-          if not day_data.empty:
+                    day_data = temp_60m[temp_60m.index.normalize() == latest_60m_date]
+                    if not day_data.empty:
             df_yf.loc[latest_60m_date] = {
                 "Open": float(day_data["Open"].iloc[0]),
                 "High": float(day_data["High"].max()),
@@ -320,24 +313,24 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
             }
             df_yf = df_yf.sort_index()
     except Exception as e:
-      print(f"自動補針失敗: {e}")
+            print(f"自動補針失敗: {e}")
 
-  if not df_yf.empty:
+    if not df_yf.empty:
     df_yf = df_yf.dropna(subset=["Close"])
     df_k = df_yf.tail(fetch_len).copy()
 
     if "Volume" not in df_k.columns or df_k["Volume"].fillna(0).sum() == 0:
-      if stock_id == "99991":
+            if stock_id == "99991":
         df_k["Volume"] = (
             np.random.randint(3000000, 5000000, size=len(df_k)) * 1000
         )
-      else:
+            else:
         df_k["Volume"] = (
             np.random.randint(10000, 50000, size=len(df_k)) * 1000
         )
     else:
-      df_k["Volume"] = df_k["Volume"].fillna(0)
-      if (df_k["Volume"] <= 0).all():
+            df_k["Volume"] = df_k["Volume"].fillna(0)
+            if (df_k["Volume"] <= 0).all():
         df_k["Volume"] = (
             np.random.randint(3000000, 5000000, size=len(df_k)) * 1000
             if stock_id == "99991"
@@ -346,38 +339,37 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
 
     records = []
     for idx, row in df_k.iterrows():
-      date_str = (
-          idx.strftime("%Y/%m/%d %H:%M")
-          if period_type in ["60分", "60分鐘"]
-          else idx.strftime("%Y/%m/%d")
-      )
-      o_val = float(row["Open"])
-      h_val = float(row["High"])
-      l_val = float(row["Low"])
-      c_val = float(row["Close"])
-      if o_val == c_val and h_val != l_val:
+            date_str = (
+                    idx.strftime("%Y/%m/%d %H:%M")
+                    if period_type in ["60分", "60分鐘"]
+                    else idx.strftime("%Y/%m/%d")
+            )
+            o_val = float(row["Open"])
+            h_val = float(row["High"])
+            l_val = float(row["Low"])
+            c_val = float(row["Close"])
+            if o_val == c_val and h_val != l_val:
         o_val = l_val if c_val > l_val else h_val
 
-      records.append({
-          "date": date_str,
-          "open": o_val,
-          "high": h_val,
-          "low": l_val,
-          "close": c_val,
-          "vol": float(row["Volume"]) / 1000,
-      })
+            records.append({
+                    "date": date_str,
+                    "open": o_val,
+                    "high": h_val,
+                    "low": l_val,
+                    "close": c_val,
+                    "vol": float(row["Volume"]) / 1000,
+            })
     return records
-  return []
-
+    return []
 
 def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
-  warmup_bars = 260
-  fetch_len = target_days + warmup_bars
-  raw_records = fetch_raw_history(stock_id, period_type, fetch_len)
+    warmup_bars = 260
+    fetch_len = target_days + warmup_bars
+    raw_records = fetch_raw_history(stock_id, period_type, fetch_len)
 
-  if raw_records:
+    if raw_records:
     df_full = pd.DataFrame(raw_records)
-  else:
+    else:
     dates = pd.date_range(end=datetime.today(), periods=fetch_len, freq="B")
     prices = 100 + np.cumsum(np.random.randn(fetch_len) * 0.8)
     df_full = pd.DataFrame({
@@ -389,159 +381,159 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
         "vol": np.random.randint(1000, 5000, size=fetch_len).astype(float),
     })
 
-  s_close = df_full["close"]
-  s_high = df_full["high"]
-  s_low = df_full["low"]
+    s_close = df_full["close"]
+    s_high = df_full["high"]
+    s_low = df_full["low"]
 
-  for period in [5, 10, 20, 35, 60, 120, 200]:
+    for period in [5, 10, 20, 35, 60, 120, 200]:
     eff_win = min(period, max(1, len(s_close)))
     ma_raw = s_close.rolling(window=eff_win, min_periods=1).mean()
     df_full[f"ma_{period}"] = ma_raw.ffill().bfill()
 
-  ema3 = s_close.ewm(span=3, adjust=False).mean()
-  ema15 = s_close.ewm(span=15, adjust=False).mean()
-  ema30 = s_close.ewm(span=30, adjust=False).mean()
+    ema3 = s_close.ewm(span=3, adjust=False).mean()
+    ema15 = s_close.ewm(span=15, adjust=False).mean()
+    ema30 = s_close.ewm(span=30, adjust=False).mean()
 
-  cond1 = ema3 > ema15
-  cond2 = ema15 < s_close
-  slope_1 = (ema15 / ema30 - 1) * 100
-  cond3 = slope_1 > 0.0
-  cond4 = ema15 > ema30
+    cond1 = ema3 > ema15
+    cond2 = ema15 < s_close
+    slope_1 = (ema15 / ema30 - 1) * 100
+    cond3 = slope_1 > 0.0
+    cond4 = ema15 > ema30
 
-  成立 = cond1 & cond2 & cond3 & cond4
-  不成立 = (~cond1) & (~cond2) & (~cond3) & (~cond4)
+    成立 = cond1 & cond2 & cond3 & cond4
+    不成立 = (~cond1) & (~cond2) & (~cond3) & (~cond4)
 
-  red_days, green_days = [], []
-  r_cnt, g_cnt = 999, 999
-  for val_s, val_ns in zip(成立, 不成立):
+    red_days, green_days = [], []
+    r_cnt, g_cnt = 999, 999
+    for val_s, val_ns in zip(成立, 不成立):
     r_cnt = 0 if val_s else r_cnt + 1
     g_cnt = 0 if val_ns else g_cnt + 1
     red_days.append(r_cnt)
     green_days.append(g_cnt)
-  df_full["red_days"] = red_days
-  df_full["green_days"] = green_days
+    df_full["red_days"] = red_days
+    df_full["green_days"] = green_days
 
-  raw_buy = 成立 & (df_full["red_days"] == 0)
-  raw_sell = 不成立 & (df_full["green_days"] == 0)
+    raw_buy = 成立 & (df_full["red_days"] == 0)
+    raw_sell = 不成立 & (df_full["green_days"] == 0)
 
-  filtered_buy, filtered_sell = [], []
-  last_state = 0
-  for b, s in zip(raw_buy, raw_sell):
+    filtered_buy, filtered_sell = [], []
+    last_state = 0
+    for b, s in zip(raw_buy, raw_sell):
     b_flag, s_flag = False, False
     if b and last_state != 1:
-      b_flag = True
-      last_state = 1
+            b_flag = True
+            last_state = 1
     elif s and last_state != -1:
-      s_flag = True
-      last_state = -1
+            s_flag = True
+            last_state = -1
     filtered_buy.append(b_flag)
     filtered_sell.append(s_flag)
 
-  df_full["is_buy_signal"] = filtered_buy
-  df_full["is_sell_signal"] = filtered_sell
+    df_full["is_buy_signal"] = filtered_buy
+    df_full["is_sell_signal"] = filtered_sell
 
-  df_full["band_macd_dif"] = (
-      s_close.ewm(span=5, adjust=False).mean()
-      - s_close.ewm(span=10, adjust=False).mean()
-  )
-  df_full["band_macd_dem"] = df_full["band_macd_dif"].ewm(
-      span=5, adjust=False
-  ).mean()
-  df_full["band_macd_osc"] = (
-      df_full["band_macd_dif"] - df_full["band_macd_dem"]
-  ) * 2
+    df_full["band_macd_dif"] = (
+            s_close.ewm(span=5, adjust=False).mean()
+            - s_close.ewm(span=10, adjust=False).mean()
+    )
+    df_full["band_macd_dem"] = df_full["band_macd_dif"].ewm(
+            span=5, adjust=False
+    ).mean()
+    df_full["band_macd_osc"] = (
+            df_full["band_macd_dif"] - df_full["band_macd_dem"]
+    ) * 2
 
-  df_full["band_bias_base"] = (
-      s_close.rolling(window=min(20, max(1, len(s_close))), min_periods=1)
-      .mean()
-      .bfill()
-  )
-  df_full["band_bias_val"] = (
-      (s_close - df_full["band_bias_base"])
-      / (df_full["band_bias_base"] + 1e-8)
-  ) * 100
-  df_full["band_bias_val_rev"] = -1.0 * df_full["band_bias_val"]
+    df_full["band_bias_base"] = (
+            s_close.rolling(window=min(20, max(1, len(s_close))), min_periods=1)
+            .mean()
+            .bfill()
+    )
+    df_full["band_bias_val"] = (
+            (s_close - df_full["band_bias_base"])
+            / (df_full["band_bias_base"] + 1e-8)
+    ) * 100
+    df_full["band_bias_val_rev"] = -1.0 * df_full["band_bias_val"]
 
-  df_full["mtm_val"] = (s_close - s_close.shift(10)).bfill()
-  df_full["mtm_ma1"] = df_full["mtm_val"].rolling(window=1).mean()
+    df_full["mtm_val"] = (s_close - s_close.shift(10)).bfill()
+    df_full["mtm_ma1"] = df_full["mtm_val"].rolling(window=1).mean()
 
-  df_full["macd_dif"] = (
-      s_close.ewm(span=12, adjust=False).mean()
-      - s_close.ewm(span=26, adjust=False).mean()
-  )
-  df_full["macd_dem"] = df_full["macd_dif"].ewm(span=9, adjust=False).mean()
-  df_full["macd_osc"] = (df_full["macd_dif"] - df_full["macd_dem"]) * 2
+    df_full["macd_dif"] = (
+            s_close.ewm(span=12, adjust=False).mean()
+            - s_close.ewm(span=26, adjust=False).mean()
+    )
+    df_full["macd_dem"] = df_full["macd_dif"].ewm(span=9, adjust=False).mean()
+    df_full["macd_osc"] = (df_full["macd_dif"] - df_full["macd_dem"]) * 2
 
-  df_full["bias_ma60"] = (
-      s_close.rolling(window=min(60, max(1, len(s_close))), min_periods=1)
-      .mean()
-      .bfill()
-  )
-  df_full["bias_val"] = (
-      (s_close - df_full["bias_ma60"]) / (df_full["bias_ma60"] + 1e-8)
-  ) * 100
+    df_full["bias_ma60"] = (
+            s_close.rolling(window=min(60, max(1, len(s_close))), min_periods=1)
+            .mean()
+            .bfill()
+    )
+    df_full["bias_val"] = (
+            (s_close - df_full["bias_ma60"]) / (df_full["bias_ma60"] + 1e-8)
+    ) * 100
 
-  low_min9 = s_low.rolling(9, min_periods=1).min()
-  high_max9 = s_high.rolling(9, min_periods=1).max()
-  rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
-  df_full["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
-  df_full["kdj_d"] = df_full["kdj_k"].ewm(com=2, adjust=False).mean()
-  df_full["kdj_j"] = 3 * df_full["kdj_k"] - 2 * df_full["kdj_d"]
-  df_full["kdj_diff"] = df_full["kdj_k"] - df_full["kdj_d"]
+    low_min9 = s_low.rolling(9, min_periods=1).min()
+    high_max9 = s_high.rolling(9, min_periods=1).max()
+    rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
+    df_full["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
+    df_full["kdj_d"] = df_full["kdj_k"].ewm(com=2, adjust=False).mean()
+    df_full["kdj_j"] = 3 * df_full["kdj_k"] - 2 * df_full["kdj_d"]
+    df_full["kdj_diff"] = df_full["kdj_k"] - df_full["kdj_d"]
 
-  delta = s_close.diff().fillna(0)
-  gain6 = (delta.where(delta > 0, 0)).rolling(6, min_periods=1).mean()
-  loss6 = (-delta.where(delta < 0, 0)).rolling(6, min_periods=1).mean()
-  df_full["rsi_6"] = 100 - (100 / (1 + gain6 / (loss6 + 1e-8)))
+    delta = s_close.diff().fillna(0)
+    gain6 = (delta.where(delta > 0, 0)).rolling(6, min_periods=1).mean()
+    loss6 = (-delta.where(delta < 0, 0)).rolling(6, min_periods=1).mean()
+    df_full["rsi_6"] = 100 - (100 / (1 + gain6 / (loss6 + 1e-8)))
 
-  gain12 = (delta.where(delta > 0, 0)).rolling(12, min_periods=1).mean()
-  loss12 = (-delta.where(delta < 0, 0)).rolling(12, min_periods=1).mean()
-  df_full["rsi_12"] = 100 - (100 / (1 + gain12 / (loss12 + 1e-8)))
-  df_full["rsi_diff"] = df_full["rsi_6"] - df_full["rsi_12"]
+    gain12 = (delta.where(delta > 0, 0)).rolling(12, min_periods=1).mean()
+    loss12 = (-delta.where(delta < 0, 0)).rolling(12, min_periods=1).mean()
+    df_full["rsi_12"] = 100 - (100 / (1 + gain12 / (loss12 + 1e-8)))
+    df_full["rsi_diff"] = df_full["rsi_6"] - df_full["rsi_12"]
 
-  low_min9_w = s_low.rolling(9, min_periods=1).min()
-  high_max9_w = s_high.rolling(9, min_periods=1).max()
-  df_full["w_r"] = (
-      (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
-  )
+    low_min9_w = s_low.rolling(9, min_periods=1).min()
+    high_max9_w = s_high.rolling(9, min_periods=1).max()
+    df_full["w_r"] = (
+            (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
+    )
 
-  df_full["qt"] = s_close.diff().abs().rolling(5, min_periods=1).mean().fillna(0)
-  df_full["vol_ma5"] = (
-      df_full["vol"].rolling(window=5, min_periods=1).mean().bfill()
-  )
-  df_full["vol_ma20"] = (
-      df_full["vol"].rolling(window=20, min_periods=1).mean().bfill()
-  )
-  df_full["long_trend"] = (
-      (
-          s_close.ewm(span=15, adjust=False).mean()
-          / s_close.ewm(span=30, adjust=False).mean()
-          - 1
-      )
-      * 100
-  ) > 0
+    df_full["qt"] = s_close.diff().abs().rolling(5, min_periods=1).mean().fillna(0)
+    df_full["vol_ma5"] = (
+            df_full["vol"].rolling(window=5, min_periods=1).mean().bfill()
+    )
+    df_full["vol_ma20"] = (
+            df_full["vol"].rolling(window=20, min_periods=1).mean().bfill()
+    )
+    df_full["long_trend"] = (
+            (
+                    s_close.ewm(span=15, adjust=False).mean()
+                    / s_close.ewm(span=30, adjust=False).mean()
+                    - 1
+            )
+            * 100
+    ) > 0
 
-  df_show = df_full.tail(target_days).reset_index(drop=True)
+    df_show = df_full.tail(target_days).reset_index(drop=True)
 
-  cur_vol = float(df_show["vol"].iloc[-1]) if not df_show.empty else 0.0
-  val_20ma = (
-      float(df_show["vol_ma20"].iloc[-1])
-      if not df_show.empty and not pd.isna(df_show["vol_ma20"].iloc[-1])
-      else 1.0
-  )
-  cur_20ma = val_20ma if val_20ma > 0 else 1.0
-  v_ratio = cur_vol / cur_20ma
+    cur_vol = float(df_show["vol"].iloc[-1]) if not df_show.empty else 0.0
+    val_20ma = (
+            float(df_show["vol_ma20"].iloc[-1])
+            if not df_show.empty and not pd.isna(df_show["vol_ma20"].iloc[-1])
+            else 1.0
+    )
+    cur_20ma = val_20ma if val_20ma > 0 else 1.0
+    v_ratio = cur_vol / cur_20ma
 
-  cache_dict = load_local_cache_cached()
-  today_str = datetime.today().strftime("%Y-%m-%d")
-  if (
-      stock_id in cache_dict
-      and cache_dict[stock_id].get("update_date") == today_str
-  ):
+    cache_dict = load_local_cache_cached()
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    if (
+            stock_id in cache_dict
+            and cache_dict[stock_id].get("update_date") == today_str
+    ):
     cached = cache_dict[stock_id]
     big_holder = np.array(cached.get("big_holder", [40.0] * len(df_show)))
     sheep_holder = np.array(cached.get("sheep_holder", [42.0] * len(df_show)))
-  else:
+    else:
     seed_val = int(stock_id) if stock_id.isdigit() else 42
     np.random.seed(seed_val)
     n_p = len(df_show)
@@ -551,123 +543,122 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
         100.0 - big_holder + np.random.randn(n_p) * 0.3, 15.0, 80.0
     )
 
-  return df_show, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio
-
+    return df_show, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio
 
 def build_bar_analysis_snapshot(
     df, big_holder, sheep_holder, idx_r, selected_indicator, period_label
 ):
-  """計算單一根 K 棒（索引 idx_r）對應的完整解盤與原位指標 tokens"""
-  r = df.iloc[idx_r]
-  df_slice = df.iloc[: idx_r + 1]
+    """計算單一根 K 棒（索引 idx_r）對應的完整解盤與原位指標 tokens"""
+    r = df.iloc[idx_r]
+    df_slice = df.iloc[: idx_r + 1]
 
-  c_open = float(r["open"])
-  c_close = float(r["close"])
-  c_high = float(r["high"])
-  c_low = float(r["low"])
-  c_vol = float(r["vol"])
-  c_date = str(r["date"])
+    c_open = float(r["open"])
+    c_close = float(r["close"])
+    c_high = float(r["high"])
+    c_low = float(r["low"])
+    c_vol = float(r["vol"])
+    c_date = str(r["date"])
 
-  ma5_v = (
-      float(r["ma_5"]) if "ma_5" in df.columns and pd.notna(r["ma_5"]) else 0.0
-  )
-  ma20_v = (
-      float(r["ma_20"])
-      if "ma_20" in df.columns and pd.notna(r["ma_20"])
-      else 0.0
-  )
-  ma60_v = (
-      float(r["ma_60"])
-      if "ma_60" in df.columns and pd.notna(r["ma_60"])
-      else 0.0
-  )
+    ma5_v = (
+            float(r["ma_5"]) if "ma_5" in df.columns and pd.notna(r["ma_5"]) else 0.0
+    )
+    ma20_v = (
+            float(r["ma_20"])
+            if "ma_20" in df.columns and pd.notna(r["ma_20"])
+            else 0.0
+    )
+    ma60_v = (
+            float(r["ma_60"])
+            if "ma_60" in df.columns and pd.notna(r["ma_60"])
+            else 0.0
+    )
 
-  if ma5_v > ma20_v > ma60_v:
+    if ma5_v > ma20_v > ma60_v:
     ma_status = "多頭排列"
-  elif ma5_v < ma20_v < ma60_v:
+    elif ma5_v < ma20_v < ma60_v:
     ma_status = "空頭排列"
-  else:
+    else:
     ma_status = "均線交錯"
-  ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
+    ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
 
-  high30 = float(df_slice["high"].tail(30).max())
-  low30 = float(df_slice["low"].tail(30).min())
-  drop_pct = ((high30 - c_low) / high30) * 100 if high30 > 0 else 0.0
-  rise_pct = ((c_high / low30) - 1) * 100 if low30 > 0 else 0.0
+    high30 = float(df_slice["high"].tail(30).max())
+    low30 = float(df_slice["low"].tail(30).min())
+    drop_pct = ((high30 - c_low) / high30) * 100 if high30 > 0 else 0.0
+    rise_pct = ((c_high / low30) - 1) * 100 if low30 > 0 else 0.0
 
-  k_v = float(r["kdj_k"]) if "kdj_k" in df.columns else 0.0
-  d_v = float(r["kdj_d"]) if "kdj_d" in df.columns else 0.0
-  j_v = float(r["kdj_j"]) if "kdj_j" in df.columns else 0.0
-  kd_diff = k_v - d_v
+    k_v = float(r["kdj_k"]) if "kdj_k" in df.columns else 0.0
+    d_v = float(r["kdj_d"]) if "kdj_d" in df.columns else 0.0
+    j_v = float(r["kdj_j"]) if "kdj_j" in df.columns else 0.0
+    kd_diff = k_v - d_v
 
-  prev_k = float(df["kdj_k"].iloc[idx_r - 1]) if idx_r > 0 else k_v
-  prev_d = float(df["kdj_d"].iloc[idx_r - 1]) if idx_r > 0 else d_v
-  is_gc = prev_k <= prev_d and k_v > d_v
-  is_dc = prev_k >= prev_d and k_v < d_v
+    prev_k = float(df["kdj_k"].iloc[idx_r - 1]) if idx_r > 0 else k_v
+    prev_d = float(df["kdj_d"].iloc[idx_r - 1]) if idx_r > 0 else d_v
+    is_gc = prev_k <= prev_d and k_v > d_v
+    is_dc = prev_k >= prev_d and k_v < d_v
 
-  kdj_sig = "中立觀望"
-  kdj_cls = "t-val-white"
-  if k_v > 90:
+    kdj_sig = "中立觀望"
+    kdj_cls = "t-val-white"
+    if k_v > 90:
     kdj_sig, kdj_cls = "【強力賣出】K>90超買", "t-val-green"
-  elif j_v > 100:
+    elif j_v > 100:
     kdj_sig, kdj_cls = "【強力賣出】J>100超買", "t-val-green"
-  elif kd_diff > 18:
+    elif kd_diff > 18:
     kdj_sig, kdj_cls = "【強力賣出】正乖離>+18", "t-val-green"
-  elif is_dc:
+    elif is_dc:
     kdj_sig, kdj_cls = "【賣出訊號】KD死叉", "t-val-green"
-  elif k_v < 9:
+    elif k_v < 9:
     kdj_sig, kdj_cls = "【強力買進】K<9超賣", "t-val-red"
-  elif k_v < 9 and d_v < 9:
+    elif k_v < 9 and d_v < 9:
     kdj_sig, kdj_cls = "【強力買進】KD雙跌破9", "t-val-red"
-  elif j_v < 0:
+    elif j_v < 0:
     kdj_sig, kdj_cls = "【強力買進】J<0超賣", "t-val-red"
-  elif kd_diff < -18:
+    elif kd_diff < -18:
     kdj_sig, kdj_cls = "【強力買進】負乖離<-18", "t-val-red"
-  elif is_gc:
+    elif is_gc:
     kdj_sig, kdj_cls = "【買進訊號】KD金交叉", "t-val-red"
 
-  vol_ma5_v = (
-      float(r["vol_ma5"])
-      if "vol_ma5" in df.columns and pd.notna(r["vol_ma5"])
-      else 1.0
-  )
-  vol_ma20_v = (
-      float(r["vol_ma20"])
-      if "vol_ma20" in df.columns and pd.notna(r["vol_ma20"])
-      else 1.0
-  )
-  v_ratio_5 = c_vol / vol_ma5_v if vol_ma5_v > 0 else 1.0
-  v_ratio_20 = c_vol / vol_ma20_v if vol_ma20_v > 0 else 1.0
-  vol_status = "量能平穩" if v_ratio_5 < 1.5 else "量能顯著放大"
-  vol_cls = "t-val-white" if v_ratio_5 < 1.5 else "t-val-red"
+    vol_ma5_v = (
+            float(r["vol_ma5"])
+            if "vol_ma5" in df.columns and pd.notna(r["vol_ma5"])
+            else 1.0
+    )
+    vol_ma20_v = (
+            float(r["vol_ma20"])
+            if "vol_ma20" in df.columns and pd.notna(r["vol_ma20"])
+            else 1.0
+    )
+    v_ratio_5 = c_vol / vol_ma5_v if vol_ma5_v > 0 else 1.0
+    v_ratio_20 = c_vol / vol_ma20_v if vol_ma20_v > 0 else 1.0
+    vol_status = "量能平穩" if v_ratio_5 < 1.5 else "量能顯著放大"
+    vol_cls = "t-val-white" if v_ratio_5 < 1.5 else "t-val-red"
 
-  is_bull = c_close >= ma60_v
-  trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
-  trend_cls = "t-val-red" if is_bull else "t-val-green"
+    is_bull = c_close >= ma60_v
+    trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
+    trend_cls = "t-val-red" if is_bull else "t-val-green"
 
-  is_buy_s = (
-      bool(r["is_buy_signal"]) if "is_buy_signal" in df.columns else False
-  )
-  is_sell_s = (
-      bool(r["is_sell_signal"]) if "is_sell_signal" in df.columns else False
-  )
-  red_d = int(r["red_days"]) if "red_days" in df.columns else 0
-  green_d = int(r["green_days"]) if "green_days" in df.columns else 0
+    is_buy_s = (
+            bool(r["is_buy_signal"]) if "is_buy_signal" in df.columns else False
+    )
+    is_sell_s = (
+            bool(r["is_sell_signal"]) if "is_sell_signal" in df.columns else False
+    )
+    red_d = int(r["red_days"]) if "red_days" in df.columns else 0
+    green_d = int(r["green_days"]) if "green_days" in df.columns else 0
 
-  if is_buy_s:
+    if is_buy_s:
     wave_txt, wave_cls = "★ 波段買進訊號", "t-val-red"
-  elif is_sell_s:
+    elif is_sell_s:
     wave_txt, wave_cls = "✖ 波段賣出訊號", "t-val-cyan"
-  elif red_d < green_d:
+    elif red_d < green_d:
     wave_txt, wave_cls = "多方波段運行中", "t-val-red"
-  else:
+    else:
     wave_txt, wave_cls = "空方波段整理中", "t-val-green"
 
-  ind_tokens = []
-  sub2_tokens = []
-  sub3_tokens = []
+    ind_tokens = []
+    sub2_tokens = []
+    sub3_tokens = []
 
-  if selected_indicator == "MACD":
+    if selected_indicator == "MACD":
     dif_v = float(r["macd_dif"])
     dem_v = float(r["macd_dem"])
     osc_v = float(r["macd_osc"])
@@ -687,10 +678,10 @@ def build_bar_analysis_snapshot(
         {"text": "MACD:", "color": osc_col},
         {"text": f"{osc_v:.2f}{osc_arr}", "color": osc_col},
     ]
-  elif selected_indicator == "BIAS":
+    elif selected_indicator == "BIAS":
     bias_v = float(r["bias_val"])
     ind_tokens = [{"text": f"BIAS(60)  {bias_v:.2f}%", "color": "#FFFF00"}]
-  elif selected_indicator == "KDJ":
+    elif selected_indicator == "KDJ":
     k_diff = float(r["kdj_diff"])
     kd_arr = "↑" if k_diff >= 0 else "↓"
     ind_tokens = [
@@ -704,7 +695,7 @@ def build_bar_analysis_snapshot(
         {"text": "乖離:", "color": "#FFFF00"},
         {"text": f"{k_diff:.2f}{kd_arr}", "color": "#FFFF00"},
     ]
-  elif selected_indicator == "RSI":
+    elif selected_indicator == "RSI":
     r6_v = float(r["rsi_6"])
     r12_v = float(r["rsi_12"])
     rdiff_v = float(r["rsi_diff"])
@@ -718,13 +709,13 @@ def build_bar_analysis_snapshot(
         {"text": "差值:", "color": "#FFFF00"},
         {"text": f"{rdiff_v:.2f}{rd_arr}", "color": "#FFFF00"},
     ]
-  elif selected_indicator == "W%":
+    elif selected_indicator == "W%":
     wr_v = float(r["w_r"])
     ind_tokens = [{"text": f"W% (威廉指標)  W%:{wr_v:.2f}%", "color": "#FFFF00"}]
-  elif selected_indicator == "QT":
+    elif selected_indicator == "QT":
     qt_v = float(r["qt"])
     ind_tokens = [{"text": f"QT (量價波動)  QT:{qt_v:.2f}", "color": "#00FF66"}]
-  elif selected_indicator == "大戶羊群":
+    elif selected_indicator == "大戶羊群":
     b_slice = (
         big_holder[-len(df) :] if len(big_holder) >= len(df) else big_holder
     )
@@ -741,7 +732,7 @@ def build_bar_analysis_snapshot(
             "color": "#FF3333",
         }
     ]
-  elif selected_indicator == "波段":
+    elif selected_indicator == "波段":
     bdif_v = float(r["band_macd_dif"])
     bdem_v = float(r["band_macd_dem"])
     bosc_v = float(r["band_macd_osc"])
@@ -772,88 +763,87 @@ def build_bar_analysis_snapshot(
         {"text": f"{mtm_avg_v:.2f}", "color": "#00FF66"},
     ]
 
-  prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
-  prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
-  prev_v20 = float(df["vol_ma20"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma20_v
-  v_arr = "↑" if c_vol >= prev_vol else "↓"
-  v5_arr = "↑" if vol_ma5_v >= prev_v5 else "↓"
-  v20_arr = "↑" if vol_ma20_v >= prev_v20 else "↓"
+    prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
+    prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
+    prev_v20 = float(df["vol_ma20"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma20_v
+    v_arr = "↑" if c_vol >= prev_vol else "↓"
+    v5_arr = "↑" if vol_ma5_v >= prev_v5 else "↓"
+    v20_arr = "↑" if vol_ma20_v >= prev_v20 else "↓"
 
-  vol_tokens = [
-      {"text": "成交量:", "color": "#FFFFFF"},
-      {"text": f"{int(c_vol)}{v_arr}  ", "color": "#FF3333"},
-      {"text": "日5:", "color": "#FFFF00"},
-      {"text": f"{int(vol_ma5_v)}{v5_arr}  ", "color": "#FFFF00"},
-      {"text": "值5:", "color": "#FFFF00"},
-      {"text": f"{v_ratio_5:.2f}{v5_arr}  ", "color": "#FFFF00"},
-      {"text": "日20:", "color": "#FF9900"},
-      {"text": f"{int(vol_ma20_v)}{v20_arr}  ", "color": "#FF9900"},
-      {"text": "值20:", "color": "#FF9900"},
-      {"text": f"{v_ratio_20:.2f}{v20_arr}", "color": "#FF9900"},
-  ]
+    vol_tokens = [
+            {"text": "成交量:", "color": "#FFFFFF"},
+            {"text": f"{int(c_vol)}{v_arr}  ", "color": "#FF3333"},
+            {"text": "日5:", "color": "#FFFF00"},
+            {"text": f"{int(vol_ma5_v)}{v5_arr}  ", "color": "#FFFF00"},
+            {"text": "值5:", "color": "#FFFF00"},
+            {"text": f"{v_ratio_5:.2f}{v5_arr}  ", "color": "#FFFF00"},
+            {"text": "日20:", "color": "#FF9900"},
+            {"text": f"{int(vol_ma20_v)}{v20_arr}  ", "color": "#FF9900"},
+            {"text": "值20:", "color": "#FF9900"},
+            {"text": f"{v_ratio_20:.2f}{v20_arr}", "color": "#FF9900"},
+    ]
 
-  return {
-      "header_text": (
-          f"{c_date}   開:{c_open:.2f}  高:{c_high:.2f}  低:{c_low:.2f} "
-          f" 收:{c_close:.2f}  量:{int(c_vol):,}張"
-      ),
-      "trend_badge": "【季線多頭】" if is_bull else "【季線空頭】",
-      "trend_badge_color": "#FF3333" if is_bull else "#00E64D",
-      "period_badge": f" {period_label} ",
-      "ind_tokens": ind_tokens,
-      "sub2_tokens": sub2_tokens,
-      "sub3_tokens": sub3_tokens,
-      "vol_tokens": vol_tokens,
-      "ma_status": ma_status,
-      "ma_cls": ma_cls,
-      "ma5": f"{ma5_v:.1f}",
-      "ma20": f"{ma20_v:.1f}",
-      "ma60": f"{ma60_v:.1f}",
-      "high30": f"{high30:.2f}",
-      "low30": f"{low30:.2f}",
-      "drop_pct": f"-{drop_pct:.2f}%",
-      "rise_pct": f"+{rise_pct:.2f}%",
-      "kdj_sig": kdj_sig,
-      "kdj_cls": kdj_cls,
-      "kd_str": f"{k_v:.1f} / {d_v:.1f}",
-      "j_str": f"{j_v:.1f}",
-      "kd_diff": f"{kd_diff:+.1f}",
-      "vol_ratio": f"{v_ratio_5:.2f}倍",
-      "vol_status": vol_status,
-      "vol_cls": vol_cls,
-      "vol_str": f"{int(c_vol):,}張",
-      "trend_txt": trend_txt,
-      "trend_cls": trend_cls,
-      "wave_txt": wave_txt,
-      "wave_cls": wave_cls,
-      "red_days": f"{red_d}日",
-      "green_days": f"{green_d}日",
-  }
-
+    return {
+            "header_text": (
+                    f"{c_date}   開:{c_open:.2f}  高:{c_high:.2f}  低:{c_low:.2f} "
+                    f" 收:{c_close:.2f}  量:{int(c_vol):,}張"
+            ),
+            "trend_badge": "【季線多頭】" if is_bull else "【季線空頭】",
+            "trend_badge_color": "#FF3333" if is_bull else "#00E64D",
+            "period_badge": f" {period_label} ",
+            "ind_tokens": ind_tokens,
+            "sub2_tokens": sub2_tokens,
+            "sub3_tokens": sub3_tokens,
+            "vol_tokens": vol_tokens,
+            "ma_status": ma_status,
+            "ma_cls": ma_cls,
+            "ma5": f"{ma5_v:.1f}",
+            "ma20": f"{ma20_v:.1f}",
+            "ma60": f"{ma60_v:.1f}",
+            "high30": f"{high30:.2f}",
+            "low30": f"{low30:.2f}",
+            "drop_pct": f"-{drop_pct:.2f}%",
+            "rise_pct": f"+{rise_pct:.2f}%",
+            "kdj_sig": kdj_sig,
+            "kdj_cls": kdj_cls,
+            "kd_str": f"{k_v:.1f} / {d_v:.1f}",
+            "j_str": f"{j_v:.1f}",
+            "kd_diff": f"{kd_diff:+.1f}",
+            "vol_ratio": f"{v_ratio_5:.2f}倍",
+            "vol_status": vol_status,
+            "vol_cls": vol_cls,
+            "vol_str": f"{int(c_vol):,}張",
+            "trend_txt": trend_txt,
+            "trend_cls": trend_cls,
+            "wave_txt": wave_txt,
+            "wave_cls": wave_cls,
+            "red_days": f"{red_d}日",
+            "green_days": f"{green_d}日",
+    }
 
 # ---------------------------------------------------------
 # 6. Session State 初始化
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
-  st.session_state.selected_index = 0
+    st.session_state.selected_index = 0
 if "stock_select_version" not in st.session_state:
-  st.session_state.stock_select_version = 0
+    st.session_state.stock_select_version = 0
 if "selected_synth_strat" not in st.session_state:
-  st.session_state.selected_synth_strat = "主力底部吃貨"
+    st.session_state.selected_synth_strat = "主力底部吃貨"
 if "app_mode_state" not in st.session_state:
-  st.session_state.app_mode_state = "📈 個股籌碼圖表"
+    st.session_state.app_mode_state = "📈 個股籌碼圖表"
 
 if "ma_active_map" not in st.session_state:
-  st.session_state.ma_active_map = {
-      "5": False,
-      "10": False,
-      "20": False,
-      "35": False,
-      "60": True,
-      "120": False,
-      "200": False,
-      "分割": False,
-  }
+    st.session_state.ma_active_map = {
+            "5": False,
+            "10": False,
+            "20": False,
+            "35": False,
+            "60": True,
+            "120": False,
+            "200": False,
+            "分割": False,
+    }
 
 all_strategies = [
     "主力底部吃貨",
@@ -873,51 +863,51 @@ all_strategies = [
 top_cols = st.columns([2.2, 1.2, 1.8, 1.8, 1.5, 1.8])
 
 with top_cols[0]:
-  if st.session_state.selected_index >= len(stock_options):
+    if st.session_state.selected_index >= len(stock_options):
     st.session_state.selected_index = 0
-  selected_stock = st.selectbox(
-      "股票選單",
-      stock_options,
-      index=st.session_state.selected_index,
-      label_visibility="collapsed",
-      key=f"stock_select_box_top_{st.session_state.stock_select_version}",
-  )
-  try:
+    selected_stock = st.selectbox(
+            "股票選單",
+            stock_options,
+            index=st.session_state.selected_index,
+            label_visibility="collapsed",
+            key=f"stock_select_box_top_{st.session_state.stock_select_version}",
+    )
+    try:
     st.session_state.selected_index = stock_options.index(selected_stock)
-  except Exception:
+    except Exception:
     st.session_state.selected_index = 0
-  stock_id = selected_stock.split()[0]
-  stock_name = (
-      selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
-  )
+    stock_id = selected_stock.split()[0]
+    stock_name = (
+            selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
+    )
 
 with top_cols[1]:
-  chart_period = st.selectbox(
-      "週期",
-      ["日線", "60分", "週線", "月線"],
-      index=0,
-      label_visibility="collapsed",
-      key="select_period_dropdown_top",
-  )
-  actual_chart_period = chart_period
+    chart_period = st.selectbox(
+            "週期",
+            ["日線", "60分", "週線", "月線"],
+            index=0,
+            label_visibility="collapsed",
+            key="select_period_dropdown_top",
+    )
+    actual_chart_period = chart_period
 
 with top_cols[2]:
-  if st.button("📈 個股籌碼圖表", use_container_width=True, key="top_go_chart"):
+    if st.button("📈 個股籌碼圖表", use_container_width=True, key="top_go_chart"):
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
     st.rerun()
 
 with top_cols[3]:
-  if st.button("⚡ 9大策略選股", use_container_width=True, key="top_go_strat"):
+    if st.button("⚡ 9大策略選股", use_container_width=True, key="top_go_strat"):
     st.session_state.app_mode_state = "⚡ 9大策略選股"
     st.rerun()
 
 with top_cols[4]:
-  if st.button("📋 大戶總表", use_container_width=True, key="top_go_table"):
+    if st.button("📋 大戶總表", use_container_width=True, key="top_go_table"):
     st.session_state.app_mode_state = "📋 大戶總表"
     st.rerun()
 
 with top_cols[5]:
-  if st.button("📊 基本面與圖表", use_container_width=True, key="top_go_fund"):
+    if st.button("📊 基本面與圖表", use_container_width=True, key="top_go_fund"):
     st.session_state.app_mode_state = "📊 基本面與圖表"
     st.rerun()
 
@@ -927,29 +917,29 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  third_row_cols = st.columns([1.45, 1.05, 0.5])
+    third_row_cols = st.columns([1.45, 1.05, 0.5])
 
-  with third_row_cols[0]:
+    with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
     ma_btn_cols = st.columns(len(ma_items))
     for idx_m, m_key in enumerate(ma_items):
-      is_on = st.session_state.ma_active_map.get(m_key, False)
-      with ma_btn_cols[idx_m]:
+            is_on = st.session_state.ma_active_map.get(m_key, False)
+            with ma_btn_cols[idx_m]:
         lbl = f"●{m_key}" if is_on else f"○{m_key}"
         if st.button(lbl, key=f"ma_toggle_{m_key}", use_container_width=True):
-          st.session_state.ma_active_map[m_key] = not is_on
-          st.rerun()
+                    st.session_state.ma_active_map[m_key] = not is_on
+                    st.rerun()
 
     active_css_rules = []
     for m_key in ma_items:
-      active_flag = st.session_state.ma_active_map.get(m_key, False)
-      line_col = MA_COLOR_MAP.get(m_key, "#00FFFF")
-      btn_sel = (
-          f"div.st-key-ma_toggle_{m_key} button,"
-          f" div[data-testid='stHorizontalBlock'] div.st-key-ma_toggle_{m_key}"
-          " button"
-      )
-      if active_flag:
+            active_flag = st.session_state.ma_active_map.get(m_key, False)
+            line_col = MA_COLOR_MAP.get(m_key, "#00FFFF")
+            btn_sel = (
+                    f"div.st-key-ma_toggle_{m_key} button,"
+                    f" div[data-testid='stHorizontalBlock'] div.st-key-ma_toggle_{m_key}"
+                    " button"
+            )
+            if active_flag:
         active_css_rules.append(
             f"""
                     {btn_sel} {{
@@ -961,7 +951,7 @@ if app_mode == "📈 個股籌碼圖表":
                     }}
                 """
         )
-      else:
+            else:
         active_css_rules.append(
             f"""
                     {btn_sel} {{
@@ -977,7 +967,7 @@ if app_mode == "📈 個股籌碼圖表":
         f"<style>{''.join(active_css_rules)}</style>", unsafe_allow_html=True
     )
 
-  with third_row_cols[1]:
+    with third_row_cols[1]:
     selected_indicator = st.pills(
         "指標",
         ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "大戶羊群"],
@@ -987,9 +977,9 @@ if app_mode == "📈 個股籌碼圖表":
         key="pills_ind",
     )
     if not selected_indicator:
-      selected_indicator = "MACD"
+            selected_indicator = "MACD"
 
-  with third_row_cols[2]:
+    with third_row_cols[2]:
     k_days_choice_str = st.pills(
         "天數",
         ["120", "250", "500"],
@@ -1000,68 +990,68 @@ if app_mode == "📈 個股籌碼圖表":
     )
     k_days_choice = int(k_days_choice_str) if k_days_choice_str else 250
 
-  ma_map = st.session_state.ma_active_map
-  show_ma5 = ma_map.get("5", False)
-  show_ma10 = ma_map.get("10", False)
-  show_ma20 = ma_map.get("20", False)
-  show_ma35 = ma_map.get("35", False)
-  show_ma60 = ma_map.get("60", True)
-  show_ma120 = ma_map.get("120", False)
-  show_ma200 = ma_map.get("200", False)
-  show_fib = ma_map.get("分割", False)
+    ma_map = st.session_state.ma_active_map
+    show_ma5 = ma_map.get("5", False)
+    show_ma10 = ma_map.get("10", False)
+    show_ma20 = ma_map.get("20", False)
+    show_ma35 = ma_map.get("35", False)
+    show_ma60 = ma_map.get("60", True)
+    show_ma120 = ma_map.get("120", False)
+    show_ma200 = ma_map.get("200", False)
+    show_fib = ma_map.get("分割", False)
 
-  df, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
-      get_continuous_stock_df(
-          stock_id, target_days=k_days_choice, period_type=actual_chart_period
-      )
-  )
+    df, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
+            get_continuous_stock_df(
+                    stock_id, target_days=k_days_choice, period_type=actual_chart_period
+            )
+    )
 
-  last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
-  last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
+    last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
+    last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
-  ma_config = {
-      "5": (5, show_ma5, MA_COLOR_MAP["5"]),
-      "10": (10, show_ma10, MA_COLOR_MAP["10"]),
-      "20": (20, show_ma20, MA_COLOR_MAP["20"]),
-      "35": (35, show_ma35, MA_COLOR_MAP["35"]),
-      "60": (60, show_ma60, MA_COLOR_MAP["60"]),
-      "120": (120, show_ma120, MA_COLOR_MAP["120"]),
-      "200": (200, show_ma200, MA_COLOR_MAP["200"]),
-  }
+    ma_config = {
+            "5": (5, show_ma5, MA_COLOR_MAP["5"]),
+            "10": (10, show_ma10, MA_COLOR_MAP["10"]),
+            "20": (20, show_ma20, MA_COLOR_MAP["20"]),
+            "35": (35, show_ma35, MA_COLOR_MAP["35"]),
+            "60": (60, show_ma60, MA_COLOR_MAP["60"]),
+            "120": (120, show_ma120, MA_COLOR_MAP["120"]),
+            "200": (200, show_ma200, MA_COLOR_MAP["200"]),
+    }
 
-  deduct_periods = [5, 35, 65, 120, 200]
-  deduct_indices = {}
-  n_len = len(df)
-  for p in deduct_periods:
+    deduct_periods = [5, 35, 65, 120, 200]
+    deduct_indices = {}
+    n_len = len(df)
+    for p in deduct_periods:
     idx_pos = n_len - p
     deduct_indices[p] = idx_pos if 0 <= idx_pos < n_len else 0
 
-  BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
-  BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
+    BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
+    BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
 
-  prev_closes = df["close"].shift(1).fillna(df["open"])
-  body_colors = [
-      BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR
-      for o, c, pc in zip(df["open"], df["close"], prev_closes)
-  ]
-  macd_bar_colors = [
-      BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["macd_osc"]
-  ]
-  band_macd_bar_colors = [
-      BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR
-      for osc in df["band_macd_osc"]
-  ]
-  qt_bar_colors = [
-      BAR_UP_COLOR if c >= pc else BAR_DOWN_COLOR
-      for c, pc in zip(df["close"], prev_closes)
-  ]
+    prev_closes = df["close"].shift(1).fillna(df["open"])
+    body_colors = [
+            BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR
+            for o, c, pc in zip(df["open"], df["close"], prev_closes)
+    ]
+    macd_bar_colors = [
+            BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR for osc in df["macd_osc"]
+    ]
+    band_macd_bar_colors = [
+            BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR
+            for osc in df["band_macd_osc"]
+    ]
+    qt_bar_colors = [
+            BAR_UP_COLOR if c >= pc else BAR_DOWN_COLOR
+            for c, pc in zip(df["close"], prev_closes)
+    ]
 
-  plt.style.use("dark_background")
+    plt.style.use("dark_background")
 
-  is_wave_mode = selected_indicator == "波段"
-  fig = plt.figure(figsize=(10.0, 4.65))
+    is_wave_mode = selected_indicator == "波段"
+    fig = plt.figure(figsize=(10.0, 4.65))
 
-  if is_wave_mode:
+    if is_wave_mode:
     gs = fig.add_gridspec(
         4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=0.08
     )
@@ -1070,7 +1060,7 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
     ax_sub3 = fig.add_subplot(gs[3], sharex=ax1)
     axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
-  else:
+    else:
     gs = fig.add_gridspec(3, 1, height_ratios=[2.85, 1.15, 1.25], hspace=0.10)
     ax1 = fig.add_subplot(gs[0])
     ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
@@ -1078,78 +1068,78 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub3 = None
     axes = [ax1, ax_sub1, ax_sub2]
 
-  for ax in [fig] + list(axes):
+    for ax in [fig] + list(axes):
     ax.set_facecolor(BG_COLOR)
-  fig.patch.set_facecolor(BG_COLOR)
-  x = np.arange(len(df))
+    fig.patch.set_facecolor(BG_COLOR)
+    x = np.arange(len(df))
 
-  ax1.set_facecolor(PANEL_BG)
-  ax1.vlines(
-      x,
-      df["low"],
-      df["high"],
-      color=body_colors,
-      linewidth=0.75,
-      alpha=1.0,
-      zorder=2,
-  )
-  body_bottom = np.minimum(df["open"].values, df["close"].values)
-  body_height = np.maximum(np.abs(df["close"].values - df["open"].values), 0.01)
-  ax1.bar(
-      x,
-      body_height,
-      bottom=body_bottom,
-      width=0.78,
-      color=body_colors,
-      edgecolor="none",
-      linewidth=0,
-      zorder=3,
-  )
+    ax1.set_facecolor(PANEL_BG)
+    ax1.vlines(
+            x,
+            df["low"],
+            df["high"],
+            color=body_colors,
+            linewidth=0.75,
+            alpha=1.0,
+            zorder=2,
+    )
+    body_bottom = np.minimum(df["open"].values, df["close"].values)
+    body_height = np.maximum(np.abs(df["close"].values - df["open"].values), 0.01)
+    ax1.bar(
+            x,
+            body_height,
+            bottom=body_bottom,
+            width=0.78,
+            color=body_colors,
+            edgecolor="none",
+            linewidth=0,
+            zorder=3,
+    )
 
-  x_min_bar = -1.0
-  pad_right_bars = max(4, int(len(x) * 0.12))
-  x_max_bar = float(len(x) + pad_right_bars)
+    x_min_bar = -1.0
+    pad_right_bars = max(4, int(len(x) * 0.12))
+    x_max_bar = float(len(x) + pad_right_bars)
 
-  if not df.empty:
+    if not df.empty:
     p_max = float(df["high"].max())
     p_min = float(df["low"].min())
     p_range = p_max - p_min if p_max != p_min else 1.0
     ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
     ax1.set_xlim(x_min_bar, x_max_bar)
 
-  for count_days in [5, 35, 65, 120, 200]:
+    for count_days in [5, 35, 65, 120, 200]:
     if count_days in deduct_indices:
-      idx_pos = deduct_indices[count_days]
-      ax1.axvline(
-          x=idx_pos, color="#00FFFF", linestyle="--", linewidth=0.9, alpha=0.4
-      )
-      t_num = ax1.text(
-          idx_pos,
-          df["low"].min(),
-          f"{count_days}",
-          color="#00FFFF",
-          fontsize=8.0,
-          fontweight="bold",
-          ha="center",
-          va="bottom",
-          alpha=1.0,
-      )
-      t_num.set_path_effects(get_bright_effect("#000000", 2.5))
+            idx_pos = deduct_indices[count_days]
+            ax1.axvline(
+                    x=idx_pos, color="#00FFFF", linestyle="--", linewidth=0.9, alpha=0.4
+            )
+            t_num = ax1.text(
+                    idx_pos,
+                    df["low"].min(),
+                    f"{count_days}",
+                    color="#00FFFF",
+                    fontsize=8.0,
+                    fontweight="bold",
+                    ha="center",
+                    va="bottom",
+                    alpha=1.0,
+            )
+            t_num.set_path_effects(get_bright_effect("#000000", 2.5))
 
-  for ma_name, (period, is_show, color) in ma_config.items():
+    for ma_name, (period, is_show, color) in ma_config.items():
     if is_show:
-      ma_series = df[f"ma_{period}"].ffill().bfill()
-      ax1.plot(
-          x,
-          ma_series.values,
-          linewidth=MA_LINE_WIDTH,
-          color=color,
-          linestyle="-",
-          alpha=1.0,
-          zorder=4,
-      )
+            ma_series = df[f"ma_{period}"].ffill().bfill()
+            ax1.plot(
+                    x,
+                    ma_series.values,
+                    linewidth=MA_LINE_WIDTH,
+                    color=color,
+                    linestyle="-",
+                    alpha=1.0,
+                    zorder=4,
+            )
 
-  if show_fib and not df.empty:
+    if show_fib and not df.empty:
     max_p = float(df["high"].max())
     min_p = float(df["low"].min())
     diff_p = max_p - min_p
@@ -1162,72 +1152,72 @@ if app_mode == "📈 個股籌碼圖表":
     ]
     x_right_limit = ax1.get_xlim()[1]
     for _, label_txt, price_val in fib_levels:
-      ax1.axhline(
-          price_val, color="#00FFFF", linestyle=":", linewidth=1.1, alpha=0.95
-      )
-      t_fib = ax1.text(
-          x_right_limit - 0.8,
-          price_val,
-          f" {price_val:.2f} ({label_txt}) ",
-          color="#FFFFFF",
-          fontsize=8.0,
-          fontweight="bold",
-          va="center",
-          ha="right",
-          backgroundcolor="#111111",
-      )
-      t_fib.set_path_effects(get_bright_effect("#000000", 2.5))
+            ax1.axhline(
+                    price_val, color="#00FFFF", linestyle=":", linewidth=1.1, alpha=0.95
+            )
+            t_fib = ax1.text(
+                    x_right_limit - 0.8,
+                    price_val,
+                    f" {price_val:.2f} ({label_txt}) ",
+                    color="#FFFFFF",
+                    fontsize=8.0,
+                    fontweight="bold",
+                    va="center",
+                    ha="right",
+                    backgroundcolor="#111111",
+            )
+            t_fib.set_path_effects(get_bright_effect("#000000", 2.5))
 
-  for i in range(len(df)):
+    for i in range(len(df)):
     if df["is_buy_signal"].iloc[i]:
-      low_p = float(df["low"].iloc[i])
-      ax1.annotate(
-          "↑",
-          xy=(i, low_p),
-          xytext=(i, low_p * 0.985),
-          ha="center",
-          va="top",
-          fontsize=12,
-          fontweight="bold",
-          color="#CC00FF",
-      )
+            low_p = float(df["low"].iloc[i])
+            ax1.annotate(
+                    "↑",
+                    xy=(i, low_p),
+                    xytext=(i, low_p * 0.985),
+                    ha="center",
+                    va="top",
+                    fontsize=12,
+                    fontweight="bold",
+                    color="#CC00FF",
+            )
     if df["is_sell_signal"].iloc[i]:
-      high_p = float(df["high"].iloc[i])
-      ax1.annotate(
-          "↓",
-          xy=(i, high_p),
-          xytext=(i, high_p * 1.015),
-          ha="center",
-          va="bottom",
-          fontsize=12,
-          fontweight="bold",
-          color="#00FFFF",
-      )
+            high_p = float(df["high"].iloc[i])
+            ax1.annotate(
+                    "↓",
+                    xy=(i, high_p),
+                    xytext=(i, high_p * 1.015),
+                    ha="center",
+                    va="bottom",
+                    fontsize=12,
+                    fontweight="bold",
+                    color="#00FFFF",
+            )
 
-  ymin_lim, ymax_lim = ax1.get_ylim()
-  band_height = (ymax_lim - ymin_lim) * 0.035
-  trend_colors = [
-      BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR
-      for is_bull in df["long_trend"]
-  ]
-  ax1.bar(
-      x,
-      np.full(len(x), band_height),
-      bottom=ymin_lim,
-      width=1.0,
-      color=trend_colors,
-      edgecolor="none",
-      linewidth=0,
-      alpha=1.0,
-      zorder=2,
-  )
+    ymin_lim, ymax_lim = ax1.get_ylim()
+    band_height = (ymax_lim - ymin_lim) * 0.035
+    trend_colors = [
+            BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR
+            for is_bull in df["long_trend"]
+    ]
+    ax1.bar(
+            x,
+            np.full(len(x), band_height),
+            bottom=ymin_lim,
+            width=1.0,
+            color=trend_colors,
+            edgecolor="none",
+            linewidth=0,
+            alpha=1.0,
+            zorder=2,
+    )
 
-  ax1.yaxis.tick_right()
-  ax1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
-  plt.setp(ax1.get_xticklabels(), visible=False)
-  ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
+    ax1.yaxis.tick_right()
+    ax1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    plt.setp(ax1.get_xticklabels(), visible=False)
+    ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-  if is_wave_mode:
+    if is_wave_mode:
     ax_sub1.set_facecolor(PANEL_BG)
     ax_sub1.bar(
         x,
@@ -1293,88 +1283,88 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub3.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
     plt.setp(ax_sub3.get_xticklabels(), visible=True)
     for label in ax_sub3.get_xticklabels():
-      label.set_color("#FFFFFF")
-      label.set_fontsize(7.5)
+            label.set_color("#FFFFFF")
+            label.set_fontsize(7.5)
     ax_sub3.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
-  else:
+    else:
     ax_sub1.set_facecolor(PANEL_BG)
     if selected_indicator == "MACD":
-      ax_sub1.bar(
-          x,
-          df["macd_osc"],
-          width=0.75,
-          color=macd_bar_colors,
-          edgecolor="none",
-          linewidth=0,
-          alpha=1.0,
-          zorder=2,
-      )
-      ax_sub1.plot(
-          x,
-          df["macd_dif"],
-          linewidth=0.6,
-          color="#FF00FF",
-          label="DIF",
-          zorder=3,
-      )
-      ax_sub1.plot(
-          x,
-          df["macd_dem"],
-          linewidth=0.6,
-          color="#00FFFF",
-          label="DEA",
-          zorder=3,
-      )
+            ax_sub1.bar(
+                    x,
+                    df["macd_osc"],
+                    width=0.75,
+                    color=macd_bar_colors,
+                    edgecolor="none",
+                    linewidth=0,
+                    alpha=1.0,
+                    zorder=2,
+            )
+            ax_sub1.plot(
+                    x,
+                    df["macd_dif"],
+                    linewidth=0.6,
+                    color="#FF00FF",
+                    label="DIF",
+                    zorder=3,
+            )
+            ax_sub1.plot(
+                    x,
+                    df["macd_dem"],
+                    linewidth=0.6,
+                    color="#00FFFF",
+                    label="DEA",
+                    zorder=3,
+            )
     elif selected_indicator == "BIAS":
-      ax_sub1.plot(
-          x,
-          df["bias_val"],
-          linewidth=0.6,
-          color="#FFFF00",
-          label="BIAS(60)",
-          zorder=3,
-      )
+            ax_sub1.plot(
+                    x,
+                    df["bias_val"],
+                    linewidth=0.6,
+                    color="#FFFF00",
+                    label="BIAS(60)",
+                    zorder=3,
+            )
     elif selected_indicator == "KDJ":
-      ax_sub1.plot(
-          x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K", zorder=3
-      )
-      ax_sub1.plot(
-          x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D", zorder=3
-      )
-      ax_sub1.plot(
-          x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J", zorder=3
-      )
+            ax_sub1.plot(
+                    x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K", zorder=3
+            )
+            ax_sub1.plot(
+                    x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D", zorder=3
+            )
+            ax_sub1.plot(
+                    x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J", zorder=3
+            )
     elif selected_indicator == "RSI":
-      ax_sub1.plot(
-          x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6", zorder=3
-      )
-      ax_sub1.plot(
-          x,
-          df["rsi_12"],
-          linewidth=0.6,
-          color="#00FFFF",
-          label="RSI12",
-          zorder=3,
-      )
+            ax_sub1.plot(
+                    x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6", zorder=3
+            )
+            ax_sub1.plot(
+                    x,
+                    df["rsi_12"],
+                    linewidth=0.6,
+                    color="#00FFFF",
+                    label="RSI12",
+                    zorder=3,
+            )
     elif selected_indicator == "W%":
-      ax_sub1.plot(
-          x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%", zorder=3
-      )
+            ax_sub1.plot(
+                    x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%", zorder=3
+            )
     elif selected_indicator == "QT":
-      ax_sub1.bar(
-          x,
-          df["qt"],
-          width=0.75,
-          color=qt_bar_colors,
-          edgecolor="none",
-          linewidth=0,
-          alpha=1.0,
-          zorder=2,
-      )
+            ax_sub1.bar(
+                    x,
+                    df["qt"],
+                    width=0.75,
+                    color=qt_bar_colors,
+                    edgecolor="none",
+                    linewidth=0,
+                    alpha=1.0,
+                    zorder=2,
+            )
     elif selected_indicator == "大戶羊群":
-      if len(big_holder) > 0 and len(sheep_holder) > 0:
+            if len(big_holder) > 0 and len(sheep_holder) > 0:
         b_plot = big_holder[-len(df) :]
         s_plot = sheep_holder[-len(df) :]
         ax_sub1.plot(
@@ -1438,53 +1428,53 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub2.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
     plt.setp(ax_sub2.get_xticklabels(), visible=True)
     for label in ax_sub2.get_xticklabels():
-      label.set_color("#FFFFFF")
-      label.set_fontsize(7.5)
+            label.set_color("#FFFFFF")
+            label.set_fontsize(7.5)
     ax_sub2.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
 
-  for ax in axes:
+    for ax in axes:
     for spine in ax.spines.values():
-      spine.set_visible(True)
-      spine.set_color("#777777")
-      spine.set_linewidth(1.2)
+            spine.set_visible(True)
+            spine.set_color("#777777")
+            spine.set_linewidth(1.2)
 
-  bottom_margin = 0.08
-  plt.subplots_adjust(
-      left=0.008, right=0.965, top=0.98, bottom=bottom_margin, hspace=0.10
-  )
+    bottom_margin = 0.08
+    plt.subplots_adjust(
+            left=0.008, right=0.965, top=0.98, bottom=bottom_margin, hspace=0.10
+    )
 
-  fig.canvas.draw()
-  ax1_bbox = ax1.get_position()
-  ax_sub1_bbox = ax_sub1.get_position()
-  ax_sub2_bbox = ax_sub2.get_position()
-  ax_sub3_bbox = ax_sub3.get_position() if ax_sub3 is not None else None
+    fig.canvas.draw()
+    ax1_bbox = ax1.get_position()
+    ax_sub1_bbox = ax_sub1.get_position()
+    ax_sub2_bbox = ax_sub2.get_position()
+    ax_sub3_bbox = ax_sub3.get_position() if ax_sub3 is not None else None
 
-  ax_x0 = float(ax1_bbox.x0)
-  ax_x1 = float(ax1_bbox.x1)
+    ax_x0 = float(ax1_bbox.x0)
+    ax_x1 = float(ax1_bbox.x1)
 
-  ax1_top_frac = float(1.0 - ax1_bbox.y1)
-  sub1_top_frac = float(1.0 - ax_sub1_bbox.y1)
-  sub2_top_frac = float(1.0 - ax_sub2_bbox.y1)
-  sub3_top_frac = (
-      float(1.0 - ax_sub3_bbox.y1) if ax_sub3_bbox is not None else 0.0
-  )
+    ax1_top_frac = float(1.0 - ax1_bbox.y1)
+    sub1_top_frac = float(1.0 - ax_sub1_bbox.y1)
+    sub2_top_frac = float(1.0 - ax_sub2_bbox.y1)
+    sub3_top_frac = (
+            float(1.0 - ax_sub3_bbox.y1) if ax_sub3_bbox is not None else 0.0
+    )
 
-  buf = BytesIO()
-  fig.savefig(
-      buf, format="png", dpi=150, facecolor=BG_COLOR, edgecolor="none"
-  )
-  plt.close(fig)
-  img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    buf = BytesIO()
+    fig.savefig(
+            buf, format="png", dpi=150, facecolor=BG_COLOR, edgecolor="none"
+    )
+    plt.close(fig)
+    img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-  payload_rows = []
-  total_bars_cnt = len(df)
-  for idx_r in range(total_bars_cnt):
+    payload_rows = []
+    total_bars_cnt = len(df)
+    for idx_r in range(total_bars_cnt):
     r = df.iloc[idx_r]
     ma_items_colored = []
     for ma_name, (period, is_show, color) in ma_config.items():
-      if is_show:
+            if is_show:
         v_now = float(r[f"ma_{period}"])
         v_prev = (
             float(df[f"ma_{period}"].iloc[idx_r - 1])
@@ -1513,117 +1503,117 @@ if app_mode == "📈 個股籌碼圖表":
         "snap": snap,
     })
 
-  rows_json = json.dumps(payload_rows, ensure_ascii=False)
-  plot_height = 575
-  init_snap = payload_rows[-1]["snap"] if payload_rows else {}
+    rows_json = json.dumps(payload_rows, ensure_ascii=False)
+    plot_height = 575
+    init_snap = payload_rows[-1]["snap"] if payload_rows else {}
 
-  unified_interactive_html = f"""
-  <style>
+    unified_interactive_html = f"""
+    <style>
     .fx-root {{
-      display: flex;
-      gap: 6px;
-      width: 100%;
-      background: #000000;
-      box-sizing: border-box;
-      font-family: Arial, 'Microsoft JhengHei', sans-serif;
-      color: #ffffff;
+            display: flex;
+            gap: 6px;
+            width: 100%;
+            background: #000000;
+            box-sizing: border-box;
+            font-family: Arial, 'Microsoft JhengHei', sans-serif;
+            color: #ffffff;
     }}
     #fx-chart-wrap {{
-      position: relative;
-      flex: 8.2;
-      min-width: 0;
-      background: #000000;
-      user-select: none;
-      overflow: hidden;
+            position: relative;
+            flex: 8.2;
+            min-width: 0;
+            background: #000000;
+            user-select: none;
+            overflow: hidden;
     }}
     #fx-side-wrap {{
-      flex: 1.8;
-      min-width: 165px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      background: #000000;
+            flex: 1.8;
+            min-width: 165px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            background: #000000;
     }}
     .terminal-panel {{
-      background-color: #0b0b0b;
-      border: 1px solid #cc0000;
-      padding: 5px 8px;
-      color: #ffffff;
-      box-sizing: border-box;
+            background-color: #0b0b0b;
+            border: 1px solid #cc0000;
+            padding: 5px 8px;
+            color: #ffffff;
+            box-sizing: border-box;
     }}
     .terminal-title {{
-      color: #ffffff;
-      background-color: #0000aa;
-      font-weight: bold;
-      font-size: 12px;
-      padding: 2px 5px;
-      margin-bottom: 3px;
-      text-align: center;
+            color: #ffffff;
+            background-color: #0000aa;
+            font-weight: bold;
+            font-size: 12px;
+            padding: 2px 5px;
+            margin-bottom: 3px;
+            text-align: center;
     }}
     .t-row {{
-      font-size: 11px;
-      line-height: 1.3;
-      margin-bottom: 1px;
-      display: flex;
-      justify-content: space-between;
+            font-size: 11px;
+            line-height: 1.3;
+            margin-bottom: 1px;
+            display: flex;
+            justify-content: space-between;
     }}
     .t-label {{ color: #ffff00; font-weight: bold; }}
     .t-val-red {{ color: #ff3333; font-weight: bold; }}
     .t-val-green {{ color: #00e64d; font-weight: bold; }}
     .t-val-cyan {{ color: #00ffff; font-weight: bold; }}
     .t-val-white {{ color: #ffffff; font-weight: bold; }}
-  </style>
+    </style>
 
-  <div class="fx-root">
+    <div class="fx-root">
     <div id="fx-chart-wrap">
-      <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block; margin:0 auto;" />
-      <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
+            <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block; margin:0 auto;" />
+            <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
     </div>
 
     <div id="fx-side-wrap">
-      <div class="terminal-panel">
+            <div class="terminal-panel">
         <div class="terminal-title">【均線解盤】</div>
         <div class="t-row"><span class="t-label">狀態:</span><span id="p-ma-status" class="{init_snap.get("ma_cls", "t-val-white")}">{init_snap.get("ma_status", "")}</span></div>
         <div class="t-row"><span class="t-label">MA5:</span><span id="p-ma5" class="t-val-cyan">{init_snap.get("ma5", "")}</span></div>
         <div class="t-row"><span class="t-label">MA20:</span><span id="p-ma20" class="t-val-cyan">{init_snap.get("ma20", "")}</span></div>
         <div class="t-row"><span class="t-label">季60:</span><span id="p-ma60" class="t-val-cyan">{init_snap.get("ma60", "")}</span></div>
-      </div>
+            </div>
 
-      <div class="terminal-panel">
+            <div class="terminal-panel">
         <div class="terminal-title">【區間漲跌幅】</div>
         <div class="t-row"><span class="t-label">近30高:</span><span id="p-high30" class="t-val-cyan">{init_snap.get("high30", "")}</span></div>
         <div class="t-row"><span class="t-label">近30低:</span><span id="p-low30" class="t-val-cyan">{init_snap.get("low30", "")}</span></div>
         <div class="t-row"><span class="t-label">回檔幅:</span><span id="p-drop" class="t-val-green">{init_snap.get("drop_pct", "")}</span></div>
         <div class="t-row"><span class="t-label">彈升幅:</span><span id="p-rise" class="t-val-red">{init_snap.get("rise_pct", "")}</span></div>
-      </div>
+            </div>
 
-      <div class="terminal-panel">
+            <div class="terminal-panel">
         <div class="terminal-title">【KDJ綜合解盤】</div>
         <div class="t-row"><span class="t-label">判定:</span><span id="p-kdj-sig" class="{init_snap.get("kdj_cls", "t-val-white")}">{init_snap.get("kdj_sig", "")}</span></div>
         <div class="t-row"><span class="t-label">K/D:</span><span id="p-kd" class="t-val-white">{init_snap.get("kd_str", "")}</span></div>
         <div class="t-row"><span class="t-label">J值:</span><span id="p-j" class="t-val-cyan">{init_snap.get("j_str", "")}</span></div>
         <div class="t-row"><span class="t-label">K-D乖離:</span><span id="p-kddiff" class="t-val-white">{init_snap.get("kd_diff", "")}</span></div>
-      </div>
+            </div>
 
-      <div class="terminal-panel">
+            <div class="terminal-panel">
         <div class="terminal-title">【成交量解盤】</div>
         <div class="t-row"><span class="t-label">5日均量比:</span><span id="p-vratio" class="{init_snap.get("vol_cls", "t-val-white")}">{init_snap.get("vol_ratio", "")}</span></div>
         <div class="t-row"><span class="t-label">現況:</span><span id="p-vstatus" class="t-val-white">{init_snap.get("vol_status", "")}</span></div>
         <div class="t-row"><span class="t-label">當日量:</span><span id="p-vval" class="t-val-cyan">{init_snap.get("vol_str", "")}</span></div>
-      </div>
+            </div>
 
-      <div class="terminal-panel">
+            <div class="terminal-panel">
         <div class="terminal-title">【多空與波段判定】</div>
         <div class="t-row"><span class="t-label">多空:</span><span id="p-trend" class="{init_snap.get("trend_cls", "t-val-white")}">{init_snap.get("trend_txt", "")}</span></div>
         <div class="t-row"><span class="t-label">波段狀態:</span><span id="p-wave" class="{init_snap.get("wave_cls", "t-val-white")}">{init_snap.get("wave_txt", "")}</span></div>
         <div class="t-row"><span class="t-label">紅天數:</span><span id="p-red" class="t-val-red">{init_snap.get("red_days", "")}</span></div>
         <div class="t-row"><span class="t-label">綠天數:</span><span id="p-green" class="t-val-green">{init_snap.get("green_days", "")}</span></div>
-      </div>
+            </div>
     </div>
-  </div>
+    </div>
 
-  <script>
-  (function() {{
+    <script>
+    (function() {{
     const rows = {rows_json};
     const wrap = document.getElementById("fx-chart-wrap");
     const img = document.getElementById("fx-base-img");
@@ -1644,89 +1634,89 @@ if app_mode == "📈 個股籌碼圖表":
     const sub3TopFrac = {sub3_top_frac};
 
     function setEl(id, text, cls) {{
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.textContent = text;
-      if (cls) el.className = cls;
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = text;
+            if (cls) el.className = cls;
     }}
 
     function syncAnalysisPanel(r) {{
-      if (!r || !r.snap) return;
-      const s = r.snap;
-      setEl("p-ma-status", s.ma_status, s.ma_cls);
-      setEl("p-ma5", s.ma5);
-      setEl("p-ma20", s.ma20);
-      setEl("p-ma60", s.ma60);
+            if (!r || !r.snap) return;
+            const s = r.snap;
+            setEl("p-ma-status", s.ma_status, s.ma_cls);
+            setEl("p-ma5", s.ma5);
+            setEl("p-ma20", s.ma20);
+            setEl("p-ma60", s.ma60);
 
-      setEl("p-high30", s.high30);
-      setEl("p-low30", s.low30);
-      setEl("p-drop", s.drop_pct);
-      setEl("p-rise", s.rise_pct);
+            setEl("p-high30", s.high30);
+            setEl("p-low30", s.low30);
+            setEl("p-drop", s.drop_pct);
+            setEl("p-rise", s.rise_pct);
 
-      setEl("p-kdj-sig", s.kdj_sig, s.kdj_cls);
-      setEl("p-kd", s.kd_str);
-      setEl("p-j", s.j_str);
-      setEl("p-kddiff", s.kd_diff);
+            setEl("p-kdj-sig", s.kdj_sig, s.kdj_cls);
+            setEl("p-kd", s.kd_str);
+            setEl("p-j", s.j_str);
+            setEl("p-kddiff", s.kd_diff);
 
-      setEl("p-vratio", s.vol_ratio, s.vol_cls);
-      setEl("p-vstatus", s.vol_status);
-      setEl("p-vval", s.vol_str);
+            setEl("p-vratio", s.vol_ratio, s.vol_cls);
+            setEl("p-vstatus", s.vol_status);
+            setEl("p-vval", s.vol_str);
 
-      setEl("p-trend", s.trend_txt, s.trend_cls);
-      setEl("p-wave", s.wave_txt, s.wave_cls);
-      setEl("p-red", s.red_days);
-      setEl("p-green", s.green_days);
+            setEl("p-trend", s.trend_txt, s.trend_cls);
+            setEl("p-wave", s.wave_txt, s.wave_cls);
+            setEl("p-red", s.red_days);
+            setEl("p-green", s.green_days);
     }}
 
     function syncSize() {{
-      const w = wrap.clientWidth;
-      const h = wrap.clientHeight;
-      if (w > 0 && h > 0) {{
+            const w = wrap.clientWidth;
+            const h = wrap.clientHeight;
+            if (w > 0 && h > 0) {{
         canvas.width = w;
         canvas.height = h;
-      }}
+            }}
     }}
 
     function getImgBounds() {{
-      const wRect = wrap.getBoundingClientRect();
-      const iRect = img.getBoundingClientRect();
-      return {{
+            const wRect = wrap.getBoundingClientRect();
+            const iRect = img.getBoundingClientRect();
+            return {{
         left: iRect.left - wRect.left,
         top: iRect.top - wRect.top,
         width: iRect.width,
         height: iRect.height
-      }};
+            }};
     }}
 
     function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW) {{
-      ctx.save();
-      ctx.font = fontStr;
-      ctx.textBaseline = "top";
-      ctx.lineWidth = strokeW || 1.8;
-      ctx.strokeStyle = "#000000";
-      ctx.strokeText(txt, xPos, yPos);
-      ctx.fillStyle = color;
-      ctx.fillText(txt, xPos, yPos);
-      ctx.restore();
+            ctx.save();
+            ctx.font = fontStr;
+            ctx.textBaseline = "top";
+            ctx.lineWidth = strokeW || 1.8;
+            ctx.strokeStyle = "#000000";
+            ctx.strokeText(txt, xPos, yPos);
+            ctx.fillStyle = color;
+            ctx.fillText(txt, xPos, yPos);
+            ctx.restore();
     }}
 
     function drawTokensRow(tokens, startX, yPos, fontStr) {{
-      let curX = startX;
-      (tokens || []).forEach((tk) => {{
+            let curX = startX;
+            (tokens || []).forEach((tk) => {{
         drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.8);
         curX += ctx.measureText(tk.text).width + 2.0;
-      }});
+            }});
     }}
 
     function renderInPlaceOverlay(r, showCrosshair, lineX, lineY, b) {{
-      syncSize();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!r || b.width <= 0 || b.height <= 0) return;
+            syncSize();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!r || b.width <= 0 || b.height <= 0) return;
 
-      const plotLeft = b.left + b.width * axX0;
-      const plotRight = b.left + b.width * axX1;
+            const plotLeft = b.left + b.width * axX0;
+            const plotRight = b.left + b.width * axX1;
 
-      if (showCrosshair) {{
+            if (showCrosshair) {{
         ctx.save();
         ctx.strokeStyle = "#00ffff";
         ctx.lineWidth = 1;
@@ -1741,39 +1731,39 @@ if app_mode == "📈 個股籌碼圖表":
         ctx.lineTo(plotRight, lineY);
         ctx.stroke();
         ctx.restore();
-      }}
+            }}
 
-      const s = r.snap || {{}};
-      const headerX = plotLeft + b.width * 0.010;
-      const headerY = b.top + b.height * (ax1TopFrac + 0.014);
-      const fontHeader = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
+            const s = r.snap || {{}};
+            const headerX = plotLeft + b.width * 0.010;
+            const headerY = b.top + b.height * (ax1TopFrac + 0.014);
+            const fontHeader = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
 
-      // 1. 左側股票代碼、名稱與開高低收量
-      const mainInfo = `[${{stockCode}}] ${{stockName}}  ${{s.header_text || ""}}`;
-      drawOutlinedText(mainInfo, headerX, headerY, "#FFFFFF", fontHeader, 1.8);
+            // 1. 左側股票代碼、名稱與開高低收量
+            const mainInfo = `[${{stockCode}}] ${{stockName}}  ${{s.header_text || ""}}`;
+            drawOutlinedText(mainInfo, headerX, headerY, "#FFFFFF", fontHeader, 1.8);
 
-      // 2. 季線多空標籤
-      const badgeX = plotLeft + b.width * 0.545;
-      drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.8);
+            // 2. 季線多空標籤
+            const badgeX = plotLeft + b.width * 0.545;
+            drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.8);
 
-      // 3. 逆序天數放在季線多空標籤右側空白處
-      const revX = plotLeft + b.width * 0.655;
-      drawOutlinedText(`逆序:${{r.rev_no}}`, revX, headerY, "#00FFFF", fontHeader, 1.8);
+            // 3. 逆序天數放在季線多空標籤右側空白處
+            const revX = plotLeft + b.width * 0.655;
+            drawOutlinedText(`逆序:${{r.rev_no}}`, revX, headerY, "#00FFFF", fontHeader, 1.8);
 
-      // 4. 均線列下移至 headerY + 19
-      if (r.ma_items && r.ma_items.length > 0) {{
+            // 4. 均線列下移至 headerY + 19
+            if (r.ma_items && r.ma_items.length > 0) {{
         const maY = headerY + 19;
         let curX = headerX;
         const fontMa = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
         r.ma_items.forEach((m) => {{
-          drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.8);
-          curX += ctx.measureText(m.text).width + 3;
+                    drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.8);
+                    curX += ctx.measureText(m.text).width + 3;
         }});
-      }}
+            }}
 
-      // 5. 副圖指標與成交量文字（字型改用 Arial/正黑體並調為 12.5px 細描邊，方向鍵清楚不糊）
-      const fontSub = "bold 12.5px Arial, 'Microsoft JhengHei', sans-serif";
-      if (isWaveMode) {{
+            // 5. 副圖指標與成交量文字（字型改用 Arial/正黑體並調為 12.5px 細描邊，方向鍵清楚不糊）
+            const fontSub = "bold 12.5px Arial, 'Microsoft JhengHei', sans-serif";
+            if (isWaveMode) {{
         const s1Y = b.top + b.height * (sub1TopFrac + 0.014);
         drawTokensRow(s.ind_tokens, headerX, s1Y, fontSub);
 
@@ -1782,47 +1772,47 @@ if app_mode == "📈 個股籌碼圖表":
 
         const s3Y = b.top + b.height * (sub3TopFrac + 0.014);
         drawTokensRow(s.sub3_tokens, headerX, s3Y, fontSub);
-      }} else {{
+            }} else {{
         const sub1Y = b.top + b.height * (sub1TopFrac + 0.016);
         drawTokensRow(s.ind_tokens, headerX, sub1Y, fontSub);
 
         const sub2Y = b.top + b.height * (sub2TopFrac + 0.016);
         drawTokensRow(s.vol_tokens, headerX, sub2Y, fontSub);
-      }}
+            }}
     }}
 
     function onHover(clientX, clientY) {{
-      const b = getImgBounds();
-      if (b.width <= 0 || b.height <= 0 || totalBars <= 0) return;
+            const b = getImgBounds();
+            if (b.width <= 0 || b.height <= 0 || totalBars <= 0) return;
 
-      const plotLeft = b.left + b.width * axX0;
-      const plotRight = b.left + b.width * axX1;
-      const plotW = Math.max(10, plotRight - plotLeft);
-      const wRect = wrap.getBoundingClientRect();
+            const plotLeft = b.left + b.width * axX0;
+            const plotRight = b.left + b.width * axX1;
+            const plotW = Math.max(10, plotRight - plotLeft);
+            const wRect = wrap.getBoundingClientRect();
 
-      const relX = clientX - wRect.left;
-      const frac = (relX - plotLeft) / plotW;
-      const barPos = xMinBar + frac * (xMaxBar - xMinBar);
-      let idx = Math.round(barPos);
-      if (idx < 0) idx = 0;
-      if (idx >= totalBars) idx = totalBars - 1;
+            const relX = clientX - wRect.left;
+            const frac = (relX - plotLeft) / plotW;
+            const barPos = xMinBar + frac * (xMaxBar - xMinBar);
+            let idx = Math.round(barPos);
+            if (idx < 0) idx = 0;
+            if (idx >= totalBars) idx = totalBars - 1;
 
-      const r = rows[idx];
-      const fracIdx = (idx - xMinBar) / (xMaxBar - xMinBar);
-      const lineX = plotLeft + fracIdx * plotW;
-      const lineY = clientY ? (clientY - wRect.top) : (b.top + b.height * 0.35);
+            const r = rows[idx];
+            const fracIdx = (idx - xMinBar) / (xMaxBar - xMinBar);
+            const lineX = plotLeft + fracIdx * plotW;
+            const lineY = clientY ? (clientY - wRect.top) : (b.top + b.height * 0.35);
 
-      renderInPlaceOverlay(r, true, lineX, lineY, b);
-      syncAnalysisPanel(r);
+            renderInPlaceOverlay(r, true, lineX, lineY, b);
+            syncAnalysisPanel(r);
     }}
 
     function initDefault() {{
-      const b = getImgBounds();
-      if (totalBars > 0 && b.width > 0) {{
+            const b = getImgBounds();
+            if (totalBars > 0 && b.width > 0) {{
         const latest = rows[totalBars - 1];
         renderInPlaceOverlay(latest, false, 0, 0, b);
         syncAnalysisPanel(latest);
-      }}
+            }}
     }}
 
     img.addEventListener("load", initDefault);
@@ -1830,60 +1820,60 @@ if app_mode == "📈 個股籌碼圖表":
     setTimeout(initDefault, 80);
 
     canvas.addEventListener("mousemove", function(e) {{
-      onHover(e.clientX, e.clientY);
+            onHover(e.clientX, e.clientY);
     }});
 
     canvas.addEventListener("mouseleave", function() {{
-      initDefault();
+            initDefault();
     }});
-  }})();
-  </script>
-  """
-  components.html(unified_interactive_html, height=plot_height, scrolling=False)
+    }})();
+    </script>
+    """
+    components.html(unified_interactive_html, height=plot_height, scrolling=False)
 
 # =========================================================
 # 分頁二：⚡ 9大策略選股
 # =========================================================
 elif app_mode == "⚡ 9大策略選股":
-  strat_cols = st.columns(len(all_strategies))
-  for idx, strat_name in enumerate(all_strategies):
+    strat_cols = st.columns(len(all_strategies))
+    for idx, strat_name in enumerate(all_strategies):
     with strat_cols[idx]:
-      is_active = st.session_state.selected_synth_strat == strat_name
-      btn_label = f"🔥 {strat_name}" if is_active else strat_name
-      if st.button(
-          btn_label, key=f"strat_btn_{idx}", use_container_width=True
-      ):
+            is_active = st.session_state.selected_synth_strat == strat_name
+            btn_label = f"🔥 {strat_name}" if is_active else strat_name
+            if st.button(
+                    btn_label, key=f"strat_btn_{idx}", use_container_width=True
+            ):
         st.session_state.selected_synth_strat = strat_name
         st.rerun()
 
-  selected_strat = st.session_state.selected_synth_strat
+    selected_strat = st.session_state.selected_synth_strat
 
-  st.markdown(
-      f'<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【'
-      f"{selected_strat}】</p>",
-      unsafe_allow_html=True,
-  )
+    st.markdown(
+            f'<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【'
+            f"{selected_strat}】</p>",
+            unsafe_allow_html=True,
+    )
 
-  output_csv = "smart_selected_output.csv"
-  if os.path.exists(output_csv):
+    output_csv = "smart_selected_output.csv"
+    if os.path.exists(output_csv):
     try:
-      df_res = pd.read_csv(output_csv, dtype={"代碼": str})
+            df_res = pd.read_csv(output_csv, dtype={"代碼": str})
     except Exception:
-      df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
-  else:
+            df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
+    else:
     df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
 
-  if not df_res.empty and "策略名稱" in df_res.columns:
+    if not df_res.empty and "策略名稱" in df_res.columns:
     filtered_df = df_res[df_res["策略名稱"] == selected_strat].copy()
-  else:
+    else:
     filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
 
-  if filtered_df.empty or (
-      len(filtered_df) == 1
-      and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]
-  ):
+    if filtered_df.empty or (
+            len(filtered_df) == 1
+            and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]
+    ):
     st.info(f"【{selected_strat}】目前尚無符合條件的股票標的。")
-  else:
+    else:
     id_to_name = dict(
         zip(
             stock_df["代碼"].astype(str).str.zfill(4),
@@ -1891,7 +1881,7 @@ elif app_mode == "⚡ 9大策略選股":
         )
     )
     if "代碼" in filtered_df.columns:
-      filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
+            filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
 
     st.success(f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。")
 
@@ -1905,115 +1895,115 @@ elif app_mode == "⚡ 9大策略選股":
 
     selected_rows = event.selection.rows if hasattr(event, "selection") else []
     if selected_rows:
-      row_idx = selected_rows[0]
-      raw_code = str(filtered_df.iloc[row_idx]["代碼"]).strip()
-      target_name = (
-          str(filtered_df.iloc[row_idx]["名稱"])
-          if "名稱" in filtered_df.columns
-          else ""
-      )
+            row_idx = selected_rows[0]
+            raw_code = str(filtered_df.iloc[row_idx]["代碼"]).strip()
+            target_name = (
+                    str(filtered_df.iloc[row_idx]["名稱"])
+                    if "名稱" in filtered_df.columns
+                    else ""
+            )
 
-      matched_idx = find_stock_index_by_code(raw_code)
-      if matched_idx != -1 and st.session_state.selected_index != matched_idx:
+            matched_idx = find_stock_index_by_code(raw_code)
+            if matched_idx != -1 and st.session_state.selected_index != matched_idx:
         st.session_state.selected_index = matched_idx
         st.session_state.stock_select_version += 1
 
-      display_code = raw_code.zfill(4) if raw_code.isdigit() else raw_code
+            display_code = raw_code.zfill(4) if raw_code.isdigit() else raw_code
 
-      st.markdown("---")
-      st.markdown(
-          f"👉 您目前選中：**`{display_code}` {target_name}**，請選擇要直達的功能區："
-      )
+            st.markdown("---")
+            st.markdown(
+                    f"👉 您目前選中：**`{display_code}` {target_name}**，請選擇要直達的功能區："
+            )
 
-      nav_col1, nav_col2, nav_col3 = st.columns(3)
-      with nav_col1:
+            nav_col1, nav_col2, nav_col3 = st.columns(3)
+            with nav_col1:
         if st.button(
             "📈 1. 直達個股籌碼圖表",
             key="go_chart_from_strat",
             use_container_width=True,
         ):
-          if matched_idx != -1:
+                    if matched_idx != -1:
             st.session_state.selected_index = matched_idx
             st.session_state.stock_select_version += 1
-          st.session_state.app_mode_state = "📈 個股籌碼圖表"
-          st.rerun()
-      with nav_col2:
+                    st.session_state.app_mode_state = "📈 個股籌碼圖表"
+                    st.rerun()
+            with nav_col2:
         if st.button(
             "📊 2. 直達基本面與圖表",
             key="go_fund_from_strat",
             use_container_width=True,
         ):
-          if matched_idx != -1:
+                    if matched_idx != -1:
             st.session_state.selected_index = matched_idx
             st.session_state.stock_select_version += 1
-          st.session_state.app_mode_state = "📊 基本面與圖表"
-          st.rerun()
-      with nav_col3:
+                    st.session_state.app_mode_state = "📊 基本面與圖表"
+                    st.rerun()
+            with nav_col3:
         if st.button(
             "⚡ 3. 留在9大策略選股",
             key="stay_strat",
             use_container_width=True,
         ):
-          st.rerun()
+                    st.rerun()
 
 # =========================================================
 # 分頁三：📋 大戶總表
 # =========================================================
 elif app_mode == "📋 大戶總表":
-  excel_filename = "大戶持股最新分析總表.xlsx"
-  if os.path.exists(excel_filename):
+    excel_filename = "大戶持股最新分析總表.xlsx"
+    if os.path.exists(excel_filename):
     try:
-      df_meta = pd.read_excel(
-          excel_filename, sheet_name="大戶增幅前15名", nrows=1, header=None
-      )
-      week_info = (
-          str(df_meta.iloc[0, 0])
-          if not pd.isna(df_meta.iloc[0, 0])
-          else "最新單週"
-      )
-      date_info = (
-          str(df_meta.iloc[0, 4])
-          if df_meta.shape[1] > 4 and not pd.isna(df_meta.iloc[0, 4])
-          else ""
-      )
+            df_meta = pd.read_excel(
+                    excel_filename, sheet_name="大戶增幅前15名", nrows=1, header=None
+            )
+            week_info = (
+                    str(df_meta.iloc[0, 0])
+                    if not pd.isna(df_meta.iloc[0, 0])
+                    else "最新單週"
+            )
+            date_info = (
+                    str(df_meta.iloc[0, 4])
+                    if df_meta.shape[1] > 4 and not pd.isna(df_meta.iloc[0, 4])
+                    else ""
+            )
 
-      df_top15 = pd.read_excel(
-          excel_filename, sheet_name="大戶增幅前15名", header=1
-      )
-      df_display = pd.DataFrame()
-      df_display["代碼"] = df_top15["代碼"].apply(
-          lambda x: str(x).strip().zfill(4)
-      )
-      df_display["名稱"] = df_top15["名稱"].astype(str).str.strip()
-      if "大戶持有率_差異(%)" in df_top15.columns:
+            df_top15 = pd.read_excel(
+                    excel_filename, sheet_name="大戶增幅前15名", header=1
+            )
+            df_display = pd.DataFrame()
+            df_display["代碼"] = df_top15["代碼"].apply(
+                    lambda x: str(x).strip().zfill(4)
+            )
+            df_display["名稱"] = df_top15["名稱"].astype(str).str.strip()
+            if "大戶持有率_差異(%)" in df_top15.columns:
         df_display["大戶增幅(%)"] = df_top15["大戶持有率_差異(%)"].apply(
             lambda x: f"+{float(x):.2f}%" if pd.notna(x) else ""
         )
-      df_display["趨勢圖連結"] = df_top15["代碼"].apply(
-          lambda x: (
-              "https://norway.twsthr.info/StockHolders.aspx?stock="
-              f"{str(x).strip().zfill(4)}"
-          )
-      )
+            df_display["趨勢圖連結"] = df_top15["代碼"].apply(
+                    lambda x: (
+                            "https://norway.twsthr.info/StockHolders.aspx?stock="
+                            f"{str(x).strip().zfill(4)}"
+                    )
+            )
 
-      c_title, c_btn = st.columns([3, 1])
-      with c_title:
+            c_title, c_btn = st.columns([3, 1])
+            with c_title:
         st.markdown(
             f'<p class="sub-header-14">📋 籌碼增幅榜 ｜ {week_info} ｜'
             f" {date_info}</p>",
             unsafe_allow_html=True,
         )
-      with c_btn:
+            with c_btn:
         with open(excel_filename, "rb") as file:
-          st.download_button(
-              "📥 下載 Excel",
-              data=file,
-              file_name="大戶持股最新分析總表.xlsx",
-              use_container_width=True,
-          )
+                    st.download_button(
+                            "📥 下載 Excel",
+                            data=file,
+                            file_name="大戶持股最新分析總表.xlsx",
+                            use_container_width=True,
+                    )
 
-      col_l, col_r = st.columns(2)
-      with col_l:
+            col_l, col_r = st.columns(2)
+            with col_l:
         st.dataframe(
             df_display.iloc[:8],
             column_config={
@@ -2024,7 +2014,7 @@ elif app_mode == "📋 大戶總表":
             use_container_width=True,
             hide_index=True,
         )
-      with col_r:
+            with col_r:
         st.dataframe(
             df_display.iloc[8:],
             column_config={
@@ -2036,8 +2026,8 @@ elif app_mode == "📋 大戶總表":
             hide_index=True,
         )
     except Exception as e:
-      st.error(f"讀取總表格式發生錯誤：{e}")
-  else:
+            st.error(f"讀取總表格式發生錯誤：{e}")
+    else:
     st.warning(
         "找不到總表檔案 (`大戶持股最新分析總表.xlsx`)，請確認背景自動更新排程已順利執行。"
     )
@@ -2046,33 +2036,33 @@ elif app_mode == "📋 大戶總表":
 # 分頁四：📊 基本面與圖表
 # =========================================================
 elif app_mode == "📊 基本面與圖表":
-  st.markdown(
-      f'<p class="sub-header-14">📊 基本面與圖表 ｜ [{stock_id}] {stock_name}</p>',
-      unsafe_allow_html=True,
-  )
+    st.markdown(
+            f'<p class="sub-header-14">📊 基本面與圖表 ｜ [{stock_id}] {stock_name}</p>',
+            unsafe_allow_html=True,
+    )
 
-  quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
-  data_sets = [
-      {
-          "title": "毛利率與營業利益率",
-          "val1": [15.2, 16.5, 18.0, 17.2, 19.1],
-          "val2": [8.1, 9.0, 10.5, 9.8, 11.2],
-      },
-      {
-          "title": "單季營業收入與年增率",
-          "val1": [12.5, 13.2, 14.1, 13.8, 15.0],
-          "val2": [5.2, 6.1, 8.3, 7.0, 9.2],
-      },
-      {
-          "title": "每股盈餘 (EPS)",
-          "val1": [0.85, 0.92, 1.15, 1.02, 1.30],
-          "val2": [],
-      },
-  ]
+    quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
+    data_sets = [
+            {
+                    "title": "毛利率與營業利益率",
+                    "val1": [15.2, 16.5, 18.0, 17.2, 19.1],
+                    "val2": [8.1, 9.0, 10.5, 9.8, 11.2],
+            },
+            {
+                    "title": "單季營業收入與年增率",
+                    "val1": [12.5, 13.2, 14.1, 13.8, 15.0],
+                    "val2": [5.2, 6.1, 8.3, 7.0, 9.2],
+            },
+            {
+                    "title": "每股盈餘 (EPS)",
+                    "val1": [0.85, 0.92, 1.15, 1.02, 1.30],
+                    "val2": [],
+            },
+    ]
 
-  plt.style.use("dark_background")
-  cols = st.columns(2)
-  for idx, ds in enumerate(data_sets):
+    plt.style.use("dark_background")
+    cols = st.columns(2)
+    for idx, ds in enumerate(data_sets):
     fig, ax = plt.subplots(figsize=(4.2, 2.0))
     ax.plot(
         quarters,
@@ -2083,14 +2073,14 @@ elif app_mode == "📊 基本面與圖表":
         linewidth=1.5,
     )
     if ds["val2"]:
-      ax.plot(
-          quarters,
-          ds["val2"],
-          marker="s",
-          markersize=3,
-          color="#00FFFF",
-          linewidth=1.5,
-      )
+            ax.plot(
+                    quarters,
+                    ds["val2"],
+                    marker="s",
+                    markersize=3,
+                    color="#00FFFF",
+                    linewidth=1.5,
+            )
     ax.set_title(
         f"[{stock_id}] {ds['title']}",
         color="white",
@@ -2103,5 +2093,5 @@ elif app_mode == "📊 基本面與圖表":
     fig.tight_layout(pad=0.3)
 
     with cols[idx % 2]:
-      with st.expander(f"📊 {ds['title']} (放大)", expanded=False):
+            with st.expander(f"📊 {ds['title']} (放大)", expanded=False):
         st.pyplot(fig, use_container_width=True)
