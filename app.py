@@ -636,9 +636,20 @@ app_mode = st.session_state.app_mode_state
 if app_mode == "📈 個股籌碼圖表":
   third_row_cols = st.columns([1.45, 1.05, 0.5])
 
-  # 均線開關列：每條線獨立切換「開啟中 / 關閉」並以不同視覺狀態呈現
+  # 均線開關列：每條線獨立切換「開啟中 / 關閉」，開啟時套用該均線專屬色系
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
+    ma_btn_color_map = {
+        "5": "#00FFFF",
+        "10": "#FFFF00",
+        "20": "#FF00FF",
+        "35": "#00FF66",
+        "60": "#FF9900",
+        "120": "#CC66FF",
+        "200": "#FFFFFF",
+        "分割": "#00FFFF",
+    }
+
     ma_btn_cols = st.columns(len(ma_items))
     for idx_m, m_key in enumerate(ma_items):
       is_on = st.session_state.ma_active_map.get(m_key, False)
@@ -648,15 +659,17 @@ if app_mode == "📈 個股籌碼圖表":
           st.session_state.ma_active_map[m_key] = not is_on
           st.rerun()
 
-    # 動態注入目前開啟中的均線按鈕高亮樣式
+    # 動態注入目前開啟中的均線按鈕專屬色系樣式
     active_css_rules = []
-    for m_key, active_flag in st.session_state.ma_active_map.items():
+    for m_key in ma_items:
+      active_flag = st.session_state.ma_active_map.get(m_key, False)
+      line_col = ma_btn_color_map.get(m_key, "#00FFFF")
       btn_cls = f".st-key-ma_toggle_{m_key} button"
       if active_flag:
         active_css_rules.append(
             f"""
                     {btn_cls} {{
-                        background-color: #00ffff !important;
+                        background-color: {line_col} !important;
                         color: #000000 !important;
                         border: 1px solid #ffffff !important;
                         font-weight: bold !important;
