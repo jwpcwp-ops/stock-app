@@ -553,19 +553,33 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
   return df_show, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio
 
 
-def build_bar_analysis_snapshot(df, big_holder, sheep_holder, idx_r):
-  """計算單一根 K 棒（索引 idx_r）對應的完整解盤數據"""
+def build_bar_analysis_snapshot(
+    df, big_holder, sheep_holder, idx_r, selected_indicator, period_label
+):
+  """計算單一根 K 棒（索引 idx_r）對應的完整解盤與原位指標 tokens"""
   r = df.iloc[idx_r]
   df_slice = df.iloc[: idx_r + 1]
 
+  c_open = float(r["open"])
   c_close = float(r["close"])
   c_high = float(r["high"])
   c_low = float(r["low"])
   c_vol = float(r["vol"])
+  c_date = str(r["date"])
 
-  ma5_v = float(r["ma_5"]) if "ma_5" in df.columns and pd.notna(r["ma_5"]) else 0.0
-  ma20_v = float(r["ma_20"]) if "ma_20" in df.columns and pd.notna(r["ma_20"]) else 0.0
-  ma60_v = float(r["ma_60"]) if "ma_60" in df.columns and pd.notna(r["ma_60"]) else 0.0
+  ma5_v = (
+      float(r["ma_5"]) if "ma_5" in df.columns and pd.notna(r["ma_5"]) else 0.0
+  )
+  ma20_v = (
+      float(r["ma_20"])
+      if "ma_20" in df.columns and pd.notna(r["ma_20"])
+      else 0.0
+  )
+  ma60_v = (
+      float(r["ma_60"])
+      if "ma_60" in df.columns and pd.notna(r["ma_60"])
+      else 0.0
+  )
 
   if ma5_v > ma20_v > ma60_v:
     ma_status = "多頭排列"
@@ -611,8 +625,16 @@ def build_bar_analysis_snapshot(df, big_holder, sheep_holder, idx_r):
   elif is_gc:
     kdj_sig, kdj_cls = "【買進訊號】KD金交叉", "t-val-red"
 
-  vol_ma5_v = float(r["vol_ma5"]) if "vol_ma5" in df.columns and pd.notna(r["vol_ma5"]) else 1.0
-  vol_ma20_v = float(r["vol_ma20"]) if "vol_ma20" in df.columns and pd.notna(r["vol_ma20"]) else 1.0
+  vol_ma5_v = (
+      float(r["vol_ma5"])
+      if "vol_ma5" in df.columns and pd.notna(r["vol_ma5"])
+      else 1.0
+  )
+  vol_ma20_v = (
+      float(r["vol_ma20"])
+      if "vol_ma20" in df.columns and pd.notna(r["vol_ma20"])
+      else 1.0
+  )
   v_ratio_5 = c_vol / vol_ma5_v if vol_ma5_v > 0 else 1.0
   v_ratio_20 = c_vol / vol_ma20_v if vol_ma20_v > 0 else 1.0
   vol_status = "量能平穩" if v_ratio_5 < 1.5 else "量能顯著放大"
@@ -622,8 +644,12 @@ def build_bar_analysis_snapshot(df, big_holder, sheep_holder, idx_r):
   trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
   trend_cls = "t-val-red" if is_bull else "t-val-green"
 
-  is_buy_s = bool(r["is_buy_signal"]) if "is_buy_signal" in df.columns else False
-  is_sell_s = bool(r["is_sell_signal"]) if "is_sell_signal" in df.columns else False
+  is_buy_s = (
+      bool(r["is_buy_signal"]) if "is_buy_signal" in df.columns else False
+  )
+  is_sell_s = (
+      bool(r["is_sell_signal"]) if "is_sell_signal" in df.columns else False
+  )
   red_d = int(r["red_days"]) if "red_days" in df.columns else 0
   green_d = int(r["green_days"]) if "green_days" in df.columns else 0
 
@@ -636,29 +662,87 @@ def build_bar_analysis_snapshot(df, big_holder, sheep_holder, idx_r):
   else:
     wave_txt, wave_cls = "空方波段整理中", "t-val-green"
 
-  # 副圖指標即時文字
-  dif_v = float(r["macd_dif"])
-  dem_v = float(r["macd_dem"])
-  osc_v = float(r["macd_osc"])
-  prev_dif = float(df["macd_dif"].iloc[idx_r - 1]) if idx_r > 0 else dif_v
-  prev_dem = float(df["macd_dem"].iloc[idx_r - 1]) if idx_r > 0 else dem_v
-  prev_osc = float(df["macd_osc"].iloc[idx_r - 1]) if idx_r > 0 else osc_v
-  dif_arr = "↑" if dif_v >= prev_dif else "↓"
-  dem_arr = "↑" if dem_v >= prev_dem else "↓"
-  osc_arr = "↑" if osc_v >= prev_osc else "↓"
-  osc_col = "#FF3333" if osc_v >= 0 else "#00E64D"
-
-  ind_html = (
-      f'<span style="color:#fff;">MACD(長) </span>'
-      f'<span style="color:#FF00FF;">DIF:{dif_v:.2f} {dif_arr} </span>'
-      f'<span style="color:#00FFFF;">DEA:{dem_v:.2f} {dem_arr} </span>'
-      f'<span style="color:{osc_col};">MACD:{osc_v:.2f} {osc_arr}</span>'
-  )
-
-  b_slice = big_holder[-len(df) :] if len(big_holder) >= len(df) else big_holder
-  s_slice = sheep_holder[-len(df) :] if len(sheep_holder) >= len(df) else sheep_holder
-  b_val = float(b_slice[idx_r]) if len(b_slice) > idx_r else 0.0
-  s_val = float(s_slice[idx_r]) if len(s_slice) > idx_r else 0.0
+  # 副圖指標原位 tokens（依目前選擇的指標）
+  ind_tokens = []
+  if selected_indicator == "MACD":
+    dif_v = float(r["macd_dif"])
+    dem_v = float(r["macd_dem"])
+    osc_v = float(r["macd_osc"])
+    prev_dif = float(df["macd_dif"].iloc[idx_r - 1]) if idx_r > 0 else dif_v
+    prev_dem = float(df["macd_dem"].iloc[idx_r - 1]) if idx_r > 0 else dem_v
+    prev_osc = float(df["macd_osc"].iloc[idx_r - 1]) if idx_r > 0 else osc_v
+    dif_arr = "↑" if dif_v >= prev_dif else "↓"
+    dem_arr = "↑" if dem_v >= prev_dem else "↓"
+    osc_arr = "↑" if osc_v >= prev_osc else "↓"
+    osc_col = "#FF3333" if osc_v >= 0 else "#00E64D"
+    ind_tokens = [
+        {"text": "MACD(長) ", "color": "#FFFFFF"},
+        {"text": "DIF:", "color": "#FF00FF"},
+        {"text": f"{dif_v:.2f} {dif_arr} ", "color": "#FF00FF"},
+        {"text": "DEA:", "color": "#00FFFF"},
+        {"text": f"{dem_v:.2f} {dem_arr} ", "color": "#00FFFF"},
+        {"text": "MACD:", "color": osc_col},
+        {"text": f"{osc_v:.2f} {osc_arr}", "color": osc_col},
+    ]
+  elif selected_indicator == "BIAS":
+    bias_v = float(r["bias_val"])
+    ind_tokens = [{"text": f"BIAS(60)  {bias_v:.2f}%", "color": "#FFFF00"}]
+  elif selected_indicator == "KDJ":
+    k_diff = float(r["kdj_diff"])
+    kd_arr = "↑" if k_diff >= 0 else "↓"
+    ind_tokens = [
+        {"text": "KD(9,3,3)  ", "color": "#FFFFFF"},
+        {"text": "K:", "color": "#FF00FF"},
+        {"text": f"{k_v:.2f}  ", "color": "#FF00FF"},
+        {"text": "D:", "color": "#00FFFF"},
+        {"text": f"{d_v:.2f}  ", "color": "#00FFFF"},
+        {"text": "J:", "color": "#FFFFFF"},
+        {"text": f"{j_v:.2f}  ", "color": "#FFFFFF"},
+        {"text": "乖離:", "color": "#FFFF00"},
+        {"text": f"{k_diff:.2f} {kd_arr}", "color": "#FFFF00"},
+    ]
+  elif selected_indicator == "RSI":
+    r6_v = float(r["rsi_6"])
+    r12_v = float(r["rsi_12"])
+    rdiff_v = float(r["rsi_diff"])
+    rd_arr = "↑" if rdiff_v >= 0 else "↓"
+    ind_tokens = [
+        {"text": "RSI(6,12)  ", "color": "#FFFFFF"},
+        {"text": "RSI6:", "color": "#FF00FF"},
+        {"text": f"{r6_v:.2f}  ", "color": "#FF00FF"},
+        {"text": "RSI12:", "color": "#00FFFF"},
+        {"text": f"{r12_v:.2f}  ", "color": "#00FF00"},
+        {"text": "差值:", "color": "#FFFF00"},
+        {"text": f"{rdiff_v:.2f} {rd_arr}", "color": "#FFFF00"},
+    ]
+  elif selected_indicator == "W%":
+    wr_v = float(r["w_r"])
+    ind_tokens = [{"text": f"W% (威廉指標)  W%:{wr_v:.2f}%", "color": "#FFFF00"}]
+  elif selected_indicator == "QT":
+    qt_v = float(r["qt"])
+    ind_tokens = [{"text": f"QT (量價波動)  QT:{qt_v:.2f}", "color": "#00FF66"}]
+  elif selected_indicator == "大戶羊群":
+    b_slice = (
+        big_holder[-len(df) :] if len(big_holder) >= len(df) else big_holder
+    )
+    s_slice = (
+        sheep_holder[-len(df) :]
+        if len(sheep_holder) >= len(df)
+        else sheep_holder
+    )
+    b_val = float(b_slice[idx_r]) if len(b_slice) > idx_r else 0.0
+    s_val = float(s_slice[idx_r]) if len(s_slice) > idx_r else 0.0
+    ind_tokens = [
+        {
+            "text": f"大戶羊群指標  大戶:{b_val:.1f}%  散戶:{s_val:.1f}%",
+            "color": "#FF3333",
+        }
+    ]
+  elif selected_indicator == "波段":
+    bdif_v = float(r["band_macd_dif"])
+    ind_tokens = [
+        {"text": f"波段 MACD(5,10)  DIF:{bdif_v:.2f}", "color": "#FFFFFF"}
+    ]
 
   prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
   prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
@@ -667,13 +751,34 @@ def build_bar_analysis_snapshot(df, big_holder, sheep_holder, idx_r):
   v5_arr = "↑" if vol_ma5_v >= prev_v5 else "↓"
   v20_arr = "↑" if vol_ma20_v >= prev_v20 else "↓"
 
-  vol_html = (
-      f'<span style="color:#fff;">當日 </span><span style="color:#FF3333;">量:{int(c_vol)}{v_arr}</span>  '
-      f'<span style="color:#FFFF00;">日5:{int(vol_ma5_v)}{v5_arr} 值5:{v_ratio_5:.2f}{v5_arr}</span>  '
-      f'<span style="color:#FF9900;">日20:{int(vol_ma20_v)}{v20_arr} 值20:{v_ratio_20:.2f}{v20_arr}</span>'
-  )
+  vol_tokens = [
+      {"text": "今日 ", "color": "#FFFFFF"},
+      {"text": f"量:{int(c_vol)}", "color": "#FF3333"},
+      {"text": f"{v_arr}  ", "color": "#FF3333"},
+      {"text": "日5:", "color": "#FFFF00"},
+      {"text": f"{int(vol_ma5_v)}", "color": "#FFFF00"},
+      {"text": f"{v5_arr}  ", "color": "#FFFF00"},
+      {"text": "值5:", "color": "#FFFF00"},
+      {"text": f"{v_ratio_5:.2f}", "color": "#FFFF00"},
+      {"text": f"{v5_arr}  ", "color": "#FFFF00"},
+      {"text": "日20:", "color": "#FF9900"},
+      {"text": f"{int(vol_ma20_v)}", "color": "#FF9900"},
+      {"text": f"{v20_arr}  ", "color": "#FF9900"},
+      {"text": "值20:", "color": "#FF9900"},
+      {"text": f"{v_ratio_20:.2f}", "color": "#FF9900"},
+      {"text": f"{v20_arr}", "color": "#FF9900"},
+  ]
 
   return {
+      "header_text": (
+          f"{c_date}   開:{c_open:.2f}  高:{c_high:.2f}  低:{c_low:.2f} "
+          f" 收:{c_close:.2f}  量:{int(c_vol):,}張"
+      ),
+      "trend_badge": "【季線多頭】" if is_bull else "【季線空頭】",
+      "trend_badge_color": "#FF3333" if is_bull else "#00E64D",
+      "period_badge": f" {period_label} ",
+      "ind_tokens": ind_tokens,
+      "vol_tokens": vol_tokens,
       "ma_status": ma_status,
       "ma_cls": ma_cls,
       "ma5": f"{ma5_v:.1f}",
@@ -698,10 +803,6 @@ def build_bar_analysis_snapshot(df, big_holder, sheep_holder, idx_r):
       "wave_cls": wave_cls,
       "red_days": f"{red_d}日",
       "green_days": f"{green_d}日",
-      "ind_html": ind_html,
-      "vol_html": vol_html,
-      "big_holder": f"{b_val:.1f}%",
-      "sheep_holder": f"{s_val:.1f}%",
   }
 
 
@@ -1052,7 +1153,6 @@ if app_mode == "📈 個股籌碼圖表":
       )
       t_num.set_path_effects(get_bright_effect("#000000", 2.5))
 
-  legend_labels = []
   last_idx = len(df) - 1
   for ma_name, (period, is_show, color) in ma_config.items():
     if is_show:
@@ -1065,18 +1165,6 @@ if app_mode == "📈 個股籌碼圖表":
           linestyle="-",
           alpha=1.0,
       )
-      val_now = (
-          float(ma_series.iloc[-1])
-          if not pd.isna(ma_series.iloc[-1])
-          else 0.0
-      )
-      val_prev = (
-          float(ma_series.iloc[-2])
-          if last_idx > 0 and not pd.isna(ma_series.iloc[-2])
-          else val_now
-      )
-      arrow = "↑" if val_now >= val_prev else "↓"
-      legend_labels.append((f"{ma_name}:{val_now:.1f}{arrow}", color))
 
   if show_fib and not df.empty:
     max_p = float(df["high"].max())
@@ -1155,72 +1243,15 @@ if app_mode == "📈 個股籌碼圖表":
   plt.setp(ax1.get_xticklabels(), visible=False)
   ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-  standard_header_str = f"[{stock_id}] {stock_name}   {last_date}   開:{last_open:.2f}  高:{last_high:.2f}  低:{last_low:.2f}  收:{last_close:.2f}  量:{int(last_vol):,}張"
-  t_header = ax1.text(
-      0.01,
-      0.91,
-      standard_header_str,
-      transform=ax1.transAxes,
-      fontsize=9.0,
-      fontweight="bold",
-      color="#FFFFFF",
-  )
-  t_header.set_path_effects(get_bright_effect("#000000", 3.0))
-
   ma60_val = (
       df["ma_60"].iloc[-1]
       if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1])
       else 0
   )
   is_bull = last_close >= ma60_val
-  trend_status = "【季線多頭】" if is_bull else "【季線空頭】"
-  trend_color = "#FF3333" if is_bull else "#00E64D"
 
-  t_trend_badge = ax1.text(
-      0.57,
-      0.91,
-      trend_status,
-      transform=ax1.transAxes,
-      fontsize=8.0,
-      fontweight="bold",
-      color=trend_color,
-  )
-  t_trend_badge.set_path_effects(get_bright_effect("#000000", 2.5))
-
-  t_period_badge = ax1.text(
-      0.71,
-      0.91,
-      f" {actual_chart_period} ",
-      transform=ax1.transAxes,
-      fontsize=8.0,
-      fontweight="bold",
-      color="#FFFFFF",
-      backgroundcolor="#222222",
-      ha="center",
-      va="center",
-  )
-  t_period_badge.set_path_effects(get_bright_effect("#000000", 2.5))
-
-  if legend_labels:
-    text_x = 0.01
-    text_y = 0.82
-    for l_str, l_col in legend_labels:
-      t_ma = ax1.text(
-          text_x,
-          text_y,
-          l_str,
-          transform=ax1.transAxes,
-          fontsize=8.5,
-          fontweight="bold",
-          color=l_col,
-      )
-      t_ma.set_path_effects(get_bright_effect("#000000", 2.5))
-      text_x += 0.11
-
+  # 副圖底圖繪製（文字改由 Canvas 原位動態繪製，避免重疊與死板）
   if is_wave_mode:
-    cur_band_dif = (
-        float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
-    )
     ax_sub1.set_facecolor(PANEL_BG)
     ax_sub1.bar(
         x,
@@ -1243,20 +1274,7 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub1.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
-    t_s1 = ax_sub1.text(
-        0.015,
-        0.76,
-        f"波段 MACD(5,10)  DIF:{cur_band_dif:.2f}",
-        transform=ax_sub1.transAxes,
-        fontsize=8.5,
-        fontweight="bold",
-        color="#FFFFFF",
-    )
-    t_s1.set_path_effects(get_bright_effect("#000000", 2.5))
 
-    cur_band_bias = (
-        float(df["band_bias_val"].iloc[-1]) if not df.empty else 0.0
-    )
     ax_sub2.set_facecolor(PANEL_BG)
     ax_sub2.plot(
         x,
@@ -1272,16 +1290,6 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub2.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
-    t_s2 = ax_sub2.text(
-        0.015,
-        0.76,
-        f"波段 BIAS(反向)  {cur_band_bias:.2f}%",
-        transform=ax_sub2.transAxes,
-        fontsize=8.5,
-        fontweight="bold",
-        color="#FFFFFF",
-    )
-    t_s2.set_path_effects(get_bright_effect("#000000", 2.5))
 
     ax_sub3.set_facecolor(PANEL_BG)
     ax_sub3.plot(
@@ -1301,16 +1309,6 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub3.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
-    t_s3 = ax_sub3.text(
-        0.015,
-        0.76,
-        f"波段 MTM(10,1)  MTM:{cur_mtm:.2f}",
-        transform=ax_sub3.transAxes,
-        fontsize=8.5,
-        fontweight="bold",
-        color="#FFFFFF",
-    )
-    t_s3.set_path_effects(get_bright_effect("#000000", 2.5))
   else:
     ax_sub1.set_facecolor(PANEL_BG)
     if selected_indicator == "MACD":
@@ -1328,30 +1326,6 @@ if app_mode == "📈 個股籌碼圖表":
       ax_sub1.plot(
           x, df["macd_dem"], linewidth=0.6, color="#00FFFF", label="DEA"
       )
-      osc_color = "#FF3333" if cur_osc >= 0 else "#00E64D"
-      macd_tokens = [
-          ("MACD(長) ", "#FFFFFF"),
-          ("DIF:", "#FF00FF"),
-          (f"{cur_dif:.2f} {dif_arrow} ", "#FF00FF"),
-          ("DEA:", "#00FFFF"),
-          (f"{cur_dem:.2f} {dem_arrow} ", "#00FFFF"),
-          ("MACD:", osc_color),
-          (f"{cur_osc:.2f} {osc_arrow}", osc_color),
-      ]
-      start_x_m = 0.015
-      for m_txt, m_col in macd_tokens:
-        t_m = ax_sub1.text(
-            start_x_m,
-            0.84,
-            m_txt,
-            transform=ax_sub1.transAxes,
-            fontsize=8.0,
-            fontweight="bold",
-            color=m_col,
-        )
-        t_m.set_path_effects(get_bright_effect("#000000", 2.5))
-        start_x_m += len(m_txt) * 0.007
-
     elif selected_indicator == "BIAS":
       ax_sub1.plot(
           x,
@@ -1360,24 +1334,7 @@ if app_mode == "📈 個股籌碼圖表":
           color="#FFFF00",
           label="BIAS(60)",
       )
-      t_s1 = ax_sub1.text(
-          0.015,
-          0.84,
-          f"BIAS(60)  {cur_bias:.2f}%",
-          transform=ax_sub1.transAxes,
-          fontsize=8.0,
-          fontweight="bold",
-          color="#FFFF00",
-      )
-      t_s1.set_path_effects(get_bright_effect("#000000", 2.5))
-
     elif selected_indicator == "KDJ":
-      cur_k = float(df["kdj_k"].iloc[-1]) if not df.empty else 0.0
-      cur_d = float(df["kdj_d"].iloc[-1]) if not df.empty else 0.0
-      cur_j = float(df["kdj_j"].iloc[-1]) if not df.empty else 0.0
-      cur_diff = float(df["kdj_diff"].iloc[-1]) if not df.empty else 0.0
-      diff_arrow = "↑" if cur_diff >= 0 else "↓"
-
       ax_sub1.plot(
           x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K"
       )
@@ -1387,83 +1344,16 @@ if app_mode == "📈 個股籌碼圖表":
       ax_sub1.plot(
           x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J"
       )
-
-      kdj_tokens = [
-          ("KD(9,3,3)  ", "#FFFFFF"),
-          ("K:", "#FF00FF"),
-          (f"{cur_k:.2f}  ", "#FF00FF"),
-          ("D:", "#00FFFF"),
-          (f"{cur_d:.2f}  ", "#00FFFF"),
-          ("J:", "#FFFFFF"),
-          (f"{cur_j:.2f}  ", "#FFFFFF"),
-          ("乖離:", "#FFFF00"),
-          (f"{cur_diff:.2f} {diff_arrow}", "#FFFF00"),
-      ]
-      start_x_k = 0.015
-      for k_txt, k_col in kdj_tokens:
-        t_k = ax_sub1.text(
-            start_x_k,
-            0.84,
-            k_txt,
-            transform=ax_sub1.transAxes,
-            fontsize=8.0,
-            fontweight="bold",
-            color=k_col,
-        )
-        t_k.set_path_effects(get_bright_effect("#000000", 2.5))
-        start_x_k += len(k_txt) * 0.007
-
     elif selected_indicator == "RSI":
-      cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
-      cur_r12 = float(df["rsi_12"].iloc[-1]) if not df.empty else 0.0
-      cur_rdiff = float(df["rsi_diff"].iloc[-1]) if not df.empty else 0.0
-      rdiff_arrow = "↑" if cur_rdiff >= 0 else "↓"
       ax_sub1.plot(
           x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6"
       )
       ax_sub1.plot(
           x, df["rsi_12"], linewidth=0.6, color="#00FFFF", label="RSI12"
       )
-
-      rsi_tokens = [
-          ("RSI(6,12)  ", "#FFFFFF"),
-          ("RSI6:", "#FF00FF"),
-          (f"{cur_r6:.2f}  ", "#FF00FF"),
-          ("RSI12:", "#00FFFF"),
-          (f"{cur_r12:.2f}  ", "#00FF00"),
-          ("差值:", "#FFFF00"),
-          (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00"),
-      ]
-      start_x_r = 0.015
-      for r_txt, r_col in rsi_tokens:
-        t_r = ax_sub1.text(
-            start_x_r,
-            0.84,
-            r_txt,
-            transform=ax_sub1.transAxes,
-            fontsize=8.0,
-            fontweight="bold",
-            color=r_col,
-        )
-        t_r.set_path_effects(get_bright_effect("#000000", 2.5))
-        start_x_r += len(r_txt) * 0.007
-
     elif selected_indicator == "W%":
-      cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
       ax_sub1.plot(x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%")
-      t_wr = ax_sub1.text(
-          0.015,
-          0.84,
-          f"W% (威廉指標)  W%:{cur_wr:.2f}%",
-          transform=ax_sub1.transAxes,
-          fontsize=8.0,
-          fontweight="bold",
-          color="#FFFF00",
-      )
-      t_wr.set_path_effects(get_bright_effect("#000000", 2.5))
-
     elif selected_indicator == "QT":
-      cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
       ax_sub1.bar(
           x,
           df["qt"],
@@ -1472,17 +1362,6 @@ if app_mode == "📈 個股籌碼圖表":
           edgecolor="none",
           alpha=1.0,
       )
-      t_qt = ax_sub1.text(
-          0.015,
-          0.84,
-          f"QT (量價波動)  QT:{cur_qt:.2f}",
-          transform=ax_sub1.transAxes,
-          fontsize=8.0,
-          fontweight="bold",
-          color="#00FF66",
-      )
-      t_qt.set_path_effects(get_bright_effect("#000000", 2.5))
-
     elif selected_indicator == "大戶羊群":
       if len(big_holder) > 0 and len(sheep_holder) > 0:
         b_plot = big_holder[-len(df) :]
@@ -1503,18 +1382,6 @@ if app_mode == "📈 個股籌碼圖表":
             linestyle="-",
             label="羊群(%)",
         )
-        cur_b = float(b_plot[-1])
-        cur_s = float(s_plot[-1])
-        t_sh = ax_sub1.text(
-            0.015,
-            0.84,
-            f"大戶羊群指標  大戶:{cur_b:.1f}%  散戶:{cur_s:.1f}%",
-            transform=ax_sub1.transAxes,
-            fontsize=8.0,
-            fontweight="bold",
-            color="#FF3333",
-        )
-        t_sh.set_path_effects(get_bright_effect("#000000", 2.5))
 
     ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
     ax_sub1.yaxis.tick_right()
@@ -1560,42 +1427,6 @@ if app_mode == "📈 個股籌碼圖表":
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
 
-    vol_str_parts = [
-        ("今日 ", "#FFFFFF"),
-        (f"量:{int(cur_vol_val)}", "#FF3333"),
-        (f"{vol_today_arrow}", "#FF3333"),
-        ("  ", "#FFFFFF"),
-        ("日5:", "#FFFF00"),
-        (f"{int(cur_vol_ma5)}", "#FFFF00"),
-        (f"{v5_arrow}", "#FFFF00"),
-        ("  ", "#FFFFFF"),
-        ("值5:", "#FFFF00"),
-        (f"{v5_val_ratio:.2f}", "#FFFF00"),
-        (f"{v5_arrow}", "#FFFF00"),
-        ("  ", "#FFFFFF"),
-        ("日20:", "#FF9900"),
-        (f"{int(cur_vol_ma20)}", "#FF9900"),
-        (f"{v20_arrow}", "#FF9900"),
-        ("  ", "#FFFFFF"),
-        ("值20:", "#FF9900"),
-        (f"{v20_val_ratio:.2f}", "#FF9900"),
-        (f"{v20_arrow}", "#FF9900"),
-    ]
-
-    start_x_vol = 0.015
-    for v_txt, v_col in vol_str_parts:
-      t_v = ax_sub2.text(
-          start_x_vol,
-          0.84,
-          v_txt,
-          transform=ax_sub2.transAxes,
-          fontsize=8.0,
-          fontweight="bold",
-          color=v_col,
-      )
-      t_v.set_path_effects(get_bright_effect("#000000", 2.5))
-      start_x_vol += len(v_txt) * 0.007
-
   for ax in axes:
     for spine in ax.spines.values():
       spine.set_visible(True)
@@ -1609,8 +1440,16 @@ if app_mode == "📈 個股籌碼圖表":
 
   fig.canvas.draw()
   ax1_bbox = ax1.get_position()
+  ax_sub1_bbox = ax_sub1.get_position()
+  ax_sub2_bbox = ax_sub2.get_position()
+
   ax_x0 = float(ax1_bbox.x0)
   ax_x1 = float(ax1_bbox.x1)
+
+  # 轉換 matplotlib figure 座標 (0~1, 從下往上) 為圖片像素比例 (從上往下)
+  ax1_top_frac = float(1.0 - ax1_bbox.y1)
+  sub1_top_frac = float(1.0 - ax_sub1_bbox.y1)
+  sub2_top_frac = float(1.0 - ax_sub2_bbox.y1)
 
   buf = BytesIO()
   fig.savefig(
@@ -1637,8 +1476,9 @@ if app_mode == "📈 個股籌碼圖表":
             {"text": f"{ma_name}:{v_now:.1f}{arr}", "color": color}
         )
 
-    snap = build_bar_analysis_snapshot(df, big_holder, sheep_holder, idx_r)
-    # 飛狐逆序編號：最新 K 棒為 1，往前依序 2, 3...
+    snap = build_bar_analysis_snapshot(
+        df, big_holder, sheep_holder, idx_r, selected_indicator, actual_chart_period
+    )
     feihu_rev_no = total_bars_cnt - idx_r
 
     payload_rows.append({
@@ -1654,7 +1494,7 @@ if app_mode == "📈 個股籌碼圖表":
     })
 
   rows_json = json.dumps(payload_rows, ensure_ascii=False)
-  plot_height = 670 if is_wave_mode else 590
+  plot_height = 660 if is_wave_mode else 575
   init_snap = payload_rows[-1]["snap"] if payload_rows else {}
 
   unified_interactive_html = f"""
@@ -1716,26 +1556,7 @@ if app_mode == "📈 個股籌碼圖表":
 
   <div class="fx-root">
     <div id="fx-chart-wrap">
-      <div id="fx-hud" style="
-        position:absolute; top:4px; left:8px; z-index:10;
-        background:rgba(10,12,16,0.90); border:1px solid #00ffff;
-        color:#ffffff; font-family:'Courier New',monospace; font-size:11px;
-        padding:3px 7px; border-radius:3px; pointer-events:none;
-        white-space:nowrap; overflow:hidden; max-width:96%;
-      ">
-        [{stock_id}] {stock_name}  |  滑鼠移動即時查價與同步解盤（飛狐逆序 1=最新）
-      </div>
-      <div id="fx-live-strip" style="
-        position:absolute; top:30px; left:8px; z-index:10;
-        background:rgba(15,18,24,0.85); border:1px solid #555555;
-        color:#ffffff; font-size:10.5px; padding:2px 6px;
-        border-radius:3px; pointer-events:none; white-space:nowrap;
-      ">
-        <span id="fx-ind-text">{init_snap.get("ind_html", "")}</span>
-        <span style="color:#666;"> | </span>
-        <span id="fx-vol-text">{init_snap.get("vol_html", "")}</span>
-      </div>
-      <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; max-height:{plot_height - 8}px; object-fit:contain; display:block; margin:0 auto;" />
+      <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; max-height:{plot_height - 6}px; object-fit:contain; display:block; margin:0 auto;" />
       <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
     </div>
 
@@ -1787,16 +1608,19 @@ if app_mode == "📈 個股籌碼圖表":
     const wrap = document.getElementById("fx-chart-wrap");
     const img = document.getElementById("fx-base-img");
     const canvas = document.getElementById("fx-cross-canvas");
-    const hud = document.getElementById("fx-hud");
-    const indText = document.getElementById("fx-ind-text");
-    const volText = document.getElementById("fx-vol-text");
     const ctx = canvas.getContext("2d");
 
+    const stockCode = {json.dumps(stock_id)};
+    const stockName = {json.dumps(stock_name)};
+    const isWaveMode = {str(is_wave_mode).lower()};
     const totalBars = rows.length;
     const xMinBar = {x_min_bar};
     const xMaxBar = {x_max_bar};
     const axX0 = {ax_x0};
     const axX1 = {ax_x1};
+    const ax1TopFrac = {ax1_top_frac};
+    const sub1TopFrac = {sub1_top_frac};
+    const sub2TopFrac = {sub2_top_frac};
 
     function setEl(id, text, cls) {{
       const el = document.getElementById(id);
@@ -1831,9 +1655,6 @@ if app_mode == "📈 個股籌碼圖表":
       setEl("p-wave", s.wave_txt, s.wave_cls);
       setEl("p-red", s.red_days);
       setEl("p-green", s.green_days);
-
-      if (indText) indText.innerHTML = s.ind_html || "";
-      if (volText) volText.innerHTML = s.vol_html || "";
     }}
 
     function syncSize() {{
@@ -1856,10 +1677,104 @@ if app_mode == "📈 個股籌碼圖表":
       }};
     }}
 
-    function drawCross(clientX, clientY) {{
+    function drawOutlinedText(txt, xPos, yPos, color, fontStr) {{
+      ctx.save();
+      ctx.font = fontStr;
+      ctx.textBaseline = "top";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#000000";
+      ctx.strokeText(txt, xPos, yPos);
+      ctx.fillStyle = color;
+      ctx.fillText(txt, xPos, yPos);
+      ctx.restore();
+    }}
+
+    function renderInPlaceOverlay(r, showCrosshair, lineX, lineY, b) {{
       syncSize();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!r || b.width <= 0 || b.height <= 0) return;
 
+      const plotLeft = b.left + b.width * axX0;
+      const plotRight = b.left + b.width * axX1;
+
+      if (showCrosshair) {{
+        ctx.save();
+        ctx.strokeStyle = "#00ffff";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(lineX, b.top);
+        ctx.lineTo(lineX, b.top + b.height);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(plotLeft, lineY);
+        ctx.lineTo(plotRight, lineY);
+        ctx.stroke();
+        ctx.restore();
+      }}
+
+      const s = r.snap || {{}};
+      const headerX = plotLeft + b.width * 0.012;
+      const headerY = b.top + b.height * (ax1TopFrac + 0.015);
+      const fontHeader = "bold 11.5px 'Courier New', monospace";
+
+      // 原位清掉舊表頭底區並繪製該根 K 棒資訊（類似飛狐表頭格式）
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.78)";
+      ctx.fillRect(headerX - 2, headerY - 1, b.width * 0.78, 16);
+      ctx.restore();
+
+      const fullHeader = `[${{stockCode}}] ${{stockName}}  ${{s.header_text || ""}}  #${{r.rev_no}}`;
+      drawOutlinedText(fullHeader, headerX, headerY, "#FFFFFF", fontHeader);
+
+      const badgeX = plotLeft + b.width * 0.58;
+      drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", "bold 11px 'Courier New', monospace");
+
+      // 原位更新均線數值列（維持在原本均線位置）
+      if (r.ma_items && r.ma_items.length > 0) {{
+        const maY = headerY + 15;
+        let curX = headerX;
+        const fontMa = "bold 11px 'Courier New', monospace";
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.72)";
+        ctx.fillRect(headerX - 2, maY - 1, b.width * 0.78, 15);
+        ctx.restore();
+
+        r.ma_items.forEach((m) => {{
+          drawOutlinedText(m.text, curX, maY, m.color, fontMa);
+          curX += ctx.measureText(m.text + "  ").width;
+        }});
+      }}
+
+      // 副圖原位更新指標與成交量文字
+      const fontSub = "bold 10.5px 'Courier New', monospace";
+      if (!isWaveMode) {{
+        const sub1Y = b.top + b.height * (sub1TopFrac + 0.02);
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.fillRect(headerX - 2, sub1Y - 1, b.width * 0.72, 15);
+        ctx.restore();
+        let sx1 = headerX;
+        (s.ind_tokens || []).forEach((tk) => {{
+          drawOutlinedText(tk.text, sx1, sub1Y, tk.color, fontSub);
+          sx1 += ctx.measureText(tk.text).width;
+        }});
+
+        const sub2Y = b.top + b.height * (sub2TopFrac + 0.02);
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.fillRect(headerX - 2, sub2Y - 1, b.width * 0.82, 15);
+        ctx.restore();
+        let sx2 = headerX;
+        (s.vol_tokens || []).forEach((tk) => {{
+          drawOutlinedText(tk.text, sx2, sub2Y, tk.color, fontSub);
+          sx2 += ctx.measureText(tk.text).width;
+        }});
+      }}
+    }}
+
+    function onHover(clientX, clientY) {{
       const b = getImgBounds();
       if (b.width <= 0 || b.height <= 0 || totalBars <= 0) return;
 
@@ -1872,7 +1787,6 @@ if app_mode == "📈 個股籌碼圖表":
       const frac = (relX - plotLeft) / plotW;
       const barPos = xMinBar + frac * (xMaxBar - xMinBar);
       let idx = Math.round(barPos);
-
       if (idx < 0) idx = 0;
       if (idx >= totalBars) idx = totalBars - 1;
 
@@ -1881,55 +1795,29 @@ if app_mode == "📈 個股籌碼圖表":
       const lineX = plotLeft + fracIdx * plotW;
       const lineY = clientY ? (clientY - wRect.top) : (b.top + b.height * 0.35);
 
-      ctx.save();
-      ctx.strokeStyle = "#00ffff";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 3]);
-
-      ctx.beginPath();
-      ctx.moveTo(lineX, b.top);
-      ctx.lineTo(lineX, b.top + b.height);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(plotLeft, lineY);
-      ctx.lineTo(plotRight, lineY);
-      ctx.stroke();
-      ctx.restore();
-
-      let maHtml = "";
-      if (r.ma_items && r.ma_items.length > 0) {{
-        maHtml = "  |  " + r.ma_items.map(m =>
-          `<span style="color:${{m.color}};font-weight:bold;">${{m.text}}</span>`
-        ).join("  ");
-      }}
-
-      hud.innerHTML =
-        `<span style="color:#00ffff;font-weight:bold;">[逆序#${{r.rev_no}}]</span> ` +
-        `<span style="color:#ffff00;">${{r.date}}</span>  ` +
-        `開:<b>${{r.open}}</b> 高:<span style="color:#ff3333;"><b>${{r.high}}</b></span> ` +
-        `低:<span style="color:#00e64d;"><b>${{r.low}}</b></span> ` +
-        `收:<span style="color:#ffffff;background:#222;padding:0 3px;"><b>${{r.close}}</b></span> ` +
-        `量:<span style="color:#00ffff;">${{r.vol.toLocaleString()}}</span>張` +
-        maHtml;
-
+      renderInPlaceOverlay(r, true, lineX, lineY, b);
       syncAnalysisPanel(r);
     }}
 
-    img.addEventListener("load", syncSize);
-    window.addEventListener("resize", syncSize);
+    function initDefault() {{
+      const b = getImgBounds();
+      if (totalBars > 0 && b.width > 0) {{
+        const latest = rows[totalBars - 1];
+        renderInPlaceOverlay(latest, false, 0, 0, b);
+        syncAnalysisPanel(latest);
+      }}
+    }}
+
+    img.addEventListener("load", initDefault);
+    window.addEventListener("resize", initDefault);
+    setTimeout(initDefault, 80);
 
     canvas.addEventListener("mousemove", function(e) {{
-      drawCross(e.clientX, e.clientY);
+      onHover(e.clientX, e.clientY);
     }});
 
     canvas.addEventListener("mouseleave", function() {{
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (totalBars > 0) {{
-        const latest = rows[totalBars - 1];
-        hud.innerHTML = "[{stock_id}] {stock_name}  |  滑鼠移動即時查價與同步解盤（飛狐逆序 1=最新）";
-        syncAnalysisPanel(latest);
-      }}
+      initDefault();
     }});
   }})();
   </script>
