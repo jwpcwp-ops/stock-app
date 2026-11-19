@@ -857,7 +857,6 @@ def build_bar_analysis_snapshot(
       },
   ]
 
-  # 建構表頭 tokens（99991 加權指數含振幅與漲跌點數/百分比，漲跌依色澤顯示）
   o_up = c_open >= p_open
   h_up = c_high >= p_high
   l_up = c_low >= p_low
@@ -1840,14 +1839,14 @@ if app_mode == "📈 個股籌碼圖表":
       ctx.restore();
     }}
 
-    // 依 token 類型給予寬裕間距，避免標籤與數值、欄位與欄位之間重疊
+    // 依 token 類型給予充裕間距（「間序」拉開，避免數值與標籤緊貼）
     function drawTokensRow(tokens, startX, yPos, fontStr, baseGap) {{
       let curX = startX;
       (tokens || []).forEach((tk) => {{
         drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.3);
         const w = ctx.measureText(tk.text).width;
         const isLabel = tk.text.endsWith("::") || tk.text.endsWith(":");
-        const extra = isLabel ? 4.0 : (baseGap || 8.0);
+        const extra = isLabel ? 5.5 : (baseGap || 13.0);
         curX += w + extra;
       }});
     }}
@@ -1882,17 +1881,17 @@ if app_mode == "📈 個股籌碼圖表":
       const headerY = b.top + b.height * (ax1TopFrac + 0.014);
       const fontHeader = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
 
-      // 1. 左側股票代碼與名稱（保留明顯間距）
+      // 1. 左側股票代碼與名稱（加大與日期之間距）
       const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
       drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.3);
-      let hx = headerX + ctx.measureText(prefixTitle).width + 10.0;
+      let hx = headerX + ctx.measureText(prefixTitle).width + 14.0;
 
-      // 2. 漲跌著色之日期、開高低收量與加權振幅/漲跌（項目之間拉開間距）
+      // 2. 漲跌著色之日期、開高低收量與加權振幅/漲跌（各欄間距再拉開）
       if (s.header_tokens && s.header_tokens.length > 0) {{
         s.header_tokens.forEach((ht) => {{
           drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.3);
           const isTag = ht.text.endsWith(":");
-          hx += ctx.measureText(ht.text).width + (isTag ? 2.5 : 8.5);
+          hx += ctx.measureText(ht.text).width + (isTag ? 4.0 : 12.5);
         }});
       }} else {{
         drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.3);
@@ -1906,34 +1905,34 @@ if app_mode == "📈 個股籌碼圖表":
       const revX = plotLeft + b.width * 0.815;
       drawOutlinedText(`逆序:${{r.rev_no}}`, revX, headerY, "#00FFFF", fontHeader, 1.3);
 
-      // 5. 均線列下移至 headerY + 20，各均線項目間距拉開
+      // 5. 均線列下移至 headerY + 20，各均線項目間距再放大
       if (r.ma_items && r.ma_items.length > 0) {{
         const maY = headerY + 20;
         let curX = headerX;
         const fontMa = "bold 12.5px Arial, 'Microsoft JhengHei', sans-serif";
         r.ma_items.forEach((m) => {{
           drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.3);
-          curX += ctx.measureText(m.text).width + 12.0;
+          curX += ctx.measureText(m.text).width + 15.0;
         }});
       }}
 
-      // 6. 副圖指標與成交量文字（字型放大 13px，各欄間距加大避免重疊）
+      // 6. 副圖指標與成交量文字（間序再拉大，方向鍵 ▲/▼ 清楚分明）
       const fontSub = "bold 13px Arial, 'Microsoft JhengHei', sans-serif";
       if (isWaveMode) {{
         const s1Y = b.top + b.height * (sub1TopFrac + 0.014);
-        drawTokensRow(s.ind_tokens, headerX, s1Y, fontSub, 10.0);
+        drawTokensRow(s.ind_tokens, headerX, s1Y, fontSub, 14.0);
 
         const s2Y = b.top + b.height * (sub2TopFrac + 0.014);
-        drawTokensRow(s.sub2_tokens, headerX, s2Y, fontSub, 10.0);
+        drawTokensRow(s.sub2_tokens, headerX, s2Y, fontSub, 14.0);
 
         const s3Y = b.top + b.height * (sub3TopFrac + 0.014);
-        drawTokensRow(s.sub3_tokens, headerX, s3Y, fontSub, 10.0);
+        drawTokensRow(s.sub3_tokens, headerX, s3Y, fontSub, 14.0);
       }} else {{
         const sub1Y = b.top + b.height * (sub1TopFrac + 0.016);
-        drawTokensRow(s.ind_tokens, headerX, sub1Y, fontSub, 10.0);
+        drawTokensRow(s.ind_tokens, headerX, sub1Y, fontSub, 14.0);
 
         const sub2Y = b.top + b.height * (sub2TopFrac + 0.016);
-        drawTokensRow(s.vol_tokens, headerX, sub2Y, fontSub, 11.0);
+        drawTokensRow(s.vol_tokens, headerX, sub2Y, fontSub, 15.0);
       }}
     }}
 
