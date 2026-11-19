@@ -769,12 +769,26 @@ if app_mode == "📈 個股籌碼圖表":
       )
   )
 
-  last_date = df["date"].iloc[-1] if not df.empty else ""
-  last_open = float(df["open"].iloc[-1]) if not df.empty else 0.0
-  last_high = float(df["high"].iloc[-1]) if not df.empty else 0.0
-  last_low = float(df["low"].iloc[-1]) if not df.empty else 0.0
-  last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
-  last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
+  # 讀取點擊圖表鎖定的 K 棒索引（若無則預設最新一根）
+  qp_bar = st.query_params.get("bar_idx")
+  active_idx = len(df) - 1 if not df.empty else 0
+  is_locked_bar = False
+  if qp_bar is not None and not df.empty:
+    try:
+      parsed_idx = int(qp_bar)
+      if 0 <= parsed_idx < len(df):
+        active_idx = parsed_idx
+        is_locked_bar = active_idx != (len(df) - 1)
+    except Exception:
+      pass
+
+  row_act = df.iloc[active_idx] if not df.empty else None
+  last_date = str(row_act["date"]) if row_act is not None else ""
+  last_open = float(row_act["open"]) if row_act is not None else 0.0
+  last_high = float(row_act["high"]) if row_act is not None else 0.0
+  last_low = float(row_act["low"]) if row_act is not None else 0.0
+  last_close = float(row_act["close"]) if row_act is not None else 0.0
+  last_vol = float(row_act["vol"]) if row_act is not None else 0.0
 
   ma_config = {
       "5": (5, show_ma5, MA_COLOR_MAP["5"]),
@@ -793,39 +807,45 @@ if app_mode == "📈 個股籌碼圖表":
     idx_pos = n_len - p
     deduct_indices[p] = idx_pos if 0 <= idx_pos < n_len else 0
 
-  cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
-  cur_dem = float(df["macd_dem"].iloc[-1]) if not df.empty else 0.0
-  cur_osc = float(df["macd_osc"].iloc[-1]) if not df.empty else 0.0
-  cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
-  cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
+  cur_dif = float(df["macd_dif"].iloc[active_idx]) if not df.empty else 0.0
+  cur_dem = float(df["macd_dem"].iloc[active_idx]) if not df.empty else 0.0
+  cur_osc = float(df["macd_osc"].iloc[active_idx]) if not df.empty else 0.0
+  cur_bias = float(df["bias_val"].iloc[active_idx]) if not df.empty else 0.0
+  cur_mtm = float(df["mtm_val"].iloc[active_idx]) if not df.empty else 0.0
 
-  prev_dif = float(df["macd_dif"].iloc[-2]) if len(df) > 1 else cur_dif
+  prev_dif = (
+      float(df["macd_dif"].iloc[active_idx - 1]) if active_idx > 0 else cur_dif
+  )
   dif_arrow = "↑" if cur_dif >= prev_dif else "↓"
-  prev_dem = float(df["macd_dem"].iloc[-2]) if len(df) > 1 else cur_dem
+  prev_dem = (
+      float(df["macd_dem"].iloc[active_idx - 1]) if active_idx > 0 else cur_dem
+  )
   dem_arrow = "↑" if cur_dem >= prev_dem else "↓"
-  prev_osc = float(df["macd_osc"].iloc[-2]) if len(df) > 1 else cur_osc
+  prev_osc = (
+      float(df["macd_osc"].iloc[active_idx - 1]) if active_idx > 0 else cur_osc
+  )
   osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
 
   cur_vol_val = last_vol
   cur_vol_ma5 = (
-      float(df["vol_ma5"].iloc[-1])
-      if not pd.isna(df["vol_ma5"].iloc[-1])
+      float(df["vol_ma5"].iloc[active_idx])
+      if not df.empty and not pd.isna(df["vol_ma5"].iloc[active_idx])
       else 0.0
   )
   cur_vol_ma20 = (
-      float(df["vol_ma20"].iloc[-1])
-      if not pd.isna(df["vol_ma20"].iloc[-1])
+      float(df["vol_ma20"].iloc[active_idx])
+      if not df.empty and not pd.isna(df["vol_ma20"].iloc[active_idx])
       else 0.0
   )
 
   prev_vol_ma5 = (
-      float(df["vol_ma5"].iloc[-2])
-      if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2])
+      float(df["vol_ma5"].iloc[active_idx - 1])
+      if active_idx > 0 and not pd.isna(df["vol_ma5"].iloc[active_idx - 1])
       else cur_vol_ma5
   )
   prev_vol_ma20 = (
-      float(df["vol_ma20"].iloc[-2])
-      if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2])
+      float(df["vol_ma20"].iloc[active_idx - 1])
+      if active_idx > 0 and not pd.isna(df["vol_ma20"].iloc[active_idx - 1])
       else cur_vol_ma20
   )
 
@@ -833,12 +853,14 @@ if app_mode == "📈 個股籌碼圖表":
   v20_arrow = "↓" if cur_vol_ma20 < prev_vol_ma20 else "↑"
   vol_today_arrow = (
       "↓"
-      if last_vol < (float(df["vol"].iloc[-2]) if len(df) > 1 else last_vol)
+      if last_vol
+      < (float(df["vol"].iloc[active_idx - 1]) if active_idx > 0 else last_vol)
       else "↑"
   )
 
   v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
   v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
+  v_ratio = v5_val_ratio
 
   BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
   BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
@@ -935,7 +957,6 @@ if app_mode == "📈 個股籌碼圖表":
         t_num.set_path_effects(get_bright_effect("#000000", 2.5))
 
     legend_labels = []
-    last_idx = len(df) - 1
     for ma_name, (period, is_show, color) in ma_config.items():
       if is_show:
         ma_series = df[f"ma_{period}"].ffill().bfill()
@@ -948,13 +969,13 @@ if app_mode == "📈 個股籌碼圖表":
             alpha=1.0,
         )
         val_now = (
-            float(ma_series.iloc[-1])
-            if not pd.isna(ma_series.iloc[-1])
+            float(ma_series.iloc[active_idx])
+            if not pd.isna(ma_series.iloc[active_idx])
             else 0.0
         )
         val_prev = (
-            float(ma_series.iloc[-2])
-            if last_idx > 0 and not pd.isna(ma_series.iloc[-2])
+            float(ma_series.iloc[active_idx - 1])
+            if active_idx > 0 and not pd.isna(ma_series.iloc[active_idx - 1])
             else val_now
         )
         arrow = "↑" if val_now >= val_prev else "↓"
@@ -1050,9 +1071,11 @@ if app_mode == "📈 個股籌碼圖表":
     t_header.set_path_effects(get_bright_effect("#000000", 3.0))
 
     ma60_val = (
-        df["ma_60"].iloc[-1]
-        if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1])
-        else 0
+        float(df["ma_60"].iloc[active_idx])
+        if not df.empty
+        and "ma_60" in df.columns
+        and not pd.isna(df["ma_60"].iloc[active_idx])
+        else 0.0
     )
     is_bull = last_close >= ma60_val
     trend_status = "【季線多頭】" if is_bull else "【季線空頭】"
@@ -1101,7 +1124,7 @@ if app_mode == "📈 個股籌碼圖表":
 
     if is_wave_mode:
       cur_band_dif = (
-          float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
+          float(df["band_macd_dif"].iloc[active_idx]) if not df.empty else 0.0
       )
       ax_sub1.set_facecolor(PANEL_BG)
       ax_sub1.bar(
@@ -1137,7 +1160,7 @@ if app_mode == "📈 個股籌碼圖表":
       t_s1.set_path_effects(get_bright_effect("#000000", 2.5))
 
       cur_band_bias = (
-          float(df["band_bias_val"].iloc[-1]) if not df.empty else 0.0
+          float(df["band_bias_val"].iloc[active_idx]) if not df.empty else 0.0
       )
       ax_sub2.set_facecolor(PANEL_BG)
       ax_sub2.plot(
@@ -1254,10 +1277,18 @@ if app_mode == "📈 個股籌碼圖表":
         t_s1.set_path_effects(get_bright_effect("#000000", 2.5))
 
       elif selected_indicator == "KDJ":
-        cur_k = float(df["kdj_k"].iloc[-1]) if not df.empty else 0.0
-        cur_d = float(df["kdj_d"].iloc[-1]) if not df.empty else 0.0
-        cur_j = float(df["kdj_j"].iloc[-1]) if not df.empty else 0.0
-        cur_diff = float(df["kdj_diff"].iloc[-1]) if not df.empty else 0.0
+        cur_k = (
+            float(df["kdj_k"].iloc[active_idx]) if not df.empty else 0.0
+        )
+        cur_d = (
+            float(df["kdj_d"].iloc[active_idx]) if not df.empty else 0.0
+        )
+        cur_j = (
+            float(df["kdj_j"].iloc[active_idx]) if not df.empty else 0.0
+        )
+        cur_diff = (
+            float(df["kdj_diff"].iloc[active_idx]) if not df.empty else 0.0
+        )
         diff_arrow = "↑" if cur_diff >= 0 else "↓"
 
         ax_sub1.plot(
@@ -1296,9 +1327,15 @@ if app_mode == "📈 個股籌碼圖表":
           start_x_k += len(k_txt) * 0.007
 
       elif selected_indicator == "RSI":
-        cur_r6 = float(df["rsi_6"].iloc[-1]) if not df.empty else 0.0
-        cur_r12 = float(df["rsi_12"].iloc[-1]) if not df.empty else 0.0
-        cur_rdiff = float(df["rsi_diff"].iloc[-1]) if not df.empty else 0.0
+        cur_r6 = (
+            float(df["rsi_6"].iloc[active_idx]) if not df.empty else 0.0
+        )
+        cur_r12 = (
+            float(df["rsi_12"].iloc[active_idx]) if not df.empty else 0.0
+        )
+        cur_rdiff = (
+            float(df["rsi_diff"].iloc[active_idx]) if not df.empty else 0.0
+        )
         rdiff_arrow = "↑" if cur_rdiff >= 0 else "↓"
         ax_sub1.plot(
             x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6"
@@ -1331,7 +1368,7 @@ if app_mode == "📈 個股籌碼圖表":
           start_x_r += len(r_txt) * 0.007
 
       elif selected_indicator == "W%":
-        cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
+        cur_wr = float(df["w_r"].iloc[active_idx]) if not df.empty else 0.0
         ax_sub1.plot(x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%")
         t_wr = ax_sub1.text(
             0.015,
@@ -1345,7 +1382,7 @@ if app_mode == "📈 個股籌碼圖表":
         t_wr.set_path_effects(get_bright_effect("#000000", 2.5))
 
       elif selected_indicator == "QT":
-        cur_qt = float(df["qt"].iloc[-1]) if not df.empty else 0.0
+        cur_qt = float(df["qt"].iloc[active_idx]) if not df.empty else 0.0
         ax_sub1.bar(
             x,
             df["qt"],
@@ -1385,8 +1422,8 @@ if app_mode == "📈 個股籌碼圖表":
               linestyle="-",
               label="羊群(%)",
           )
-          cur_b = float(b_plot[-1])
-          cur_s = float(s_plot[-1])
+          cur_b = float(b_plot[active_idx])
+          cur_s = float(s_plot[active_idx])
           t_sh = ax_sub1.text(
               0.015,
               0.84,
@@ -1489,7 +1526,6 @@ if app_mode == "📈 個股籌碼圖表":
         left=0.01, right=0.99, top=0.98, bottom=bottom_margin, hspace=0.12
     )
 
-    # 取得實際繪圖區左右邊界比例，確保十字線與每一根 K 棒精準對齊
     fig.canvas.draw()
     ax1_bbox = ax1.get_position()
     ax_x0 = float(ax1_bbox.x0)
@@ -1520,6 +1556,7 @@ if app_mode == "📈 個股籌碼圖表":
           )
 
       payload_rows.append({
+          "idx": idx_r,
           "date": str(r["date"]),
           "open": round(float(r["open"]), 2),
           "high": round(float(r["high"]), 2),
@@ -1541,7 +1578,7 @@ if app_mode == "📈 個股籌碼圖表":
         padding:3px 7px; border-radius:3px; pointer-events:none;
         white-space:nowrap; overflow:hidden; max-width:95%;
       ">
-        [{stock_id}] {stock_name}  |  移動滑鼠即時查價
+        [{stock_id}] {stock_name}  |  滑鼠移動查價，點擊K棒同步右側解盤
       </div>
       <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; max-height:{plot_height - 8}px; object-fit:contain; display:block; margin:0 auto;" />
       <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
@@ -1561,6 +1598,7 @@ if app_mode == "📈 個股籌碼圖表":
       const xMaxBar = {x_max_bar};
       const axX0 = {ax_x0};
       const axX1 = {ax_x1};
+      let lastHoverIdx = totalBars - 1;
 
       function syncSize() {{
         const w = wrap.clientWidth;
@@ -1582,6 +1620,22 @@ if app_mode == "📈 個股籌碼圖表":
         }};
       }}
 
+      function calcBarIdx(clientX) {{
+        const b = getImgBounds();
+        if (b.width <= 0 || totalBars <= 0) return totalBars - 1;
+        const plotLeft = b.left + b.width * axX0;
+        const plotRight = b.left + b.width * axX1;
+        const plotW = Math.max(10, plotRight - plotLeft);
+        const wRect = wrap.getBoundingClientRect();
+        const relX = clientX - wRect.left;
+        const frac = (relX - plotLeft) / plotW;
+        const barPos = xMinBar + frac * (xMaxBar - xMinBar);
+        let idx = Math.round(barPos);
+        if (idx < 0) idx = 0;
+        if (idx >= totalBars) idx = totalBars - 1;
+        return idx;
+      }}
+
       function drawCross(clientX, clientY) {{
         syncSize();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1592,15 +1646,10 @@ if app_mode == "📈 個股籌碼圖表":
         const plotLeft = b.left + b.width * axX0;
         const plotRight = b.left + b.width * axX1;
         const plotW = Math.max(10, plotRight - plotLeft);
-
         const wRect = wrap.getBoundingClientRect();
-        const relX = clientX - wRect.left;
-        const frac = (relX - plotLeft) / plotW;
-        const barPos = xMinBar + frac * (xMaxBar - xMinBar);
-        let idx = Math.round(barPos);
 
-        if (idx < 0) idx = 0;
-        if (idx >= totalBars) idx = totalBars - 1;
+        const idx = calcBarIdx(clientX);
+        lastHoverIdx = idx;
 
         const r = rows[idx];
         const fracIdx = (idx - xMinBar) / (xMaxBar - xMinBar);
@@ -1647,9 +1696,21 @@ if app_mode == "📈 個股籌碼圖表":
         drawCross(e.clientX, e.clientY);
       }});
 
+      canvas.addEventListener("click", function(e) {{
+        const idx = calcBarIdx(e.clientX);
+        try {{
+          const parentUrl = new URL(window.parent.location.href);
+          parentUrl.searchParams.set("bar_idx", String(idx));
+          window.parent.history.replaceState({{}}, "", parentUrl.toString());
+          window.parent.location.href = parentUrl.toString();
+        }} catch (err) {{
+          console.log("同步解盤索引:", idx);
+        }}
+      }});
+
       canvas.addEventListener("mouseleave", function() {{
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        hud.innerHTML = "[{stock_id}] {stock_name}  |  移動滑鼠即時查價";
+        hud.innerHTML = "[{stock_id}] {stock_name}  |  滑鼠移動查價，點擊K棒同步右側解盤";
       }});
     }})();
     </script>
@@ -1657,20 +1718,40 @@ if app_mode == "📈 個股籌碼圖表":
     components.html(interactive_html, height=plot_height, scrolling=False)
 
   with info_col:
+    df_slice = df.iloc[: active_idx + 1] if not df.empty else df
+
+    if is_locked_bar:
+      b_col1, b_col2 = st.columns([1.4, 1.0])
+      with b_col1:
+        st.markdown(
+            f'<div style="color:#ffff00;font-size:11px;font-weight:bold;">鎖定: {last_date}</div>',
+            unsafe_allow_html=True,
+        )
+      with b_col2:
+        if st.button("最新", key="btn_reset_latest_bar", use_container_width=True):
+          st.query_params.pop("bar_idx", None)
+          st.rerun()
+
     ma5_val = (
-        float(df["ma_5"].iloc[-1])
-        if "ma_5" in df.columns and not pd.isna(df["ma_5"].iloc[-1])
-        else 0
+        float(df_slice["ma_5"].iloc[-1])
+        if not df_slice.empty
+        and "ma_5" in df_slice.columns
+        and not pd.isna(df_slice["ma_5"].iloc[-1])
+        else 0.0
     )
     ma20_val = (
-        float(df["ma_20"].iloc[-1])
-        if "ma_20" in df.columns and not pd.isna(df["ma_20"].iloc[-1])
-        else 0
+        float(df_slice["ma_20"].iloc[-1])
+        if not df_slice.empty
+        and "ma_20" in df_slice.columns
+        and not pd.isna(df_slice["ma_20"].iloc[-1])
+        else 0.0
     )
     ma60_val = (
-        float(df["ma_60"].iloc[-1])
-        if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1])
-        else 0
+        float(df_slice["ma_60"].iloc[-1])
+        if not df_slice.empty
+        and "ma_60" in df_slice.columns
+        and not pd.isna(df_slice["ma_60"].iloc[-1])
+        else 0.0
     )
     ma_status = (
         "多頭排列"
@@ -1680,10 +1761,14 @@ if app_mode == "📈 個股籌碼圖表":
     ma_color_class = "t-val-red" if ma5_val > ma20_val else "t-val-green"
 
     recent_high_val = (
-        float(df["high"].tail(30).max()) if not df.empty else last_high
+        float(df_slice["high"].tail(30).max())
+        if not df_slice.empty
+        else last_high
     )
     recent_low_val = (
-        float(df["low"].tail(30).min()) if not df.empty else last_low
+        float(df_slice["low"].tail(30).min())
+        if not df_slice.empty
+        else last_low
     )
     calc_drop = (
         ((recent_high_val - last_low) / recent_high_val) * 100
@@ -1696,11 +1781,27 @@ if app_mode == "📈 個股籌碼圖表":
         else 0.0
     )
 
-    cur_k = float(df["kdj_k"].iloc[-1]) if "kdj_k" in df.columns else 0.0
-    cur_d = float(df["kdj_d"].iloc[-1]) if "kdj_d" in df.columns else 0.0
-    cur_j = float(df["kdj_j"].iloc[-1]) if "kdj_j" in df.columns else 0.0
-    prev_k = float(df["kdj_k"].iloc[-2]) if len(df) > 1 else cur_k
-    prev_d = float(df["kdj_d"].iloc[-2]) if len(df) > 1 else cur_d
+    cur_k = (
+        float(df_slice["kdj_k"].iloc[-1])
+        if not df_slice.empty and "kdj_k" in df_slice.columns
+        else 0.0
+    )
+    cur_d = (
+        float(df_slice["kdj_d"].iloc[-1])
+        if not df_slice.empty and "kdj_d" in df_slice.columns
+        else 0.0
+    )
+    cur_j = (
+        float(df_slice["kdj_j"].iloc[-1])
+        if not df_slice.empty and "kdj_j" in df_slice.columns
+        else 0.0
+    )
+    prev_k = (
+        float(df_slice["kdj_k"].iloc[-2]) if len(df_slice) > 1 else cur_k
+    )
+    prev_d = (
+        float(df_slice["kdj_d"].iloc[-2]) if len(df_slice) > 1 else cur_d
+    )
     k_diff_kd = cur_k - cur_d
 
     is_golden_cross = prev_k <= prev_d and cur_k > cur_d
@@ -1729,13 +1830,13 @@ if app_mode == "📈 個股籌碼圖表":
       kdj_signal, kdj_sig_cls = "【買進訊號】KD金交叉", "t-val-red"
 
     is_buy_signal_today = (
-        bool(df["is_buy_signal"].iloc[-1])
-        if "is_buy_signal" in df.columns
+        bool(df_slice["is_buy_signal"].iloc[-1])
+        if not df_slice.empty and "is_buy_signal" in df_slice.columns
         else False
     )
     is_sell_signal_today = (
-        bool(df["is_sell_signal"].iloc[-1])
-        if "is_sell_signal" in df.columns
+        bool(df_slice["is_sell_signal"].iloc[-1])
+        if not df_slice.empty and "is_sell_signal" in df_slice.columns
         else False
     )
 
@@ -1745,13 +1846,19 @@ if app_mode == "📈 個股籌碼圖表":
       wave_status, wave_cls = "★ 今日波段買進", "t-val-red"
     elif is_sell_signal_today:
       wave_status, wave_cls = "✖ 今日波段賣出", "t-val-cyan"
-    elif df["red_days"].iloc[-1] < df["green_days"].iloc[-1]:
+    elif not df_slice.empty and (
+        df_slice["red_days"].iloc[-1] < df_slice["green_days"].iloc[-1]
+    ):
       wave_status, wave_cls = "多方波段運行中", "t-val-red"
     else:
       wave_status, wave_cls = "空方波段整理中", "t-val-green"
 
-    red_days_val = int(df["red_days"].iloc[-1])
-    green_days_val = int(df["green_days"].iloc[-1])
+    red_days_val = (
+        int(df_slice["red_days"].iloc[-1]) if not df_slice.empty else 0
+    )
+    green_days_val = (
+        int(df_slice["green_days"].iloc[-1]) if not df_slice.empty else 0
+    )
 
     vol_status = "量能平穩" if v_ratio < 1.5 else "量能顯著放大"
     vol_cls = "t-val-white" if v_ratio < 1.5 else "t-val-red"
