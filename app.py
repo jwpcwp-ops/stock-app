@@ -61,7 +61,7 @@ st.markdown(
             height: 22px !important;
         }
         
-        /* 💡 第一行快捷導航列按鈕美化 (青色外框、暗灰底、懸停發亮) */
+        /* 第一行快捷導航列按鈕美化 */
         div[data-testid="stHorizontalBlock"] button {
             background-color: #1a1a1a !important;
             color: #00ffff !important;
@@ -419,11 +419,10 @@ all_strategies = [
 ]
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局：【個股選單 + 週期選單】在最左側，右側為 4 個快捷按鈕
+# 7. 網頁主介面佈局：左側【個股選單 + 週期選單】，右側 4 個快捷按鈕同一行
 # ---------------------------------------------------------
 top_cols = st.columns([2.2, 1.2, 1.8, 1.8, 1.5, 1.8])
 
-# 1. 最左側：個股選單
 with top_cols[0]:
   if st.session_state.selected_index >= len(stock_options):
     st.session_state.selected_index = 0
@@ -443,7 +442,6 @@ with top_cols[0]:
       selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
   )
 
-# 2. 左側第二欄：週期選單
 with top_cols[1]:
   chart_period = st.selectbox(
       "週期",
@@ -454,7 +452,6 @@ with top_cols[1]:
   )
   actual_chart_period = chart_period
 
-# 3. 右側四欄：4 大功能快捷切換按鈕
 with top_cols[2]:
   if st.button("📈 個股籌碼圖表", use_container_width=True, key="top_go_chart"):
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
@@ -476,36 +473,6 @@ with top_cols[5]:
     st.rerun()
 
 app_mode = st.session_state.app_mode_state
-
-# 同一行直接放入「個股選單」與「週期選單」
-with top_cols[4]:
-  if st.session_state.selected_index >= len(stock_options):
-    st.session_state.selected_index = 0
-  selected_stock = st.selectbox(
-      "股票選單",
-      stock_options,
-      index=st.session_state.selected_index,
-      label_visibility="collapsed",
-      key="stock_select_box_top",
-  )
-  try:
-    st.session_state.selected_index = stock_options.index(selected_stock)
-  except:
-    st.session_state.selected_index = 0
-  stock_id = selected_stock.split()[0]
-  stock_name = (
-      selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
-  )
-
-with top_cols[5]:
-  chart_period = st.selectbox(
-      "週期",
-      ["日線", "60分", "週線", "月線"],
-      index=0,
-      label_visibility="collapsed",
-      key="select_period_dropdown_top",
-  )
-  actual_chart_period = chart_period
 
 # =========================================================
 # 分頁一：📈 個股籌碼圖表
@@ -1218,7 +1185,7 @@ if app_mode == "📈 個股籌碼圖表":
             ("RSI6:", "#FF00FF"),
             (f"{cur_r6:.2f}  ", "#FF00FF"),
             ("RSI12:", "#00FFFF"),
-            (f"{cur_r12:.2f}  ", "#FF00FF"),
+            (f"{cur_r12:.2f}  ", "#00FF00"),
             ("差值:", "#FFFF00"),
             (f"{cur_rdiff:.2f} {rdiff_arrow}", "#FFFF00"),
         ]
@@ -1763,7 +1730,8 @@ elif app_mode == "📋 大戶總表":
 # =========================================================
 elif app_mode == "📊 基本面與圖表":
   st.markdown(
-      '<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True
+      f'<p class="sub-header-14">📊 基本面與圖表 ｜ [{stock_id}] {stock_name}</p>',
+      unsafe_allow_html=True,
   )
 
   quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
