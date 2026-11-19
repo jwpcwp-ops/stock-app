@@ -19,11 +19,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# 均線粗細設定（數值越小越細，0.3 ~ 0.5 較不遮擋 K 線）
+# 均線粗細設定（數值越小越細，0.4 不易遮擋 K 線）
 MA_LINE_WIDTH = 0.4
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (調整文字、排版、按鈕高亮與均線 Pills 啟用/關閉辨識)
+# 2. 注入自訂 CSS (調整文字、排版與按鈕高亮)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -58,7 +58,7 @@ st.markdown(
             margin-bottom: 4px !important;
         }
         .stButton button {
-            font-size: 8.5px !important;
+            font-size: 9.0px !important;
             padding: 2px 4px !important;
             min-height: 22px !important;
             height: 22px !important;
@@ -91,7 +91,6 @@ st.markdown(
             padding-right: 4px !important;
         }
 
-        /* Pills 基礎樣式 */
         div[data-testid="stPills"] button {
             font-size: 9.0px !important;
             padding: 2px 6px !important;
@@ -102,20 +101,6 @@ st.markdown(
             line-height: 1.1 !important;
             font-weight: bold !important;
         }
-
-        /* 均線 Pills：關閉（未選取）為暗灰底＋淺灰字；使用中（已選取 aria-pressed="true"）為亮青底＋黑字高亮 */
-        .st-key-pills_ma div[data-testid="stPills"] button[aria-pressed="false"] {
-            background-color: #181818 !important;
-            color: #777777 !important;
-            border: 1px solid #3a3a3a !important;
-        }
-        .st-key-pills_ma div[data-testid="stPills"] button[aria-pressed="true"] {
-            background-color: #00ffff !important;
-            color: #000000 !important;
-            border: 1px solid #ffffff !important;
-            box-shadow: 0 0 6px rgba(0, 255, 255, 0.75) !important;
-        }
-
         div[data-testid="stPills"] {
             gap: 2px !important;
             flex-wrap: wrap !important;
@@ -219,14 +204,26 @@ def load_stock_list():
     options = df["代碼"] + " " + df["名稱"].astype(str)
     return options.tolist(), df
   except Exception as e:
-    default_data = pd.DataFrame(
-        {"代碼": ["99991", "1477", "2428"], "名稱": ["加權指數", "聚陽", "興勤"]}
-    )
+    default_data = pd.DataFrame({
+        "代碼": ["99991", "1477", "2428", "6669"],
+        "名稱": ["加權指數", "聚陽", "興勤", "緯穎"],
+    })
     options = default_data["代碼"] + " " + default_data["名稱"]
     return options.tolist(), default_data
 
 
 stock_options, stock_df = load_stock_list()
+
+
+def find_stock_index_by_code(code_str):
+  clean_code = str(code_str).strip().replace(".0", "")
+  candidates = [clean_code, clean_code.zfill(4)]
+  for i, opt in enumerate(stock_options):
+    opt_code = opt.split()[0].strip() if opt.split() else ""
+    if opt_code in candidates:
+      return i
+  return -1
+
 
 # ---------------------------------------------------------
 # 5. 本地快取支援與資料抓取 (先抓足夠歷史計算連貫均線與指標，再裁切顯示區間)
@@ -545,10 +542,25 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
   st.session_state.selected_index = 0
+if "stock_select_version" not in st.session_state:
+  st.session_state.stock_select_version = 0
 if "selected_synth_strat" not in st.session_state:
   st.session_state.selected_synth_strat = "主力底部吃貨"
 if "app_mode_state" not in st.session_state:
   st.session_state.app_mode_state = "📈 個股籌碼圖表"
+
+# 預設開啟季線（60），其餘 5/10/20/35/120/200/分割 預設關閉
+if "ma_active_map" not in st.session_state:
+  st.session_state.ma_active_map = {
+      "5": False,
+      "10": False,
+      "20": False,
+      "35": False,
+      "60": True,
+      "120": False,
+      "200": False,
+      "分割": False,
+  }
 
 all_strategies = [
     "主力底部吃貨",
@@ -575,7 +587,7 @@ with top_cols[0]:
       stock_options,
       index=st.session_state.selected_index,
       label_visibility="collapsed",
-      key="stock_select_box_top",
+      key=f"stock_select_box_top_{st.session_state.stock_select_version}",
   )
   try:
     st.session_state.selected_index = stock_options.index(selected_stock)
@@ -622,18 +634,49 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  third_row_cols = st.columns([1.2, 1.2, 0.6])
+  third_row_cols = st.columns([1.45, 1.05, 0.5])
+
+  # 均線開關列：每條線獨立切換「開啟中 / 關閉」並以不同視覺狀態呈現
   with third_row_cols[0]:
-    selected_ma = st.pills(
-        "均線",
-        ["5", "10", "20", "35", "60", "120", "200", "分割"],
-        default=["60"],
-        selection_mode="multi",
-        label_visibility="collapsed",
-        key="pills_ma",
+    ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
+    ma_btn_cols = st.columns(len(ma_items))
+    for idx_m, m_key in enumerate(ma_items):
+      is_on = st.session_state.ma_active_map.get(m_key, False)
+      with ma_btn_cols[idx_m]:
+        lbl = f"●{m_key}" if is_on else f"○{m_key}"
+        if st.button(lbl, key=f"ma_toggle_{m_key}", use_container_width=True):
+          st.session_state.ma_active_map[m_key] = not is_on
+          st.rerun()
+
+    # 動態注入目前開啟中的均線按鈕高亮樣式
+    active_css_rules = []
+    for m_key, active_flag in st.session_state.ma_active_map.items():
+      btn_cls = f".st-key-ma_toggle_{m_key} button"
+      if active_flag:
+        active_css_rules.append(
+            f"""
+                    {btn_cls} {{
+                        background-color: #00ffff !important;
+                        color: #000000 !important;
+                        border: 1px solid #ffffff !important;
+                        font-weight: bold !important;
+                    }}
+                """
+        )
+      else:
+        active_css_rules.append(
+            f"""
+                    {btn_cls} {{
+                        background-color: #151515 !important;
+                        color: #666666 !important;
+                        border: 1px solid #333333 !important;
+                        font-weight: normal !important;
+                    }}
+                """
+        )
+    st.markdown(
+        f"<style>{''.join(active_css_rules)}</style>", unsafe_allow_html=True
     )
-    if selected_ma is None:
-      selected_ma = []
 
   with third_row_cols[1]:
     selected_indicator = st.pills(
@@ -658,14 +701,15 @@ if app_mode == "📈 個股籌碼圖表":
     )
     k_days_choice = int(k_days_choice_str) if k_days_choice_str else 250
 
-  show_ma5 = "5" in selected_ma
-  show_ma10 = "10" in selected_ma
-  show_ma20 = "20" in selected_ma
-  show_ma35 = "35" in selected_ma
-  show_ma60 = "60" in selected_ma
-  show_ma120 = "120" in selected_ma
-  show_ma200 = "200" in selected_ma
-  show_fib = "分割" in selected_ma
+  ma_map = st.session_state.ma_active_map
+  show_ma5 = ma_map.get("5", False)
+  show_ma10 = ma_map.get("10", False)
+  show_ma20 = ma_map.get("20", False)
+  show_ma35 = ma_map.get("35", False)
+  show_ma60 = ma_map.get("60", True)
+  show_ma120 = ma_map.get("120", False)
+  show_ma200 = ma_map.get("200", False)
+  show_fib = ma_map.get("分割", False)
 
   df, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
       get_continuous_stock_df(
@@ -1625,25 +1669,23 @@ elif app_mode == "⚡ 9大策略選股":
     selected_rows = event.selection.rows if hasattr(event, "selection") else []
     if selected_rows:
       row_idx = selected_rows[0]
-      target_code = str(filtered_df.iloc[row_idx]["代碼"]).strip().zfill(4)
+      raw_code = str(filtered_df.iloc[row_idx]["代碼"]).strip()
       target_name = (
           str(filtered_df.iloc[row_idx]["名稱"])
           if "名稱" in filtered_df.columns
           else ""
       )
 
-      matching_option_idx = -1
-      for i, opt in enumerate(stock_options):
-        if opt.startswith(target_code):
-          matching_option_idx = i
-          break
+      matched_idx = find_stock_index_by_code(raw_code)
+      if matched_idx != -1 and st.session_state.selected_index != matched_idx:
+        st.session_state.selected_index = matched_idx
+        st.session_state.stock_select_version += 1
 
-      if matching_option_idx != -1:
-        st.session_state.selected_index = matching_option_idx
+      display_code = raw_code.zfill(4) if raw_code.isdigit() else raw_code
 
       st.markdown("---")
       st.markdown(
-          f"👉 您目前選中：**`{target_code}` {target_name}**，請選擇要直達的功能區："
+          f"👉 您目前選中：**`{display_code}` {target_name}**，請選擇要直達的功能區："
       )
 
       nav_col1, nav_col2, nav_col3 = st.columns(3)
@@ -1653,6 +1695,9 @@ elif app_mode == "⚡ 9大策略選股":
             key="go_chart_from_strat",
             use_container_width=True,
         ):
+          if matched_idx != -1:
+            st.session_state.selected_index = matched_idx
+            st.session_state.stock_select_version += 1
           st.session_state.app_mode_state = "📈 個股籌碼圖表"
           st.rerun()
       with nav_col2:
@@ -1661,6 +1706,9 @@ elif app_mode == "⚡ 9大策略選股":
             key="go_fund_from_strat",
             use_container_width=True,
         ):
+          if matched_idx != -1:
+            st.session_state.selected_index = matched_idx
+            st.session_state.stock_select_version += 1
           st.session_state.app_mode_state = "📊 基本面與圖表"
           st.rerun()
       with nav_col3:
