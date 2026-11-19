@@ -23,7 +23,7 @@ st.set_page_config(
 MA_LINE_WIDTH = 0.4
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (調整文字、排版與按鈕高亮)
+# 2. 注入自訂 CSS (調整文字、排版、按鈕高亮與 Fullscreen 圖示顯色)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -65,7 +65,7 @@ st.markdown(
         }
         
         /* 第一行快捷導航列按鈕美化 */
-        div[data-testid="stHorizontalBlock"] button {
+        div[data-testid="stHorizontalBlock"] > div > div > .stButton > button {
             background-color: #1a1a1a !important;
             color: #00ffff !important;
             border: 1px solid #00ffff !important;
@@ -74,10 +74,28 @@ st.markdown(
             height: 28px !important;
             font-size: 11px !important;
         }
-        div[data-testid="stHorizontalBlock"] button:hover {
+        div[data-testid="stHorizontalBlock"] > div > div > .stButton > button:hover {
             background-color: #00ffff !important;
             color: #000000 !important;
             border: 1px solid #ffffff !important;
+        }
+
+        /* 確保圖表右上角 Fullscreen 放大符號清楚顯示（不被黑色覆蓋） */
+        button[title="Fullscreen"],
+        [data-testid="stElementToolbar"] button,
+        div[data-testid="stFullScreenFrame"] button {
+            background-color: #1e242b !important;
+            color: #00ffff !important;
+            border: 1px solid #00ffff !important;
+            opacity: 1 !important;
+        }
+        button[title="Fullscreen"] svg,
+        [data-testid="stElementToolbar"] button svg,
+        div[data-testid="stFullScreenFrame"] button svg {
+            stroke: #00ffff !important;
+            fill: #00ffff !important;
+            color: #00ffff !important;
+            opacity: 1 !important;
         }
 
         [data-testid="stSelectbox"] {
@@ -226,7 +244,7 @@ def find_stock_index_by_code(code_str):
 
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取 (先抓足夠歷史計算連貫均線與指標，再裁切顯示區間)
+# 5. 本地快取支援與資料抓取 (60分/週線/月線/日線皆保留充足暖身期並連貫均線)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -262,10 +280,10 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
   yf_period = "5y"
   if period_type in ["60分", "60分鐘"]:
     yf_interval = "60m"
-    yf_period = "60d"
+    yf_period = "120d"
   elif period_type == "週線":
     yf_interval = "1wk"
-    yf_period = "10y"
+    yf_period = "max"
   elif period_type == "月線":
     yf_interval = "1mo"
     yf_period = "max"
@@ -368,7 +386,7 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
 
 
 def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
-  warmup_bars = 220
+  warmup_bars = 260
   fetch_len = target_days + warmup_bars
   raw_records = fetch_raw_history(stock_id, period_type, fetch_len)
 
@@ -390,8 +408,11 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
   s_high = df_full["high"]
   s_low = df_full["low"]
 
+  # 計算各週期均線，並對前段不足 K 棒數做連貫填補，避免 60分/週線/月線 均線斷線
   for period in [5, 10, 20, 35, 60, 120, 200]:
-    df_full[f"ma_{period}"] = s_close.rolling(window=period).mean()
+    eff_win = min(period, max(1, len(s_close)))
+    ma_raw = s_close.rolling(window=eff_win, min_periods=1).mean()
+    df_full[f"ma_{period}"] = ma_raw.ffill().bfill()
 
   ema3 = s_close.ewm(span=3, adjust=False).mean()
   ema15 = s_close.ewm(span=15, adjust=False).mean()
@@ -446,14 +467,18 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
       df_full["band_macd_dif"] - df_full["band_macd_dem"]
   ) * 2
 
-  df_full["band_bias_base"] = s_close.rolling(window=20).mean()
+  df_full["band_bias_base"] = (
+      s_close.rolling(window=min(20, max(1, len(s_close))), min_periods=1)
+      .mean()
+      .bfill()
+  )
   df_full["band_bias_val"] = (
       (s_close - df_full["band_bias_base"])
       / (df_full["band_bias_base"] + 1e-8)
   ) * 100
   df_full["band_bias_val_rev"] = -1.0 * df_full["band_bias_val"]
 
-  df_full["mtm_val"] = s_close - s_close.shift(10)
+  df_full["mtm_val"] = (s_close - s_close.shift(10)).bfill()
   df_full["mtm_ma1"] = df_full["mtm_val"].rolling(window=1).mean()
 
   df_full["macd_dif"] = (
@@ -463,38 +488,46 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
   df_full["macd_dem"] = df_full["macd_dif"].ewm(span=9, adjust=False).mean()
   df_full["macd_osc"] = (df_full["macd_dif"] - df_full["macd_dem"]) * 2
 
-  df_full["bias_ma60"] = s_close.rolling(window=60).mean()
+  df_full["bias_ma60"] = (
+      s_close.rolling(window=min(60, max(1, len(s_close))), min_periods=1)
+      .mean()
+      .bfill()
+  )
   df_full["bias_val"] = (
       (s_close - df_full["bias_ma60"]) / (df_full["bias_ma60"] + 1e-8)
   ) * 100
 
-  low_min9 = s_low.rolling(9).min()
-  high_max9 = s_high.rolling(9).max()
+  low_min9 = s_low.rolling(9, min_periods=1).min()
+  high_max9 = s_high.rolling(9, min_periods=1).max()
   rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
   df_full["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
   df_full["kdj_d"] = df_full["kdj_k"].ewm(com=2, adjust=False).mean()
   df_full["kdj_j"] = 3 * df_full["kdj_k"] - 2 * df_full["kdj_d"]
   df_full["kdj_diff"] = df_full["kdj_k"] - df_full["kdj_d"]
 
-  delta = s_close.diff()
-  gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
-  loss6 = (-delta.where(delta < 0, 0)).rolling(6).mean()
+  delta = s_close.diff().fillna(0)
+  gain6 = (delta.where(delta > 0, 0)).rolling(6, min_periods=1).mean()
+  loss6 = (-delta.where(delta < 0, 0)).rolling(6, min_periods=1).mean()
   df_full["rsi_6"] = 100 - (100 / (1 + gain6 / (loss6 + 1e-8)))
 
-  gain12 = (delta.where(delta > 0, 0)).rolling(12).mean()
-  loss12 = (-delta.where(delta < 0, 0)).rolling(12).mean()
+  gain12 = (delta.where(delta > 0, 0)).rolling(12, min_periods=1).mean()
+  loss12 = (-delta.where(delta < 0, 0)).rolling(12, min_periods=1).mean()
   df_full["rsi_12"] = 100 - (100 / (1 + gain12 / (loss12 + 1e-8)))
   df_full["rsi_diff"] = df_full["rsi_6"] - df_full["rsi_12"]
 
-  low_min9_w = s_low.rolling(9).min()
-  high_max9_w = s_high.rolling(9).max()
+  low_min9_w = s_low.rolling(9, min_periods=1).min()
+  high_max9_w = s_high.rolling(9, min_periods=1).max()
   df_full["w_r"] = (
       (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
   )
 
-  df_full["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
-  df_full["vol_ma5"] = df_full["vol"].rolling(window=5).mean()
-  df_full["vol_ma20"] = df_full["vol"].rolling(window=20).mean()
+  df_full["qt"] = s_close.diff().abs().rolling(5, min_periods=1).mean().fillna(0)
+  df_full["vol_ma5"] = (
+      df_full["vol"].rolling(window=5, min_periods=1).mean().bfill()
+  )
+  df_full["vol_ma20"] = (
+      df_full["vol"].rolling(window=20, min_periods=1).mean().bfill()
+  )
   df_full["long_trend"] = (
       (
           s_close.ewm(span=15, adjust=False).mean()
@@ -636,7 +669,7 @@ app_mode = st.session_state.app_mode_state
 if app_mode == "📈 個股籌碼圖表":
   third_row_cols = st.columns([1.45, 1.05, 0.5])
 
-# 均線開關列：未開啟保持清晰有精神，開啟時套用各均線專屬高亮色系
+  # 均線開關列：未開啟保持清晰有精神，開啟時套用各均線專屬高亮色系
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
     ma_btn_color_map = {
@@ -659,7 +692,6 @@ if app_mode == "📈 個股籌碼圖表":
           st.session_state.ma_active_map[m_key] = not is_on
           st.rerun()
 
-    # 動態注入目前開啟與未開啟均線按鈕樣式
     active_css_rules = []
     for m_key in ma_items:
       active_flag = st.session_state.ma_active_map.get(m_key, False)
@@ -905,10 +937,10 @@ if app_mode == "📈 個股籌碼圖表":
     last_idx = len(df) - 1
     for ma_name, (period, is_show, color) in ma_config.items():
       if is_show:
-        ma_series = df[f"ma_{period}"]
+        ma_series = df[f"ma_{period}"].ffill().bfill()
         ax1.plot(
             x,
-            ma_series,
+            ma_series.values,
             linewidth=MA_LINE_WIDTH,
             color=color,
             linestyle="-",
