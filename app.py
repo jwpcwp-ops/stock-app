@@ -36,6 +36,9 @@ MA_COLOR_MAP = {
     "分割": "#00FFFF",
 }
 
+# 飛狐上下方向鍵 K 線根數跳動序列：6, 11, 18, 29, 45, 69, 105, 159, 240...
+FEIHU_BAR_STEPS = [6, 11, 18, 29, 45, 69, 105, 159, 240, 361, 543, 816]
+
 # ---------------------------------------------------------
 # 2. 注入自訂 CSS (調整文字、排版、按鈕高亮與 Fullscreen 圖示顯色)
 # ---------------------------------------------------------
@@ -126,7 +129,7 @@ st.markdown(
 
         div[data-testid="stPills"] button {
             font-size: 9.0px !important;
-            padding: 2px 6px !important;
+            padding: 2px 5px !important;
             margin: 0px 1px !important;
             min-height: 22px !important;
             height: 22px !important;
@@ -965,6 +968,8 @@ if "selected_synth_strat" not in st.session_state:
   st.session_state.selected_synth_strat = "主力底部吃貨"
 if "app_mode_state" not in st.session_state:
   st.session_state.app_mode_state = "📈 個股籌碼圖表"
+if "k_bars_count" not in st.session_state:
+  st.session_state.k_bars_count = 250
 
 if "ma_active_map" not in st.session_state:
   st.session_state.ma_active_map = {
@@ -989,6 +994,20 @@ all_strategies = [
     "5均線匯集",
     "底部量大強漲",
 ]
+
+
+def step_feihu_bars(current_bars, direction):
+  """仿飛狐上下方向鍵：6, 11, 18, 29, 45, 69, 105, 159, 240..."""
+  seq = FEIHU_BAR_STEPS
+  if direction < 0:
+    # 縮小（K 棒變少）
+    smaller = [v for v in seq if v < current_bars]
+    return smaller[-1] if smaller else seq[0]
+  else:
+    # 放大（K 棒變多）
+    larger = [v for v in seq if v > current_bars]
+    return larger[0] if larger else seq[-1]
+
 
 # ---------------------------------------------------------
 # 7. 網頁主介面佈局
@@ -1050,7 +1069,7 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  third_row_cols = st.columns([1.45, 1.05, 0.5])
+  third_row_cols = st.columns([1.35, 1.00, 0.85])
 
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
@@ -1113,15 +1132,46 @@ if app_mode == "📈 個股籌碼圖表":
       selected_indicator = "MACD"
 
   with third_row_cols[2]:
+    # 原有 120 / 250 / 500 快捷選單 + 飛狐上下鍵伸縮（6, 11, 18, 29, 45, 69, 105, 159, 240...）
+    preset_days = ["120", "250", "500"]
+    current_preset = (
+        str(st.session_state.k_bars_count)
+        if str(st.session_state.k_bars_count) in preset_days
+        else None
+    )
     k_days_choice_str = st.pills(
         "天數",
-        ["120", "250", "500"],
-        default="250",
+        preset_days,
+        default=current_preset,
         selection_mode="single",
         label_visibility="collapsed",
-        key="pills_k_days",
+        key=f"pills_k_days_{st.session_state.k_bars_count}",
     )
-    k_days_choice = int(k_days_choice_str) if k_days_choice_str else 250
+    if k_days_choice_str and int(k_days_choice_str) != st.session_state.k_bars_count:
+      st.session_state.k_bars_count = int(k_days_choice_str)
+      st.rerun()
+
+    zoom_cols = st.columns([0.85, 0.85, 1.3])
+    with zoom_cols[0]:
+      if st.button("↓縮", key="btn_zoom_in_bars", use_container_width=True):
+        st.session_state.k_bars_count = step_feihu_bars(
+            st.session_state.k_bars_count, -1
+        )
+        st.rerun()
+    with zoom_cols[1]:
+      if st.button("↑擴", key="btn_zoom_out_bars", use_container_width=True):
+        st.session_state.k_bars_count = step_feihu_bars(
+            st.session_state.k_bars_count, +1
+        )
+        st.rerun()
+    with zoom_cols[2]:
+      st.markdown(
+          f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
+          f" text-align:center; line-height:22px;'>K:{st.session_state.k_bars_count}</div>",
+          unsafe_allow_html=True,
+      )
+
+  k_days_choice = int(st.session_state.k_bars_count)
 
   ma_map = st.session_state.ma_active_map
   show_ma5 = ma_map.get("5", False)
@@ -1138,9 +1188,6 @@ if app_mode == "📈 個股籌碼圖表":
           stock_id, target_days=k_days_choice, period_type=actual_chart_period
       )
   )
-
-  last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
-  last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
   ma_config = {
       "5": (5, show_ma5, MA_COLOR_MAP["5"]),
@@ -1239,6 +1286,38 @@ if app_mode == "📈 個股籌碼圖表":
     p_range = p_max - p_min if p_max != p_min else 1.0
     ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
     ax1.set_xlim(x_min_bar, x_max_bar)
+
+    # 波段高低價數值標示於 K 線畫面內
+    high_idx = int(df["high"].values.argmax())
+    low_idx = int(df["low"].values.argmin())
+    high_val = float(df["high"].iloc[high_idx])
+    low_val = float(df["low"].iloc[low_idx])
+
+    t_hi = ax1.text(
+        high_idx,
+        high_val + p_range * 0.015,
+        f"▲高:{high_val:.2f}",
+        color="#FF5555",
+        fontsize=7.8,
+        fontweight="bold",
+        ha="center",
+        va="bottom",
+        zorder=6,
+    )
+    t_hi.set_path_effects(get_bright_effect("#000000", 2.4))
+
+    t_lo = ax1.text(
+        low_idx,
+        low_val - p_range * 0.015,
+        f"▼低:{low_val:.2f}",
+        color="#00FF88",
+        fontsize=7.8,
+        fontweight="bold",
+        ha="center",
+        va="top",
+        zorder=6,
+    )
+    t_lo.set_path_effects(get_bright_effect("#000000", 2.4))
 
   for count_days in [5, 35, 65, 120, 200]:
     if count_days in deduct_indices:
@@ -1643,6 +1722,7 @@ if app_mode == "📈 個股籌碼圖表":
     })
 
   rows_json = json.dumps(payload_rows, ensure_ascii=False)
+  feihu_steps_json = json.dumps(FEIHU_BAR_STEPS)
   plot_height = 575
   init_snap = payload_rows[-1]["snap"] if payload_rows else {}
 
@@ -1664,6 +1744,7 @@ if app_mode == "📈 個股籌碼圖表":
       background: #000000;
       user-select: none;
       overflow: hidden;
+      outline: none;
     }}
     #fx-side-wrap {{
       flex: 1.8;
@@ -1704,7 +1785,7 @@ if app_mode == "📈 個股籌碼圖表":
   </style>
 
   <div class="fx-root">
-    <div id="fx-chart-wrap">
+    <div id="fx-chart-wrap" tabindex="0">
       <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block; margin:0 auto;" />
       <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
     </div>
@@ -1754,6 +1835,7 @@ if app_mode == "📈 個股籌碼圖表":
   <script>
   (function() {{
     const rows = {rows_json};
+    const feihuSteps = {feihu_steps_json};
     const wrap = document.getElementById("fx-chart-wrap");
     const img = document.getElementById("fx-base-img");
     const canvas = document.getElementById("fx-cross-canvas");
@@ -1771,6 +1853,10 @@ if app_mode == "📈 個股籌碼圖表":
     const sub1TopFrac = {sub1_top_frac};
     const sub2TopFrac = {sub2_top_frac};
     const sub3TopFrac = {sub3_top_frac};
+
+    // 左鍵開關十字線狀態（預設開啟）
+    let crosshairEnabled = true;
+    let lastHoverPos = null;
 
     function setEl(id, text, cls) {{
       const el = document.getElementById(id);
@@ -1839,7 +1925,6 @@ if app_mode == "📈 個股籌碼圖表":
       ctx.restore();
     }}
 
-    // 依 token 類型給予充裕間距（「間序」拉開，避免數值與標籤緊貼）
     function drawTokensRow(tokens, startX, yPos, fontStr, baseGap) {{
       let curX = startX;
       (tokens || []).forEach((tk) => {{
@@ -1851,7 +1936,7 @@ if app_mode == "📈 個股籌碼圖表":
       }});
     }}
 
-    function renderInPlaceOverlay(r, showCrosshair, lineX, lineY, b) {{
+    function renderInPlaceOverlay(r, drawLines, lineX, lineY, b) {{
       syncSize();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (!r || b.width <= 0 || b.height <= 0) return;
@@ -1859,7 +1944,7 @@ if app_mode == "📈 個股籌碼圖表":
       const plotLeft = b.left + b.width * axX0;
       const plotRight = b.left + b.width * axX1;
 
-      if (showCrosshair) {{
+      if (crosshairEnabled && drawLines) {{
         ctx.save();
         ctx.strokeStyle = "#00ffff";
         ctx.lineWidth = 1;
@@ -1881,12 +1966,10 @@ if app_mode == "📈 個股籌碼圖表":
       const headerY = b.top + b.height * (ax1TopFrac + 0.014);
       const fontHeader = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
 
-      // 1. 左側股票代碼與名稱（加大與日期之間距）
       const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
       drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.3);
       let hx = headerX + ctx.measureText(prefixTitle).width + 14.0;
 
-      // 2. 漲跌著色之日期、開高低收量與加權振幅/漲跌（各欄間距再拉開）
       if (s.header_tokens && s.header_tokens.length > 0) {{
         s.header_tokens.forEach((ht) => {{
           drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.3);
@@ -1897,15 +1980,12 @@ if app_mode == "📈 個股籌碼圖表":
         drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.3);
       }}
 
-      // 3. 季線多空標籤
       const badgeX = plotLeft + b.width * 0.72;
       drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.3);
 
-      // 4. 逆序天數放在季線多空標籤右側空白處
       const revX = plotLeft + b.width * 0.815;
       drawOutlinedText(`逆序:${{r.rev_no}}`, revX, headerY, "#00FFFF", fontHeader, 1.3);
 
-      // 5. 均線列下移至 headerY + 20，各均線項目間距再放大
       if (r.ma_items && r.ma_items.length > 0) {{
         const maY = headerY + 20;
         let curX = headerX;
@@ -1916,7 +1996,6 @@ if app_mode == "📈 個股籌碼圖表":
         }});
       }}
 
-      // 6. 副圖指標與成交量文字（間序再拉大，方向鍵 ▲/▼ 清楚分明）
       const fontSub = "bold 13px Arial, 'Microsoft JhengHei', sans-serif";
       if (isWaveMode) {{
         const s1Y = b.top + b.height * (sub1TopFrac + 0.014);
@@ -1957,7 +2036,8 @@ if app_mode == "📈 個股籌碼圖表":
       const lineX = plotLeft + fracIdx * plotW;
       const lineY = clientY ? (clientY - wRect.top) : (b.top + b.height * 0.35);
 
-      renderInPlaceOverlay(r, true, lineX, lineY, b);
+      lastHoverPos = {{ r, lineX, lineY, b }};
+      renderInPlaceOverlay(r, crosshairEnabled, lineX, lineY, b);
       syncAnalysisPanel(r);
     }}
 
@@ -1974,12 +2054,60 @@ if app_mode == "📈 個股籌碼圖表":
     window.addEventListener("resize", initDefault);
     setTimeout(initDefault, 80);
 
+    // 按左鍵一下：切換顯示與開啟十字線
+    canvas.addEventListener("mousedown", function(e) {{
+      if (e.button === 0) {{
+        wrap.focus();
+        crosshairEnabled = !crosshairEnabled;
+        onHover(e.clientX, e.clientY);
+      }}
+    }});
+
     canvas.addEventListener("mousemove", function(e) {{
       onHover(e.clientX, e.clientY);
     }});
 
     canvas.addEventListener("mouseleave", function() {{
+      lastHoverPos = null;
       initDefault();
+    }});
+
+    // 飛狐上下方向鍵：6, 11, 18, 29, 45, 69, 105, 159, 240...
+    function triggerFeihuStep(dir) {{
+      const curBars = totalBars;
+      let nextBars = curBars;
+      if (dir < 0) {{
+        const smaller = feihuSteps.filter((v) => v < curBars);
+        nextBars = smaller.length > 0 ? smaller[smaller.length - 1] : feihuSteps[0];
+      }} else {{
+        const larger = feihuSteps.filter((v) => v > curBars);
+        nextBars = larger.length > 0 ? larger[0] : feihuSteps[feihuSteps.length - 1];
+      }}
+      if (nextBars === curBars) return;
+
+      const targetBtnText = dir < 0 ? "↓縮" : "↑擴";
+      try {{
+        const parentDoc = window.parent && window.parent.document;
+        if (parentDoc) {{
+          const btns = Array.from(parentDoc.querySelectorAll("button"));
+          const matchBtn = btns.find((b) => (b.innerText || "").trim() === targetBtnText);
+          if (matchBtn) {{
+            matchBtn.click();
+          }}
+        }}
+      }} catch (err) {{
+        console.log("跳動觸發:", err);
+      }}
+    }}
+
+    wrap.addEventListener("keydown", function(e) {{
+      if (e.key === "ArrowUp") {{
+        e.preventDefault();
+        triggerFeihuStep(+1);
+      }} else if (e.key === "ArrowDown") {{
+        e.preventDefault();
+        triggerFeihuStep(-1);
+      }}
     }});
   }})();
   </script>
