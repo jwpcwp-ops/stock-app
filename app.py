@@ -679,30 +679,30 @@ def build_bar_analysis_snapshot(
     osc_arr = "↑" if osc_v >= prev_osc else "↓"
     osc_col = "#FF3333" if osc_v >= 0 else "#00E64D"
     ind_tokens = [
-        {"text": "MACD(長)   ", "color": "#FFFFFF"},
-        {"text": "DIF: ", "color": "#FF00FF"},
-        {"text": f"{dif_v:.2f} {dif_arr}    ", "color": "#FF00FF"},
-        {"text": "DEA: ", "color": "#00FFFF"},
-        {"text": f"{dem_v:.2f} {dem_arr}    ", "color": "#00FFFF"},
-        {"text": "MACD: ", "color": osc_col},
-        {"text": f"{osc_v:.2f} {osc_arr}", "color": osc_col},
+        {"text": "MACD(長)  ", "color": "#FFFFFF"},
+        {"text": "DIF:", "color": "#FF00FF"},
+        {"text": f"{dif_v:.2f}{dif_arr}  ", "color": "#FF00FF"},
+        {"text": "DEA:", "color": "#00FFFF"},
+        {"text": f"{dem_v:.2f}{dem_arr}  ", "color": "#00FFFF"},
+        {"text": "MACD:", "color": osc_col},
+        {"text": f"{osc_v:.2f}{osc_arr}", "color": osc_col},
     ]
   elif selected_indicator == "BIAS":
     bias_v = float(r["bias_val"])
-    ind_tokens = [{"text": f"BIAS(60)    {bias_v:.2f}%", "color": "#FFFF00"}]
+    ind_tokens = [{"text": f"BIAS(60)  {bias_v:.2f}%", "color": "#FFFF00"}]
   elif selected_indicator == "KDJ":
     k_diff = float(r["kdj_diff"])
     kd_arr = "↑" if k_diff >= 0 else "↓"
     ind_tokens = [
-        {"text": "KD(9,3,3)   ", "color": "#FFFFFF"},
-        {"text": "K: ", "color": "#FF00FF"},
-        {"text": f"{k_v:.2f}    ", "color": "#FF00FF"},
-        {"text": "D: ", "color": "#00FFFF"},
-        {"text": f"{d_v:.2f}    ", "color": "#00FFFF"},
-        {"text": "J: ", "color": "#FFFFFF"},
-        {"text": f"{j_v:.2f}    ", "color": "#FFFFFF"},
-        {"text": "乖離: ", "color": "#FFFF00"},
-        {"text": f"{k_diff:.2f} {kd_arr}", "color": "#FFFF00"},
+        {"text": "KD(9,3,3)  ", "color": "#FFFFFF"},
+        {"text": "K:", "color": "#FF00FF"},
+        {"text": f"{k_v:.2f}  ", "color": "#FF00FF"},
+        {"text": "D:", "color": "#00FFFF"},
+        {"text": f"{d_v:.2f}  ", "color": "#00FFFF"},
+        {"text": "J:", "color": "#FFFFFF"},
+        {"text": f"{j_v:.2f}  ", "color": "#FFFFFF"},
+        {"text": "乖離:", "color": "#FFFF00"},
+        {"text": f"{k_diff:.2f}{kd_arr}", "color": "#FFFF00"},
     ]
   elif selected_indicator == "RSI":
     r6_v = float(r["rsi_6"])
@@ -710,20 +710,20 @@ def build_bar_analysis_snapshot(
     rdiff_v = float(r["rsi_diff"])
     rd_arr = "↑" if rdiff_v >= 0 else "↓"
     ind_tokens = [
-        {"text": "RSI(6,12)   ", "color": "#FFFFFF"},
-        {"text": "RSI6: ", "color": "#FF00FF"},
-        {"text": f"{r6_v:.2f}    ", "color": "#FF00FF"},
-        {"text": "RSI12: ", "color": "#00FFFF"},
-        {"text": f"{r12_v:.2f}    ", "color": "#00FF00"},
-        {"text": "差值: ", "color": "#FFFF00"},
-        {"text": f"{rdiff_v:.2f} {rd_arr}", "color": "#FFFF00"},
+        {"text": "RSI(6,12)  ", "color": "#FFFFFF"},
+        {"text": "RSI6:", "color": "#FF00FF"},
+        {"text": f"{r6_v:.2f}  ", "color": "#FF00FF"},
+        {"text": "RSI12:", "color": "#00FFFF"},
+        {"text": f"{r12_v:.2f}  ", "color": "#00FF00"},
+        {"text": "差值:", "color": "#FFFF00"},
+        {"text": f"{rdiff_v:.2f}{rd_arr}", "color": "#FFFF00"},
     ]
   elif selected_indicator == "W%":
     wr_v = float(r["w_r"])
-    ind_tokens = [{"text": f"W% (威廉指標)    W%: {wr_v:.2f}%", "color": "#FFFF00"}]
+    ind_tokens = [{"text": f"W% (威廉指標)  W%:{wr_v:.2f}%", "color": "#FFFF00"}]
   elif selected_indicator == "QT":
     qt_v = float(r["qt"])
-    ind_tokens = [{"text": f"QT (量價波動)    QT: {qt_v:.2f}", "color": "#00FF66"}]
+    ind_tokens = [{"text": f"QT (量價波動)  QT:{qt_v:.2f}", "color": "#00FF66"}]
   elif selected_indicator == "大戶羊群":
     b_slice = (
         big_holder[-len(df) :] if len(big_holder) >= len(df) else big_holder
@@ -737,7 +737,7 @@ def build_bar_analysis_snapshot(
     s_val = float(s_slice[idx_r]) if len(s_slice) > idx_r else 0.0
     ind_tokens = [
         {
-            "text": f"大戶羊群指標    大戶: {b_val:.1f}%    散戶: {s_val:.1f}%",
+            "text": f"大戶羊群指標  大戶:{b_val:.1f}%  散戶:{s_val:.1f}%",
             "color": "#FF3333",
         }
     ]
@@ -750,25 +750,25 @@ def build_bar_analysis_snapshot(
     mtm_avg_v = float(r["mtm_ma1"])
 
     ind_tokens = [
-        {"text": "波段 MACD(5,10,5)   ", "color": "#FFFFFF"},
-        {"text": "DIF: ", "color": "#FFFF00"},
-        {"text": f"{bdif_v:.2f}    ", "color": "#FFFF00"},
-        {"text": "DEA: ", "color": "#FF3333"},
-        {"text": f"{bdem_v:.2f}    ", "color": "#FF3333"},
+        {"text": "波段 MACD(5,10,5)  ", "color": "#FFFFFF"},
+        {"text": "DIF:", "color": "#FFFF00"},
+        {"text": f"{bdif_v:.2f}  ", "color": "#FFFF00"},
+        {"text": "DEA:", "color": "#FF3333"},
+        {"text": f"{bdem_v:.2f}  ", "color": "#FF3333"},
         {
-            "text": f"OSC: {bosc_v:.2f}",
+            "text": f"OSC:{bosc_v:.2f}",
             "color": "#FF3333" if bosc_v >= 0 else "#00E64D",
         },
     ]
     sub2_tokens = [
-        {"text": "波段 BIAS(20,反向)   ", "color": "#FFFFFF"},
+        {"text": "波段 BIAS(20,反向)  ", "color": "#FFFFFF"},
         {"text": f"{bbias_rev_v:.2f}%", "color": "#00FFFF"},
     ]
     sub3_tokens = [
-        {"text": "波段 MTM(10,1)   ", "color": "#FFFFFF"},
-        {"text": "MTM: ", "color": "#FFFF00"},
-        {"text": f"{mtm_v:.2f}    ", "color": "#FFFF00"},
-        {"text": "Avg: ", "color": "#00FF66"},
+        {"text": "波段 MTM(10,1)  ", "color": "#FFFFFF"},
+        {"text": "MTM:", "color": "#FFFF00"},
+        {"text": f"{mtm_v:.2f}  ", "color": "#FFFF00"},
+        {"text": "Avg:", "color": "#00FF66"},
         {"text": f"{mtm_avg_v:.2f}", "color": "#00FF66"},
     ]
 
@@ -780,22 +780,22 @@ def build_bar_analysis_snapshot(
   v20_arr = "↑" if vol_ma20_v >= prev_v20 else "↓"
 
   vol_tokens = [
-      {"text": "今日   ", "color": "#FFFFFF"},
-      {"text": f"量: {int(c_vol)} {v_arr}     ", "color": "#FF3333"},
-      {"text": f"日5: {int(vol_ma5_v)} {v5_arr}     ", "color": "#FFFF00"},
-      {"text": f"值5: {v_ratio_5:.2f} {v5_arr}     ", "color": "#FFFF00"},
-      {"text": f"日20: {int(vol_ma20_v)} {v20_arr}     ", "color": "#FF9900"},
-      {"text": f"值20: {v_ratio_20:.2f} {v20_arr}", "color": "#FF9900"},
+      {"text": "成交量:", "color": "#FFFFFF"},
+      {"text": f"{int(c_vol)}{v_arr}  ", "color": "#FF3333"},
+      {"text": "日5:", "color": "#FFFF00"},
+      {"text": f"{int(vol_ma5_v)}{v5_arr}  ", "color": "#FFFF00"},
+      {"text": "值5:", "color": "#FFFF00"},
+      {"text": f"{v_ratio_5:.2f}{v5_arr}  ", "color": "#FFFF00"},
+      {"text": "日20:", "color": "#FF9900"},
+      {"text": f"{int(vol_ma20_v)}{v20_arr}  ", "color": "#FF9900"},
+      {"text": "值20:", "color": "#FF9900"},
+      {"text": f"{v_ratio_20:.2f}{v20_arr}", "color": "#FF9900"},
   ]
 
   return {
       "header_text": (
-          f"[{stock_id_placeholder := ''}]"
-          if False
-          else (
-              f"{c_date}    開: {c_open:.2f}   高: {c_high:.2f}   低:"
-              f" {c_low:.2f}   收: {c_close:.2f}   量: {int(c_vol):,}張"
-          )
+          f"{c_date}   開:{c_open:.2f}  高:{c_high:.2f}  低:{c_low:.2f} "
+          f" 收:{c_close:.2f}  量:{int(c_vol):,}張"
       ),
       "trend_badge": "【季線多頭】" if is_bull else "【季線空頭】",
       "trend_badge_color": "#FF3333" if is_bull else "#00E64D",
@@ -1493,7 +1493,7 @@ if app_mode == "📈 個股籌碼圖表":
         )
         arr = "↑" if v_now >= v_prev else "↓"
         ma_items_colored.append(
-            {"text": f"{ma_name}:{v_now:.1f}{arr}   ", "color": color}
+            {"text": f"{ma_name}:{v_now:.1f}{arr}  ", "color": color}
         )
 
     snap = build_bar_analysis_snapshot(
@@ -1525,7 +1525,7 @@ if app_mode == "📈 個股籌碼圖表":
       width: 100%;
       background: #000000;
       box-sizing: border-box;
-      font-family: 'Courier New', Courier, monospace;
+      font-family: Arial, 'Microsoft JhengHei', sans-serif;
       color: #ffffff;
     }}
     #fx-chart-wrap {{
@@ -1698,11 +1698,11 @@ if app_mode == "📈 個股籌碼圖表":
       }};
     }}
 
-    function drawOutlinedText(txt, xPos, yPos, color, fontStr) {{
+    function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW) {{
       ctx.save();
       ctx.font = fontStr;
       ctx.textBaseline = "top";
-      ctx.lineWidth = 3.2;
+      ctx.lineWidth = strokeW || 1.8;
       ctx.strokeStyle = "#000000";
       ctx.strokeText(txt, xPos, yPos);
       ctx.fillStyle = color;
@@ -1713,8 +1713,8 @@ if app_mode == "📈 個股籌碼圖表":
     function drawTokensRow(tokens, startX, yPos, fontStr) {{
       let curX = startX;
       (tokens || []).forEach((tk) => {{
-        drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr);
-        curX += ctx.measureText(tk.text).width + 2.5;
+        drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.8);
+        curX += ctx.measureText(tk.text).width + 2.0;
       }});
     }}
 
@@ -1744,34 +1744,35 @@ if app_mode == "📈 個股籌碼圖表":
       }}
 
       const s = r.snap || {{}};
-      const headerX = plotLeft + b.width * 0.012;
+      const headerX = plotLeft + b.width * 0.010;
       const headerY = b.top + b.height * (ax1TopFrac + 0.014);
-      const fontHeader = "bold 12px 'Courier New', monospace";
+      const fontHeader = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
 
-      // 1. 左側維持 [代碼] 名稱 與 日期開高低收量
-      const mainInfo = `[${{stockCode}}] ${{stockName}}   ${{s.header_text || ""}}`;
-      drawOutlinedText(mainInfo, headerX, headerY, "#FFFFFF", fontHeader);
+      // 1. 左側股票代碼、名稱與開高低收量
+      const mainInfo = `[${{stockCode}}] ${{stockName}}  ${{s.header_text || ""}}`;
+      drawOutlinedText(mainInfo, headerX, headerY, "#FFFFFF", fontHeader, 1.8);
 
-      // 2. 逆序天數放在量右側、靠近季線多空標籤左側
-      const revX = plotLeft + b.width * 0.455;
-      drawOutlinedText(`逆序:${{r.rev_no}}`, revX, headerY, "#00FFFF", fontHeader);
-
-      // 3. 右側季線多空標籤
+      // 2. 季線多空標籤
       const badgeX = plotLeft + b.width * 0.545;
-      drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", "bold 12px 'Courier New', monospace");
+      drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.8);
 
-      // 4. 均線列下移至 headerY + 19，項目間距稍加寬
+      // 3. 逆序天數放在季線多空標籤右側空白處
+      const revX = plotLeft + b.width * 0.655;
+      drawOutlinedText(`逆序:${{r.rev_no}}`, revX, headerY, "#00FFFF", fontHeader, 1.8);
+
+      // 4. 均線列下移至 headerY + 19
       if (r.ma_items && r.ma_items.length > 0) {{
         const maY = headerY + 19;
         let curX = headerX;
-        const fontMa = "bold 12px 'Courier New', monospace";
+        const fontMa = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
         r.ma_items.forEach((m) => {{
-          drawOutlinedText(m.text, curX, maY, m.color, fontMa);
-          curX += ctx.measureText(m.text).width + 4;
+          drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.8);
+          curX += ctx.measureText(m.text).width + 3;
         }});
       }}
 
-      const fontSub = "bold 12px 'Courier New', monospace";
+      // 5. 副圖指標與成交量文字（字型改用 Arial/正黑體並調為 12.5px 細描邊，方向鍵清楚不糊）
+      const fontSub = "bold 12.5px Arial, 'Microsoft JhengHei', sans-serif";
       if (isWaveMode) {{
         const s1Y = b.top + b.height * (sub1TopFrac + 0.014);
         drawTokensRow(s.ind_tokens, headerX, s1Y, fontSub);
