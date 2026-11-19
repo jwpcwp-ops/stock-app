@@ -61,7 +61,7 @@ st.markdown(
             height: 22px !important;
         }
         
-        /* 💡 上方快捷導航列按鈕美化 (青色外框、暗灰底、懸停發亮) */
+        /* 💡 第一行快捷導航列按鈕美化 (青色外框、暗灰底、懸停發亮) */
         div[data-testid="stHorizontalBlock"] button {
             background-color: #1a1a1a !important;
             color: #00ffff !important;
@@ -407,32 +407,10 @@ if "app_mode_state" not in st.session_state:
   st.session_state.app_mode_state = "📈 個股籌碼圖表"
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局 (頂部選單區右側整合 3 大快捷直達車)
+# 7. 網頁主介面佈局
+#    【第一行】：完全去除下拉選單，改由 3 個快捷按鈕一字排開
 # ---------------------------------------------------------
-top_col1, btn_col1, btn_col2, btn_col3 = st.columns([2.5, 2.5, 2.5, 2.5])
-
-mode_options = [
-    "📈 個股籌碼圖表",
-    "⚡ 9大策略選股",
-    "📋 大戶總表",
-    "📊 基本面與圖表",
-]
-
-with top_col1:
-  if st.session_state.app_mode_state not in mode_options:
-    st.session_state.app_mode_state = "📈 個股籌碼圖表"
-
-  # 💡 關鍵修復：取得目前模式在選單列表中的索引，確保點擊上方按鈕時選單同步切換
-  current_mode_index = mode_options.index(st.session_state.app_mode_state)
-
-  app_mode = st.selectbox(
-      "功能模式",
-      mode_options,
-      index=current_mode_index,
-      label_visibility="collapsed",
-      key="mode_select_dropdown",
-  )
-  st.session_state.app_mode_state = app_mode
+btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([2.5, 2.5, 2.5, 2.5])
 
 with btn_col1:
   if st.button("📈 個股籌碼圖表", use_container_width=True, key="top_go_chart"):
@@ -445,9 +423,16 @@ with btn_col2:
     st.rerun()
 
 with btn_col3:
+  if st.button("📋 大戶總表", use_container_width=True, key="top_go_table"):
+    st.session_state.app_mode_state = "📋 大戶總表"
+    st.rerun()
+
+with btn_col4:
   if st.button("📊 基本面與圖表", use_container_width=True, key="top_go_fund"):
     st.session_state.app_mode_state = "📊 基本面與圖表"
     st.rerun()
+
+app_mode = st.session_state.app_mode_state
 
 all_strategies = [
     "主力底部吃貨",
@@ -465,6 +450,7 @@ all_strategies = [
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
+  # 【第二行】：股票與週期選擇
   sec_row_cols = st.columns([2.0, 1.2, 6.8])
   with sec_row_cols[0]:
     if st.session_state.selected_index >= len(stock_options):
@@ -1547,7 +1533,7 @@ if app_mode == "📈 個股籌碼圖表":
     )
 
 # =========================================================
-# 分頁二：⚡ 9大策略選股 (點擊後直接直達目標頁面與股票)
+# 分頁二：⚡ 9大策略選股
 # =========================================================
 elif app_mode == "⚡ 9大策略選股":
   strat_cols = st.columns(len(all_strategies))
@@ -1564,7 +1550,7 @@ elif app_mode == "⚡ 9大策略選股":
   selected_strat = st.session_state.selected_synth_strat
 
   st.markdown(
-      f'<p class="sub-header-14">⚡  9 大策略選股結果 ｜當前策略：【'
+      f'<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【'
       f"{selected_strat}】</p>",
       unsafe_allow_html=True,
   )
