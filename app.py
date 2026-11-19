@@ -209,7 +209,7 @@ def load_stock_list():
 stock_options, stock_df = load_stock_list()
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取
+# 5. 本地快取支援與資料抓取 (先抓足夠歷史計算連貫均線與指標，再裁切顯示區間)
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -231,10 +231,8 @@ def load_local_cache_cached():
   return cache_dict
 
 
-def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"):
-  cache_dict = load_local_cache_cached()
-  today_str = datetime.today().strftime("%Y-%m-%d")
-
+@st.cache_data(ttl=300)
+def fetch_raw_history(stock_id, period_type, fetch_len):
   df_yf = pd.DataFrame()
   index_ticker_map = {"99991": "^TWII"}
 
@@ -244,19 +242,19 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
     tickers_to_try = [stock_id + ".TW", stock_id + ".TWO"]
 
   yf_interval = "1d"
-  yf_period = "3y" if target_days > 250 else "2y"
+  yf_period = "5y"
   if period_type in ["60分", "60分鐘"]:
     yf_interval = "60m"
     yf_period = "60d"
   elif period_type == "週線":
     yf_interval = "1wk"
-    yf_period = "5y"
+    yf_period = "10y"
   elif period_type == "月線":
     yf_interval = "1mo"
-    yf_period = "10y"
+    yf_period = "max"
   elif period_type == "日線":
     yf_interval = "1d"
-    yf_period = "3y" if target_days > 250 else "2y"
+    yf_period = "5y" if fetch_len > 350 else "3y"
 
   for ticker in tickers_to_try:
     try:
@@ -274,7 +272,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 
         df_yf = temp_df
         break
-    except:
+    except Exception:
       continue
 
   if period_type == "日線" and not df_yf.empty:
@@ -314,7 +312,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 
   if not df_yf.empty:
     df_yf = df_yf.dropna(subset=["Close"])
-    df_k = df_yf.tail(target_days).copy()
+    df_k = df_yf.tail(fetch_len).copy()
 
     if "Volume" not in df_k.columns or df_k["Volume"].sum() == 0:
       if stock_id == "99991":
@@ -326,20 +324,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
             np.random.randint(10000, 50000, size=len(df_k)) * 1000
         )
 
-    vol_series = df_k["Volume"]
-    vol_daily = vol_series / 1000
-    cur_vol = float(vol_daily.iloc[-1]) if len(vol_daily) > 0 else 0.0
-    vol_20ma_daily = vol_daily.rolling(20).mean()
-
-    val_20ma_raw = vol_20ma_daily.iloc[-1]
-    cur_20ma = (
-        float(val_20ma_raw)
-        if not pd.isna(val_20ma_raw) and val_20ma_raw > 0
-        else 1.0
-    )
-    ratio = cur_vol / cur_20ma if cur_20ma > 0 else 1.0
-
-    k_records = []
+    records = []
     for idx, row in df_k.iterrows():
       date_str = (
           idx.strftime("%Y/%m/%d %H:%M")
@@ -353,7 +338,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
       if o_val == c_val and h_val != l_val:
         o_val = l_val if c_val > l_val else h_val
 
-      k_records.append({
+      records.append({
           "date": date_str,
           "open": o_val,
           "high": h_val,
@@ -361,39 +346,181 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
           "close": c_val,
           "vol": float(row["Volume"]) / 1000,
       })
-  else:
-    cur_vol, cur_20ma, ratio = 12000.0, 10000.0, 1.2
-    dates = pd.date_range(end=datetime.today(), periods=target_days, freq="B")
-    prices = 100 + np.cumsum(np.random.randn(target_days) * 0.8)
-    k_records = []
-    for i, d in enumerate(dates):
-      k_records.append({
-          "date": d.strftime("%Y/%m/%d"),
-          "open": prices[i] - 0.5,
-          "high": prices[i] + 1.0,
-          "low": prices[i] - 1.0,
-          "close": prices[i],
-          "vol": np.random.randint(1000, 5000),
-      })
+    return records
+  return []
 
+
+def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
+  # 額外多抓 220 根暖機 K 棒，確保切換 120 / 250 / 500 天時均線與指標皆從先前走勢連貫延續
+  warmup_bars = 220
+  fetch_len = target_days + warmup_bars
+  raw_records = fetch_raw_history(stock_id, period_type, fetch_len)
+
+  if raw_records:
+    df_full = pd.DataFrame(raw_records)
+  else:
+    dates = pd.date_range(end=datetime.today(), periods=fetch_len, freq="B")
+    prices = 100 + np.cumsum(np.random.randn(fetch_len) * 0.8)
+    df_full = pd.DataFrame({
+        "date": [d.strftime("%Y/%m/%d") for d in dates],
+        "open": prices - 0.5,
+        "high": prices + 1.0,
+        "low": prices - 1.0,
+        "close": prices,
+        "vol": np.random.randint(1000, 5000, size=fetch_len).astype(float),
+    })
+
+  s_close = df_full["close"]
+  s_high = df_full["high"]
+  s_low = df_full["low"]
+
+  # 在完整歷史序列上計算所有均線與指標（連貫延續）
+  for period in [5, 10, 20, 35, 60, 120, 200]:
+    df_full[f"ma_{period}"] = s_close.rolling(window=period).mean()
+
+  ema3 = s_close.ewm(span=3, adjust=False).mean()
+  ema15 = s_close.ewm(span=15, adjust=False).mean()
+  ema30 = s_close.ewm(span=30, adjust=False).mean()
+
+  cond1 = ema3 > ema15
+  cond2 = ema15 < s_close
+  slope_1 = (ema15 / ema30 - 1) * 100
+  cond3 = slope_1 > 0.0
+  cond4 = ema15 > ema30
+
+  成立 = cond1 & cond2 & cond3 & cond4
+  不成立 = (~cond1) & (~cond2) & (~cond3) & (~cond4)
+
+  red_days, green_days = [], []
+  r_cnt, g_cnt = 999, 999
+  for val_s, val_ns in zip(成立, 不成立):
+    r_cnt = 0 if val_s else r_cnt + 1
+    g_cnt = 0 if val_ns else g_cnt + 1
+    red_days.append(r_cnt)
+    green_days.append(g_cnt)
+  df_full["red_days"] = red_days
+  df_full["green_days"] = green_days
+
+  raw_buy = 成立 & (df_full["red_days"] == 0)
+  raw_sell = 不成立 & (df_full["green_days"] == 0)
+
+  filtered_buy, filtered_sell = [], []
+  last_state = 0
+  for b, s in zip(raw_buy, raw_sell):
+    b_flag, s_flag = False, False
+    if b and last_state != 1:
+      b_flag = True
+      last_state = 1
+    elif s and last_state != -1:
+      s_flag = True
+      last_state = -1
+    filtered_buy.append(b_flag)
+    filtered_sell.append(s_flag)
+
+  df_full["is_buy_signal"] = filtered_buy
+  df_full["is_sell_signal"] = filtered_sell
+
+  df_full["band_macd_dif"] = (
+      s_close.ewm(span=5, adjust=False).mean()
+      - s_close.ewm(span=10, adjust=False).mean()
+  )
+  df_full["band_macd_dem"] = df_full["band_macd_dif"].ewm(
+      span=5, adjust=False
+  ).mean()
+  df_full["band_macd_osc"] = (
+      df_full["band_macd_dif"] - df_full["band_macd_dem"]
+  ) * 2
+
+  df_full["band_bias_base"] = s_close.rolling(window=20).mean()
+  df_full["band_bias_val"] = (
+      (s_close - df_full["band_bias_base"])
+      / (df_full["band_bias_base"] + 1e-8)
+  ) * 100
+  df_full["band_bias_val_rev"] = -1.0 * df_full["band_bias_val"]
+
+  df_full["mtm_val"] = s_close - s_close.shift(10)
+  df_full["mtm_ma1"] = df_full["mtm_val"].rolling(window=1).mean()
+
+  df_full["macd_dif"] = (
+      s_close.ewm(span=12, adjust=False).mean()
+      - s_close.ewm(span=26, adjust=False).mean()
+  )
+  df_full["macd_dem"] = df_full["macd_dif"].ewm(span=9, adjust=False).mean()
+  df_full["macd_osc"] = (df_full["macd_dif"] - df_full["macd_dem"]) * 2
+
+  df_full["bias_ma60"] = s_close.rolling(window=60).mean()
+  df_full["bias_val"] = (
+      (s_close - df_full["bias_ma60"]) / (df_full["bias_ma60"] + 1e-8)
+  ) * 100
+
+  low_min9 = s_low.rolling(9).min()
+  high_max9 = s_high.rolling(9).max()
+  rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
+  df_full["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
+  df_full["kdj_d"] = df_full["kdj_k"].ewm(com=2, adjust=False).mean()
+  df_full["kdj_j"] = 3 * df_full["kdj_k"] - 2 * df_full["kdj_d"]
+  df_full["kdj_diff"] = df_full["kdj_k"] - df_full["kdj_d"]
+
+  delta = s_close.diff()
+  gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
+  loss6 = (-delta.where(delta < 0, 0)).rolling(6).mean()
+  df_full["rsi_6"] = 100 - (100 / (1 + gain6 / (loss6 + 1e-8)))
+
+  gain12 = (delta.where(delta > 0, 0)).rolling(12).mean()
+  loss12 = (-delta.where(delta < 0, 0)).rolling(12).mean()
+  df_full["rsi_12"] = 100 - (100 / (1 + gain12 / (loss12 + 1e-8)))
+  df_full["rsi_diff"] = df_full["rsi_6"] - df_full["rsi_12"]
+
+  low_min9_w = s_low.rolling(9).min()
+  high_max9_w = s_high.rolling(9).max()
+  df_full["w_r"] = (
+      (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
+  )
+
+  df_full["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
+  df_full["vol_ma5"] = df_full["vol"].rolling(window=5).mean()
+  df_full["vol_ma20"] = df_full["vol"].rolling(window=20).mean()
+  df_full["long_trend"] = (
+      (
+          s_close.ewm(span=15, adjust=False).mean()
+          / s_close.ewm(span=30, adjust=False).mean()
+          - 1
+      )
+      * 100
+  ) > 0
+
+  # 最後才依使用者選擇的天數裁切顯示視窗，均線起點即承接先前走勢
+  df_show = df_full.tail(target_days).reset_index(drop=True)
+
+  cur_vol = float(df_show["vol"].iloc[-1]) if not df_show.empty else 0.0
+  val_20ma = (
+      float(df_show["vol_ma20"].iloc[-1])
+      if not df_show.empty and not pd.isna(df_show["vol_ma20"].iloc[-1])
+      else 1.0
+  )
+  cur_20ma = val_20ma if val_20ma > 0 else 1.0
+  v_ratio = cur_vol / cur_20ma
+
+  cache_dict = load_local_cache_cached()
+  today_str = datetime.today().strftime("%Y-%m-%d")
   if (
       stock_id in cache_dict
       and cache_dict[stock_id].get("update_date") == today_str
   ):
     cached = cache_dict[stock_id]
-    big_holder = np.array(cached.get("big_holder", [40.0] * len(k_records)))
-    sheep_holder = np.array(cached.get("sheep_holder", [42.0] * len(k_records)))
+    big_holder = np.array(cached.get("big_holder", [40.0] * len(df_show)))
+    sheep_holder = np.array(cached.get("sheep_holder", [42.0] * len(df_show)))
   else:
     seed_val = int(stock_id) if stock_id.isdigit() else 42
     np.random.seed(seed_val)
-    n_p = len(k_records)
+    n_p = len(df_show)
     base_big = 50.0 + np.cumsum(np.random.randn(n_p) * 0.6)
     big_holder = np.clip(base_big, 20.0, 85.0)
     sheep_holder = np.clip(
         100.0 - big_holder + np.random.randn(n_p) * 0.3, 15.0, 80.0
     )
 
-  return k_records, big_holder, sheep_holder, cur_vol, cur_20ma, ratio
+  return df_show, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio
 
 
 # ---------------------------------------------------------
@@ -435,7 +562,7 @@ with top_cols[0]:
   )
   try:
     st.session_state.selected_index = stock_options.index(selected_stock)
-  except:
+  except Exception:
     st.session_state.selected_index = 0
   stock_id = selected_stock.split()[0]
   stock_name = (
@@ -521,13 +648,12 @@ if app_mode == "📈 個股籌碼圖表":
   show_ma200 = "200" in selected_ma
   show_fib = "分割" in selected_ma
 
-  k_records, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
-      get_comprehensive_stock_data(
+  df, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
+      get_continuous_stock_df(
           stock_id, target_days=k_days_choice, period_type=actual_chart_period
       )
   )
 
-  df = pd.DataFrame(k_records)
   s_close = df["close"]
   s_high = df["high"]
   s_low = df["low"]
@@ -549,120 +675,12 @@ if app_mode == "📈 個股籌碼圖表":
       "200": (200, show_ma200, "#FFFFFF"),
   }
 
-  for ma_name, (period, is_show, color) in ma_config.items():
-    df[f"ma_{period}"] = s_close.rolling(window=period).mean()
-
   deduct_periods = [5, 35, 65, 120, 200]
   deduct_indices = {}
   n_len = len(df)
   for p in deduct_periods:
     idx_pos = n_len - p
-    if 0 <= idx_pos < n_len:
-      deduct_indices[p] = idx_pos
-    else:
-      deduct_indices[p] = 0
-
-  ema3 = s_close.ewm(span=3, adjust=False).mean()
-  ema15 = s_close.ewm(span=15, adjust=False).mean()
-  ema30 = s_close.ewm(span=30, adjust=False).mean()
-
-  cond1 = ema3 > ema15
-  cond2 = ema15 < s_close
-  slope_1 = (ema15 / ema30 - 1) * 100
-  a2_1 = 0.0
-  cond3 = slope_1 > a2_1
-  cond4 = ema15 > ema30
-
-  成立 = cond1 & cond2 & cond3 & cond4
-  不成立 = (~cond1) & (~cond2) & (~cond3) & (~cond4)
-
-  red_days, green_days = [], []
-  r_cnt, g_cnt = 999, 999
-  for val_s, val_ns in zip(成立, 不成立):
-    r_cnt = 0 if val_s else r_cnt + 1
-    g_cnt = 0 if val_ns else g_cnt + 1
-    red_days.append(r_cnt)
-    green_days.append(g_cnt)
-  df["red_days"] = red_days
-  df["green_days"] = green_days
-
-  raw_buy = 成立 & (df["red_days"] == 0)
-  raw_sell = 不成立 & (df["green_days"] == 0)
-
-  filtered_buy = []
-  filtered_sell = []
-  last_state = 0
-
-  for b, s in zip(raw_buy, raw_sell):
-    b_flag, s_flag = False, False
-    if b and last_state != 1:
-      b_flag = True
-      last_state = 1
-    elif s and last_state != -1:
-      s_flag = True
-      last_state = -1
-    filtered_buy.append(b_flag)
-    filtered_sell.append(s_flag)
-
-  df["is_buy_signal"] = filtered_buy
-  df["is_sell_signal"] = filtered_sell
-
-  df["band_macd_dif"] = (
-      s_close.ewm(span=5, adjust=False).mean()
-      - s_close.ewm(span=10, adjust=False).mean()
-  )
-  df["band_macd_dem"] = df["band_macd_dif"].ewm(span=5, adjust=False).mean()
-  df["band_macd_osc"] = (df["band_macd_dif"] - df["band_macd_dem"]) * 2
-
-  df["band_bias_base"] = s_close.rolling(window=20).mean()
-  df["band_bias_val"] = (
-      (s_close - df["band_bias_base"]) / (df["band_bias_base"] + 1e-8)
-  ) * 100
-  df["band_bias_val_rev"] = -1.0 * df["band_bias_val"]
-
-  df["mtm_val"] = s_close - s_close.shift(10)
-  df["mtm_ma1"] = df["mtm_val"].rolling(window=1).mean()
-
-  df["macd_dif"] = (
-      s_close.ewm(span=12, adjust=False).mean()
-      - s_close.ewm(span=26, adjust=False).mean()
-  )
-  df["macd_dem"] = df["macd_dif"].ewm(span=9, adjust=False).mean()
-  df["macd_osc"] = (df["macd_dif"] - df["macd_dem"]) * 2
-
-  df["bias_ma60"] = s_close.rolling(window=60).mean()
-  df["bias_val"] = ((s_close - df["bias_ma60"]) / (df["bias_ma60"] + 1e-8)) * 100
-
-  low_min9 = s_low.rolling(9).min()
-  high_max9 = s_high.rolling(9).max()
-  rsv = (s_close - low_min9) / (high_max9 - low_min9 + 1e-8) * 100
-  df["kdj_k"] = rsv.ewm(com=2, adjust=False).mean()
-  df["kdj_d"] = df["kdj_k"].ewm(com=2, adjust=False).mean()
-  df["kdj_j"] = 3 * df["kdj_k"] - 2 * df["kdj_d"]
-  df["kdj_diff"] = df["kdj_k"] - df["kdj_d"]
-
-  delta = s_close.diff()
-  gain6 = (delta.where(delta > 0, 0)).rolling(6).mean()
-  loss6 = (-delta.where(delta < 0, 0)).rolling(6).mean()
-  rs6 = gain6 / (loss6 + 1e-8)
-  df["rsi_6"] = 100 - (100 / (1 + rs6))
-
-  gain12 = (delta.where(delta > 0, 0)).rolling(12).mean()
-  loss12 = (-delta.where(delta < 0, 0)).rolling(12).mean()
-  rs12 = gain12 / (loss12 + 1e-8)
-  df["rsi_12"] = 100 - (100 / (1 + rs12))
-  df["rsi_diff"] = df["rsi_6"] - df["rsi_12"]
-
-  low_min9_w = s_low.rolling(9).min()
-  high_max9_w = s_high.rolling(9).max()
-  df["w_r"] = (
-      (high_max9_w - s_close) / (high_max9_w - low_min9_w + 1e-8) * -100
-  )
-
-  df["qt"] = s_close.diff().abs().rolling(5).mean().fillna(0)
-
-  df["vol_ma5"] = df["vol"].rolling(window=5).mean()
-  df["vol_ma20"] = df["vol"].rolling(window=20).mean()
+    deduct_indices[p] = idx_pos if 0 <= idx_pos < n_len else 0
 
   cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
   cur_dem = float(df["macd_dem"].iloc[-1]) if not df.empty else 0.0
@@ -710,16 +728,6 @@ if app_mode == "📈 個股籌碼圖表":
 
   v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
   v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
-
-  cond_trend_long = (
-      (
-          s_close.ewm(span=15, adjust=False).mean()
-          / s_close.ewm(span=30, adjust=False).mean()
-          - 1
-      )
-      * 100
-  ) > 0
-  df["long_trend"] = cond_trend_long
 
   BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
   BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
@@ -1555,7 +1563,7 @@ elif app_mode == "⚡ 9大策略選股":
   if os.path.exists(output_csv):
     try:
       df_res = pd.read_csv(output_csv, dtype={"代碼": str})
-    except:
+    except Exception:
       df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
   else:
     df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
