@@ -636,7 +636,7 @@ app_mode = st.session_state.app_mode_state
 if app_mode == "📈 個股籌碼圖表":
   third_row_cols = st.columns([1.45, 1.05, 0.5])
 
-  # 均線開關列：每條線獨立切換「開啟中 / 關閉」，開啟時套用該均線專屬色系
+# 均線開關列：未開啟保持清晰有精神，開啟時套用各均線專屬高亮色系
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
     ma_btn_color_map = {
@@ -659,7 +659,7 @@ if app_mode == "📈 個股籌碼圖表":
           st.session_state.ma_active_map[m_key] = not is_on
           st.rerun()
 
-    # 動態注入目前開啟中的均線按鈕專屬色系樣式（提高選擇器精準度覆蓋共用按鈕樣式）
+    # 動態注入目前開啟與未開啟均線按鈕樣式
     active_css_rules = []
     for m_key in ma_items:
       active_flag = st.session_state.ma_active_map.get(m_key, False)
@@ -677,6 +677,7 @@ if app_mode == "📈 個股籌碼圖表":
                         color: #000000 !important;
                         border: 1px solid #ffffff !important;
                         font-weight: bold !important;
+                        box-shadow: 0 0 5px {line_col} !important;
                     }}
                 """
         )
@@ -684,10 +685,11 @@ if app_mode == "📈 個股籌碼圖表":
         active_css_rules.append(
             f"""
                     {btn_sel} {{
-                        background-color: #151515 !important;
-                        color: #666666 !important;
-                        border: 1px solid #333333 !important;
-                        font-weight: normal !important;
+                        background-color: #181c22 !important;
+                        color: #b8c4d0 !important;
+                        border: 1px solid #3d4a5a !important;
+                        font-weight: bold !important;
+                        box-shadow: none !important;
                     }}
                 """
         )
