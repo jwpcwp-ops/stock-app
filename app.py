@@ -128,8 +128,8 @@ st.markdown(
         .terminal-panel {
             background-color: #0b0b0b;
             border: 1px solid #cc0000;
-            padding: 8px 10px;
-            margin-bottom: 4px;
+            padding: 6px 9px;
+            margin-bottom: 3px;
             font-family: 'Courier New', Courier, monospace;
             color: #ffffff;
             box-sizing: border-box;
@@ -138,15 +138,15 @@ st.markdown(
             color: #ffffff;
             background-color: #0000aa;
             font-weight: bold;
-            font-size: 13px;
+            font-size: 12.5px;
             padding: 2px 6px;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             text-align: center;
         }
         .t-row {
-            font-size: 12px;
-            line-height: 1.4;
-            margin-bottom: 2px;
+            font-size: 11.5px;
+            line-height: 1.32;
+            margin-bottom: 1px;
             display: flex;
             justify-content: space-between;
         }
@@ -659,16 +659,20 @@ if app_mode == "📈 個股籌碼圖表":
           st.session_state.ma_active_map[m_key] = not is_on
           st.rerun()
 
-    # 動態注入目前開啟中的均線按鈕專屬色系樣式
+    # 動態注入目前開啟中的均線按鈕專屬色系樣式（提高選擇器精準度覆蓋共用按鈕樣式）
     active_css_rules = []
     for m_key in ma_items:
       active_flag = st.session_state.ma_active_map.get(m_key, False)
       line_col = ma_btn_color_map.get(m_key, "#00FFFF")
-      btn_cls = f".st-key-ma_toggle_{m_key} button"
+      btn_sel = (
+          f"div.st-key-ma_toggle_{m_key} button,"
+          f" div[data-testid='stHorizontalBlock'] div.st-key-ma_toggle_{m_key}"
+          " button"
+      )
       if active_flag:
         active_css_rules.append(
             f"""
-                    {btn_cls} {{
+                    {btn_sel} {{
                         background-color: {line_col} !important;
                         color: #000000 !important;
                         border: 1px solid #ffffff !important;
@@ -679,7 +683,7 @@ if app_mode == "📈 個股籌碼圖表":
       else:
         active_css_rules.append(
             f"""
-                    {btn_cls} {{
+                    {btn_sel} {{
                         background-color: #151515 !important;
                         color: #666666 !important;
                         border: 1px solid #333333 !important;
@@ -830,11 +834,10 @@ if app_mode == "📈 個股籌碼圖表":
   chart_col, info_col = st.columns([8.2, 1.8])
 
   with chart_col:
-    fig = plt.figure(
-        figsize=(10.0, 4.2 if selected_indicator != "波段" else 5.4)
-    )
+    is_wave_mode = selected_indicator == "波段"
+    fig = plt.figure(figsize=(10.0, 5.4 if is_wave_mode else 4.65))
 
-    if selected_indicator == "波段":
+    if is_wave_mode:
       gs = fig.add_gridspec(4, 1, height_ratios=[2.5, 0.8, 0.8, 0.8], hspace=0.10)
       ax1 = fig.add_subplot(gs[0])
       ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
@@ -842,7 +845,7 @@ if app_mode == "📈 個股籌碼圖表":
       ax_sub3 = fig.add_subplot(gs[3], sharex=ax1)
       axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
     else:
-      gs = fig.add_gridspec(3, 1, height_ratios=[2.9, 1.1, 1.1], hspace=0.10)
+      gs = fig.add_gridspec(3, 1, height_ratios=[2.85, 1.15, 1.25], hspace=0.10)
       ax1 = fig.add_subplot(gs[0])
       ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
       ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
@@ -1061,7 +1064,7 @@ if app_mode == "📈 個股籌碼圖表":
         t_ma.set_path_effects(get_bright_effect("#000000", 2.5))
         text_x += 0.11
 
-    if selected_indicator == "波段":
+    if is_wave_mode:
       cur_band_dif = (
           float(df["band_macd_dif"].iloc[-1]) if not df.empty else 0.0
       )
@@ -1446,8 +1449,9 @@ if app_mode == "📈 個股籌碼圖表":
         spine.set_color("#777777")
         spine.set_linewidth(1.3)
 
+    bottom_margin = 0.08 if is_wave_mode else 0.06
     plt.subplots_adjust(
-        left=0.01, right=0.99, top=0.98, bottom=0.08, hspace=0.10
+        left=0.01, right=0.99, top=0.98, bottom=bottom_margin, hspace=0.10
     )
     st.pyplot(fig, use_container_width=True, dpi=150)
 
