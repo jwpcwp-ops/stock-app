@@ -19,8 +19,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# 均線粗細設定（數值越小越細，0.3 ~ 0.5 較不遮擋 K 線）
+MA_LINE_WIDTH = 0.4
+
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (調整文字、排版與按鈕高亮)
+# 2. 注入自訂 CSS (調整文字、排版、按鈕高亮與均線 Pills 啟用/關閉辨識)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -87,15 +90,32 @@ st.markdown(
             padding-left: 4px !important;
             padding-right: 4px !important;
         }
+
+        /* Pills 基礎樣式 */
         div[data-testid="stPills"] button {
-            font-size: 8.5px !important;
+            font-size: 9.0px !important;
             padding: 2px 6px !important;
             margin: 0px 1px !important;
             min-height: 22px !important;
             height: 22px !important;
             border-radius: 4px !important;
             line-height: 1.1 !important;
+            font-weight: bold !important;
         }
+
+        /* 均線 Pills：關閉（未選取）為暗灰底＋淺灰字；使用中（已選取 aria-pressed="true"）為亮青底＋黑字高亮 */
+        .st-key-pills_ma div[data-testid="stPills"] button[aria-pressed="false"] {
+            background-color: #181818 !important;
+            color: #777777 !important;
+            border: 1px solid #3a3a3a !important;
+        }
+        .st-key-pills_ma div[data-testid="stPills"] button[aria-pressed="true"] {
+            background-color: #00ffff !important;
+            color: #000000 !important;
+            border: 1px solid #ffffff !important;
+            box-shadow: 0 0 6px rgba(0, 255, 255, 0.75) !important;
+        }
+
         div[data-testid="stPills"] {
             gap: 2px !important;
             flex-wrap: wrap !important;
@@ -351,7 +371,6 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
 
 
 def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
-  # 額外多抓 220 根暖機 K 棒，確保切換 120 / 250 / 500 天時均線與指標皆從先前走勢連貫延續
   warmup_bars = 220
   fetch_len = target_days + warmup_bars
   raw_records = fetch_raw_history(stock_id, period_type, fetch_len)
@@ -374,7 +393,6 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
   s_high = df_full["high"]
   s_low = df_full["low"]
 
-  # 在完整歷史序列上計算所有均線與指標（連貫延續）
   for period in [5, 10, 20, 35, 60, 120, 200]:
     df_full[f"ma_{period}"] = s_close.rolling(window=period).mean()
 
@@ -489,7 +507,6 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
       * 100
   ) > 0
 
-  # 最後才依使用者選擇的天數裁切顯示視窗，均線起點即承接先前走勢
   df_show = df_full.tail(target_days).reset_index(drop=True)
 
   cur_vol = float(df_show["vol"].iloc[-1]) if not df_show.empty else 0.0
@@ -610,11 +627,13 @@ if app_mode == "📈 個股籌碼圖表":
     selected_ma = st.pills(
         "均線",
         ["5", "10", "20", "35", "60", "120", "200", "分割"],
-        default=["60", "200"],
+        default=["60"],
         selection_mode="multi",
         label_visibility="collapsed",
         key="pills_ma",
     )
+    if selected_ma is None:
+      selected_ma = []
 
   with third_row_cols[1]:
     selected_indicator = st.pills(
@@ -826,7 +845,12 @@ if app_mode == "📈 個股籌碼圖表":
       if is_show:
         ma_series = df[f"ma_{period}"]
         ax1.plot(
-            x, ma_series, linewidth=0.8, color=color, linestyle="-", alpha=1.0
+            x,
+            ma_series,
+            linewidth=MA_LINE_WIDTH,
+            color=color,
+            linestyle="-",
+            alpha=1.0,
         )
         val_now = (
             float(ma_series.iloc[-1])
@@ -994,10 +1018,10 @@ if app_mode == "📈 個股籌碼圖表":
           alpha=1.0,
       )
       ax_sub1.plot(
-          x, df["band_macd_dif"], linewidth=0.7, color="#FFFF00", label="DIF"
+          x, df["band_macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF"
       )
       ax_sub1.plot(
-          x, df["band_macd_dem"], linewidth=0.7, color="#FF3333", label="MACD"
+          x, df["band_macd_dem"], linewidth=0.6, color="#FF3333", label="MACD"
       )
       ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
       ax_sub1.yaxis.tick_right()
@@ -1024,7 +1048,7 @@ if app_mode == "📈 個股籌碼圖表":
       ax_sub2.plot(
           x,
           df["band_bias_val_rev"],
-          linewidth=0.7,
+          linewidth=0.6,
           color="#00FFFF",
           label="BIAS(反向)",
       )
@@ -1048,10 +1072,10 @@ if app_mode == "📈 個股籌碼圖表":
 
       ax_sub3.set_facecolor(PANEL_BG)
       ax_sub3.plot(
-          x, df["mtm_val"], linewidth=0.7, color="#FFFF00", label="MTM"
+          x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM"
       )
       ax_sub3.plot(
-          x, df["mtm_ma1"], linewidth=0.7, color="#00FF66", label="Avg"
+          x, df["mtm_ma1"], linewidth=0.6, color="#00FF66", label="Avg"
       )
       ax_sub3.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
       ax_sub3.yaxis.tick_right()
@@ -1086,10 +1110,10 @@ if app_mode == "📈 個股籌碼圖表":
             alpha=1.0,
         )
         ax_sub1.plot(
-            x, df["macd_dif"], linewidth=0.7, color="#FF00FF", label="DIF"
+            x, df["macd_dif"], linewidth=0.6, color="#FF00FF", label="DIF"
         )
         ax_sub1.plot(
-            x, df["macd_dem"], linewidth=0.7, color="#00FFFF", label="DEA"
+            x, df["macd_dem"], linewidth=0.6, color="#00FFFF", label="DEA"
         )
         osc_color = "#FF3333" if cur_osc >= 0 else "#00E64D"
         macd_tokens = [
@@ -1119,7 +1143,7 @@ if app_mode == "📈 個股籌碼圖表":
         ax_sub1.plot(
             x,
             df["bias_val"],
-            linewidth=0.7,
+            linewidth=0.6,
             color="#FFFF00",
             label="BIAS(60)",
         )
@@ -1142,13 +1166,13 @@ if app_mode == "📈 個股籌碼圖表":
         diff_arrow = "↑" if cur_diff >= 0 else "↓"
 
         ax_sub1.plot(
-            x, df["kdj_k"], linewidth=0.7, color="#FF00FF", label="K"
+            x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K"
         )
         ax_sub1.plot(
-            x, df["kdj_d"], linewidth=0.7, color="#00FFFF", label="D"
+            x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D"
         )
         ax_sub1.plot(
-            x, df["kdj_j"], linewidth=0.7, color="#FFFFFF", label="J"
+            x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J"
         )
 
         kdj_tokens = [
@@ -1182,10 +1206,10 @@ if app_mode == "📈 個股籌碼圖表":
         cur_rdiff = float(df["rsi_diff"].iloc[-1]) if not df.empty else 0.0
         rdiff_arrow = "↑" if cur_rdiff >= 0 else "↓"
         ax_sub1.plot(
-            x, df["rsi_6"], linewidth=0.7, color="#FF00FF", label="RSI6"
+            x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6"
         )
         ax_sub1.plot(
-            x, df["rsi_12"], linewidth=0.7, color="#00FFFF", label="RSI12"
+            x, df["rsi_12"], linewidth=0.6, color="#00FFFF", label="RSI12"
         )
 
         rsi_tokens = [
@@ -1213,7 +1237,7 @@ if app_mode == "📈 個股籌碼圖表":
 
       elif selected_indicator == "W%":
         cur_wr = float(df["w_r"].iloc[-1]) if not df.empty else 0.0
-        ax_sub1.plot(x, df["w_r"], linewidth=0.7, color="#FFFF00", label="W%")
+        ax_sub1.plot(x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%")
         t_wr = ax_sub1.text(
             0.015,
             0.84,
@@ -1254,7 +1278,7 @@ if app_mode == "📈 個股籌碼圖表":
               x,
               b_plot,
               color="#FF3333",
-              linewidth=0.7,
+              linewidth=0.6,
               linestyle="-",
               label="大戶(%)",
           )
@@ -1262,7 +1286,7 @@ if app_mode == "📈 個股籌碼圖表":
               x,
               s_plot,
               color="#00E64D",
-              linewidth=0.7,
+              linewidth=0.6,
               linestyle="-",
               label="羊群(%)",
           )
@@ -1299,7 +1323,7 @@ if app_mode == "📈 個股籌碼圖表":
       ax_sub2.plot(
           x,
           df["vol_ma5"],
-          linewidth=0.7,
+          linewidth=0.6,
           color="#FFFF00",
           label="Vol MA5",
           alpha=0.95,
@@ -1307,7 +1331,7 @@ if app_mode == "📈 個股籌碼圖表":
       ax_sub2.plot(
           x,
           df["vol_ma20"],
-          linewidth=0.7,
+          linewidth=0.6,
           color="#FF9900",
           label="Vol MA20",
           alpha=0.95,
