@@ -662,7 +662,6 @@ def build_bar_analysis_snapshot(
   else:
     wave_txt, wave_cls = "空方波段整理中", "t-val-green"
 
-  # 副圖指標原位 tokens（依目前選擇的指標）
   ind_tokens = []
   if selected_indicator == "MACD":
     dif_v = float(r["macd_dif"])
@@ -1015,53 +1014,6 @@ if app_mode == "📈 個股籌碼圖表":
     idx_pos = n_len - p
     deduct_indices[p] = idx_pos if 0 <= idx_pos < n_len else 0
 
-  cur_dif = float(df["macd_dif"].iloc[-1]) if not df.empty else 0.0
-  cur_dem = float(df["macd_dem"].iloc[-1]) if not df.empty else 0.0
-  cur_osc = float(df["macd_osc"].iloc[-1]) if not df.empty else 0.0
-  cur_bias = float(df["bias_val"].iloc[-1]) if not df.empty else 0.0
-  cur_mtm = float(df["mtm_val"].iloc[-1]) if not df.empty else 0.0
-
-  prev_dif = float(df["macd_dif"].iloc[-2]) if len(df) > 1 else cur_dif
-  dif_arrow = "↑" if cur_dif >= prev_dif else "↓"
-  prev_dem = float(df["macd_dem"].iloc[-2]) if len(df) > 1 else cur_dem
-  dem_arrow = "↑" if cur_dem >= prev_dem else "↓"
-  prev_osc = float(df["macd_osc"].iloc[-2]) if len(df) > 1 else cur_osc
-  osc_arrow = "↑" if cur_osc >= prev_osc else "↓"
-
-  cur_vol_val = last_vol
-  cur_vol_ma5 = (
-      float(df["vol_ma5"].iloc[-1])
-      if not pd.isna(df["vol_ma5"].iloc[-1])
-      else 0.0
-  )
-  cur_vol_ma20 = (
-      float(df["vol_ma20"].iloc[-1])
-      if not pd.isna(df["vol_ma20"].iloc[-1])
-      else 0.0
-  )
-
-  prev_vol_ma5 = (
-      float(df["vol_ma5"].iloc[-2])
-      if len(df) > 1 and not pd.isna(df["vol_ma5"].iloc[-2])
-      else cur_vol_ma5
-  )
-  prev_vol_ma20 = (
-      float(df["vol_ma20"].iloc[-2])
-      if len(df) > 1 and not pd.isna(df["vol_ma20"].iloc[-2])
-      else cur_vol_ma20
-  )
-
-  v5_arrow = "↓" if cur_vol_ma5 < prev_vol_ma5 else "↑"
-  v20_arrow = "↓" if cur_vol_ma20 < prev_vol_ma20 else "↑"
-  vol_today_arrow = (
-      "↓"
-      if last_vol < (float(df["vol"].iloc[-2]) if len(df) > 1 else last_vol)
-      else "↑"
-  )
-
-  v5_val_ratio = cur_vol_val / cur_vol_ma5 if cur_vol_ma5 > 0 else 1.0
-  v20_val_ratio = cur_vol_val / cur_vol_ma20 if cur_vol_ma20 > 0 else 1.0
-
   BG_COLOR, PANEL_BG, GRID_COLOR = "#000000", "#000000", "#333333"
   BAR_UP_COLOR, BAR_DOWN_COLOR = "#FF3333", "#00E64D"
 
@@ -1153,7 +1105,6 @@ if app_mode == "📈 個股籌碼圖表":
       )
       t_num.set_path_effects(get_bright_effect("#000000", 2.5))
 
-  last_idx = len(df) - 1
   for ma_name, (period, is_show, color) in ma_config.items():
     if is_show:
       ma_series = df[f"ma_{period}"].ffill().bfill()
@@ -1243,14 +1194,6 @@ if app_mode == "📈 個股籌碼圖表":
   plt.setp(ax1.get_xticklabels(), visible=False)
   ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-  ma60_val = (
-      df["ma_60"].iloc[-1]
-      if "ma_60" in df.columns and not pd.isna(df["ma_60"].iloc[-1])
-      else 0
-  )
-  is_bull = last_close >= ma60_val
-
-  # 副圖底圖繪製（文字改由 Canvas 原位動態繪製，避免重疊與死板）
   if is_wave_mode:
     ax_sub1.set_facecolor(PANEL_BG)
     ax_sub1.bar(
@@ -1446,7 +1389,6 @@ if app_mode == "📈 個股籌碼圖表":
   ax_x0 = float(ax1_bbox.x0)
   ax_x1 = float(ax1_bbox.x1)
 
-  # 轉換 matplotlib figure 座標 (0~1, 從下往上) 為圖片像素比例 (從上往下)
   ax1_top_frac = float(1.0 - ax1_bbox.y1)
   sub1_top_frac = float(1.0 - ax_sub1_bbox.y1)
   sub2_top_frac = float(1.0 - ax_sub2_bbox.y1)
@@ -1719,19 +1661,21 @@ if app_mode == "📈 個股籌碼圖表":
       const headerY = b.top + b.height * (ax1TopFrac + 0.015);
       const fontHeader = "bold 11.5px 'Courier New', monospace";
 
-      // 原位清掉舊表頭底區並繪製該根 K 棒資訊（類似飛狐表頭格式）
       ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.78)";
-      ctx.fillRect(headerX - 2, headerY - 1, b.width * 0.78, 16);
+      ctx.fillStyle = "rgba(0,0,0,0.82)";
+      ctx.fillRect(headerX - 2, headerY - 1, b.width * 0.84, 16);
       ctx.restore();
 
-      const fullHeader = `[${{stockCode}}] ${{stockName}}  ${{s.header_text || ""}}  #${{r.rev_no}}`;
-      drawOutlinedText(fullHeader, headerX, headerY, "#FFFFFF", fontHeader);
+      const revPrefix = `逆序:${{r.rev_no}}  `;
+      drawOutlinedText(revPrefix, headerX, headerY, "#00FFFF", fontHeader);
+      const afterRevX = headerX + ctx.measureText(revPrefix).width;
 
-      const badgeX = plotLeft + b.width * 0.58;
+      const mainInfo = `[${{stockCode}}] ${{stockName}}  ${{s.header_text || ""}}`;
+      drawOutlinedText(mainInfo, afterRevX, headerY, "#FFFFFF", fontHeader);
+
+      const badgeX = plotLeft + b.width * 0.65;
       drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", "bold 11px 'Courier New', monospace");
 
-      // 原位更新均線數值列（維持在原本均線位置）
       if (r.ma_items && r.ma_items.length > 0) {{
         const maY = headerY + 15;
         let curX = headerX;
@@ -1747,7 +1691,6 @@ if app_mode == "📈 個股籌碼圖表":
         }});
       }}
 
-      // 副圖原位更新指標與成交量文字
       const fontSub = "bold 10.5px 'Courier New', monospace";
       if (!isWaveMode) {{
         const sub1Y = b.top + b.height * (sub1TopFrac + 0.02);
