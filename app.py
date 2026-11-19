@@ -419,26 +419,58 @@ all_strategies = [
 ]
 
 # ---------------------------------------------------------
-# 7. 網頁主介面佈局：將「4個功能按鈕 + 個股選單 + 週期選單」全部整合在同一行！
+# 7. 網頁主介面佈局：【個股選單 + 週期選單】在最左側，右側為 4 個快捷按鈕
 # ---------------------------------------------------------
-top_cols = st.columns([1.8, 1.8, 1.5, 1.8, 2.2, 1.2])
+top_cols = st.columns([2.2, 1.2, 1.8, 1.8, 1.5, 1.8])
 
+# 1. 最左側：個股選單
 with top_cols[0]:
+  if st.session_state.selected_index >= len(stock_options):
+    st.session_state.selected_index = 0
+  selected_stock = st.selectbox(
+      "股票選單",
+      stock_options,
+      index=st.session_state.selected_index,
+      label_visibility="collapsed",
+      key="stock_select_box_top",
+  )
+  try:
+    st.session_state.selected_index = stock_options.index(selected_stock)
+  except:
+    st.session_state.selected_index = 0
+  stock_id = selected_stock.split()[0]
+  stock_name = (
+      selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
+  )
+
+# 2. 左側第二欄：週期選單
+with top_cols[1]:
+  chart_period = st.selectbox(
+      "週期",
+      ["日線", "60分", "週線", "月線"],
+      index=0,
+      label_visibility="collapsed",
+      key="select_period_dropdown_top",
+  )
+  actual_chart_period = chart_period
+
+# 3. 右側四欄：4 大功能快捷切換按鈕
+with top_cols[2]:
   if st.button("📈 個股籌碼圖表", use_container_width=True, key="top_go_chart"):
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
     st.rerun()
 
-with top_cols[1]:
+with top_cols[3]:
   if st.button("⚡ 9大策略選股", use_container_width=True, key="top_go_strat"):
     st.session_state.app_mode_state = "⚡ 9大策略選股"
     st.rerun()
 
-with top_cols[2]:
+with top_cols[4]:
   if st.button("📋 大戶總表", use_container_width=True, key="top_go_table"):
     st.session_state.app_mode_state = "📋 大戶總表"
     st.rerun()
 
-with top_cols[3]:
+with top_cols[5]:
   if st.button("📊 基本面與圖表", use_container_width=True, key="top_go_fund"):
     st.session_state.app_mode_state = "📊 基本面與圖表"
     st.rerun()
