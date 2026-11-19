@@ -94,7 +94,7 @@ st.markdown(
             border: 1px solid #ffffff !important;
         }
 
-        /* 確保圖表右上角 Fullscreen 放大符號清楚顯示（不被黑色覆蓋） */
+        /* 確保圖表右上角 Fullscreen 放大符號清楚顯示 */
         button[title="Fullscreen"],
         [data-testid="stElementToolbar"] button,
         div[data-testid="stFullScreenFrame"] button {
@@ -102,6 +102,7 @@ st.markdown(
             color: #00ffff !important;
             border: 1px solid #00ffff !important;
             opacity: 1 !important;
+            z-index: 30 !important;
         }
         button[title="Fullscreen"] svg,
         [data-testid="stElementToolbar"] button svg,
@@ -663,6 +664,9 @@ def build_bar_analysis_snapshot(
     wave_txt, wave_cls = "空方波段整理中", "t-val-green"
 
   ind_tokens = []
+  sub2_tokens = []
+  sub3_tokens = []
+
   if selected_indicator == "MACD":
     dif_v = float(r["macd_dif"])
     dem_v = float(r["macd_dem"])
@@ -739,8 +743,33 @@ def build_bar_analysis_snapshot(
     ]
   elif selected_indicator == "波段":
     bdif_v = float(r["band_macd_dif"])
+    bdem_v = float(r["band_macd_dem"])
+    bosc_v = float(r["band_macd_osc"])
+    bbias_rev_v = float(r["band_bias_val_rev"])
+    mtm_v = float(r["mtm_val"])
+    mtm_avg_v = float(r["mtm_ma1"])
+
     ind_tokens = [
-        {"text": f"波段 MACD(5,10)  DIF:{bdif_v:.2f}", "color": "#FFFFFF"}
+        {"text": "波段 MACD(5,10,5)  ", "color": "#FFFFFF"},
+        {"text": "DIF:", "color": "#FFFF00"},
+        {"text": f"{bdif_v:.2f}  ", "color": "#FFFF00"},
+        {"text": "DEA:", "color": "#FF3333"},
+        {"text": f"{bdem_v:.2f}  ", "color": "#FF3333"},
+        {
+            "text": f"OSC:{bosc_v:.2f}",
+            "color": "#FF3333" if bosc_v >= 0 else "#00E64D",
+        },
+    ]
+    sub2_tokens = [
+        {"text": "波段 BIAS(20,反向)  ", "color": "#FFFFFF"},
+        {"text": f"{bbias_rev_v:.2f}%", "color": "#00FFFF"},
+    ]
+    sub3_tokens = [
+        {"text": "波段 MTM(10,1)  ", "color": "#FFFFFF"},
+        {"text": "MTM:", "color": "#FFFF00"},
+        {"text": f"{mtm_v:.2f}  ", "color": "#FFFF00"},
+        {"text": "Avg:", "color": "#00FF66"},
+        {"text": f"{mtm_avg_v:.2f}", "color": "#00FF66"},
     ]
 
   prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
@@ -777,6 +806,8 @@ def build_bar_analysis_snapshot(
       "trend_badge_color": "#FF3333" if is_bull else "#00E64D",
       "period_badge": f" {period_label} ",
       "ind_tokens": ind_tokens,
+      "sub2_tokens": sub2_tokens,
+      "sub3_tokens": sub3_tokens,
       "vol_tokens": vol_tokens,
       "ma_status": ma_status,
       "ma_cls": ma_cls,
@@ -990,10 +1021,6 @@ if app_mode == "📈 個股籌碼圖表":
       )
   )
 
-  last_date = df["date"].iloc[-1] if not df.empty else ""
-  last_open = float(df["open"].iloc[-1]) if not df.empty else 0.0
-  last_high = float(df["high"].iloc[-1]) if not df.empty else 0.0
-  last_low = float(df["low"].iloc[-1]) if not df.empty else 0.0
   last_close = float(df["close"].iloc[-1]) if not df.empty else 0.0
   last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
@@ -1037,10 +1064,13 @@ if app_mode == "📈 個股籌碼圖表":
   plt.style.use("dark_background")
 
   is_wave_mode = selected_indicator == "波段"
-  fig = plt.figure(figsize=(10.0, 5.4 if is_wave_mode else 4.65))
+  # 維持原本整體尺寸，波段模式切分 4 格而不是放大整個畫面
+  fig = plt.figure(figsize=(10.0, 4.65))
 
   if is_wave_mode:
-    gs = fig.add_gridspec(4, 1, height_ratios=[2.5, 0.8, 0.8, 0.8], hspace=0.10)
+    gs = fig.add_gridspec(
+        4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=0.08
+    )
     ax1 = fig.add_subplot(gs[0])
     ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
     ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
@@ -1051,28 +1081,35 @@ if app_mode == "📈 個股籌碼圖表":
     ax1 = fig.add_subplot(gs[0])
     ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
     ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
+    ax_sub3 = None
     axes = [ax1, ax_sub1, ax_sub2]
 
   for ax in [fig] + list(axes):
     ax.set_facecolor(BG_COLOR)
   fig.patch.set_facecolor(BG_COLOR)
-  x = list(range(len(df)))
+  x = np.arange(len(df))
 
   ax1.set_facecolor(PANEL_BG)
   ax1.vlines(
-      x, df["low"], df["high"], color=body_colors, linewidth=0.7, alpha=1.0
+      x,
+      df["low"],
+      df["high"],
+      color=body_colors,
+      linewidth=0.75,
+      alpha=1.0,
+      zorder=2,
   )
-  body_bottom = [min(o, c) for o, c in zip(df["open"], df["close"])]
-  body_height = [
-      max(abs(c - o), 0.01) for o, c in zip(df["open"], df["close"])
-  ]
+  body_bottom = np.minimum(df["open"].values, df["close"].values)
+  body_height = np.maximum(np.abs(df["close"].values - df["open"].values), 0.01)
   ax1.bar(
       x,
       body_height,
       bottom=body_bottom,
-      width=0.8,
+      width=0.78,
       color=body_colors,
       edgecolor="none",
+      linewidth=0,
+      zorder=3,
   )
 
   x_min_bar = -1.0
@@ -1115,6 +1152,7 @@ if app_mode == "📈 個股籌碼圖表":
           color=color,
           linestyle="-",
           alpha=1.0,
+          zorder=4,
       )
 
   if show_fib and not df.empty:
@@ -1178,19 +1216,20 @@ if app_mode == "📈 個股籌碼圖表":
       BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR
       for is_bull in df["long_trend"]
   ]
-  for i, col in enumerate(trend_colors):
-    ax1.bar(
-        x[i],
-        band_height,
-        bottom=ymin_lim,
-        width=1.0,
-        color=col,
-        edgecolor="none",
-        alpha=1.0,
-    )
+  ax1.bar(
+      x,
+      np.full(len(x), band_height),
+      bottom=ymin_lim,
+      width=1.0,
+      color=trend_colors,
+      edgecolor="none",
+      linewidth=0,
+      alpha=1.0,
+      zorder=2,
+  )
 
   ax1.yaxis.tick_right()
-  ax1.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+  ax1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
   plt.setp(ax1.get_xticklabels(), visible=False)
   ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
@@ -1202,17 +1241,29 @@ if app_mode == "📈 個股籌碼圖表":
         width=0.75,
         color=band_macd_bar_colors,
         edgecolor="none",
+        linewidth=0,
         alpha=1.0,
+        zorder=2,
     )
     ax_sub1.plot(
-        x, df["band_macd_dif"], linewidth=0.6, color="#FFFF00", label="DIF"
+        x,
+        df["band_macd_dif"],
+        linewidth=0.6,
+        color="#FFFF00",
+        label="DIF",
+        zorder=3,
     )
     ax_sub1.plot(
-        x, df["band_macd_dem"], linewidth=0.6, color="#FF3333", label="MACD"
+        x,
+        df["band_macd_dem"],
+        linewidth=0.6,
+        color="#FF3333",
+        label="MACD",
+        zorder=3,
     )
     ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
     ax_sub1.yaxis.tick_right()
-    ax_sub1.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+    ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
     plt.setp(ax_sub1.get_xticklabels(), visible=False)
     ax_sub1.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
@@ -1222,13 +1273,14 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub2.plot(
         x,
         df["band_bias_val_rev"],
-        linewidth=0.6,
+        linewidth=0.65,
         color="#00FFFF",
         label="BIAS(反向)",
+        zorder=3,
     )
     ax_sub2.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
     ax_sub2.yaxis.tick_right()
-    ax_sub2.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+    ax_sub2.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
     plt.setp(ax_sub2.get_xticklabels(), visible=False)
     ax_sub2.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
@@ -1236,19 +1288,19 @@ if app_mode == "📈 個股籌碼圖表":
 
     ax_sub3.set_facecolor(PANEL_BG)
     ax_sub3.plot(
-        x, df["mtm_val"], linewidth=0.6, color="#FFFF00", label="MTM"
+        x, df["mtm_val"], linewidth=0.65, color="#FFFF00", label="MTM", zorder=3
     )
     ax_sub3.plot(
-        x, df["mtm_ma1"], linewidth=0.6, color="#00FF66", label="Avg"
+        x, df["mtm_ma1"], linewidth=0.65, color="#00FF66", label="Avg", zorder=3
     )
     ax_sub3.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
     ax_sub3.yaxis.tick_right()
-    ax_sub3.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
-    ax_sub3.tick_params(axis="x", labelsize=8.0, colors="#FFFFFF")
+    ax_sub3.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    ax_sub3.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
     plt.setp(ax_sub3.get_xticklabels(), visible=True)
     for label in ax_sub3.get_xticklabels():
       label.set_color("#FFFFFF")
-      label.set_fontsize(8.0)
+      label.set_fontsize(7.5)
     ax_sub3.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
@@ -1261,13 +1313,25 @@ if app_mode == "📈 個股籌碼圖表":
           width=0.75,
           color=macd_bar_colors,
           edgecolor="none",
+          linewidth=0,
           alpha=1.0,
+          zorder=2,
       )
       ax_sub1.plot(
-          x, df["macd_dif"], linewidth=0.6, color="#FF00FF", label="DIF"
+          x,
+          df["macd_dif"],
+          linewidth=0.6,
+          color="#FF00FF",
+          label="DIF",
+          zorder=3,
       )
       ax_sub1.plot(
-          x, df["macd_dem"], linewidth=0.6, color="#00FFFF", label="DEA"
+          x,
+          df["macd_dem"],
+          linewidth=0.6,
+          color="#00FFFF",
+          label="DEA",
+          zorder=3,
       )
     elif selected_indicator == "BIAS":
       ax_sub1.plot(
@@ -1276,26 +1340,34 @@ if app_mode == "📈 個股籌碼圖表":
           linewidth=0.6,
           color="#FFFF00",
           label="BIAS(60)",
+          zorder=3,
       )
     elif selected_indicator == "KDJ":
       ax_sub1.plot(
-          x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K"
+          x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K", zorder=3
       )
       ax_sub1.plot(
-          x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D"
+          x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D", zorder=3
       )
       ax_sub1.plot(
-          x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J"
+          x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J", zorder=3
       )
     elif selected_indicator == "RSI":
       ax_sub1.plot(
-          x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6"
+          x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6", zorder=3
       )
       ax_sub1.plot(
-          x, df["rsi_12"], linewidth=0.6, color="#00FFFF", label="RSI12"
+          x,
+          df["rsi_12"],
+          linewidth=0.6,
+          color="#00FFFF",
+          label="RSI12",
+          zorder=3,
       )
     elif selected_indicator == "W%":
-      ax_sub1.plot(x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%")
+      ax_sub1.plot(
+          x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%", zorder=3
+      )
     elif selected_indicator == "QT":
       ax_sub1.bar(
           x,
@@ -1303,7 +1375,9 @@ if app_mode == "📈 個股籌碼圖表":
           width=0.75,
           color=qt_bar_colors,
           edgecolor="none",
+          linewidth=0,
           alpha=1.0,
+          zorder=2,
       )
     elif selected_indicator == "大戶羊群":
       if len(big_holder) > 0 and len(sheep_holder) > 0:
@@ -1316,6 +1390,7 @@ if app_mode == "📈 個股籌碼圖表":
             linewidth=0.6,
             linestyle="-",
             label="大戶(%)",
+            zorder=3,
         )
         ax_sub1.plot(
             x,
@@ -1324,11 +1399,12 @@ if app_mode == "📈 個股籌碼圖表":
             linewidth=0.6,
             linestyle="-",
             label="羊群(%)",
+            zorder=3,
         )
 
     ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
     ax_sub1.yaxis.tick_right()
-    ax_sub1.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
+    ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
     plt.setp(ax_sub1.get_xticklabels(), visible=False)
     ax_sub1.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
@@ -1341,7 +1417,9 @@ if app_mode == "📈 個股籌碼圖表":
         width=0.75,
         color=body_colors,
         edgecolor="none",
+        linewidth=0,
         alpha=1.0,
+        zorder=2,
     )
     ax_sub2.plot(
         x,
@@ -1350,6 +1428,7 @@ if app_mode == "📈 個股籌碼圖表":
         color="#FFFF00",
         label="Vol MA5",
         alpha=0.95,
+        zorder=3,
     )
     ax_sub2.plot(
         x,
@@ -1358,14 +1437,15 @@ if app_mode == "📈 個股籌碼圖表":
         color="#FF9900",
         label="Vol MA20",
         alpha=0.95,
+        zorder=3,
     )
     ax_sub2.yaxis.tick_right()
-    ax_sub2.tick_params(axis="y", labelsize=7.0, pad=1.5, colors="#FFFFFF")
-    ax_sub2.tick_params(axis="x", labelsize=8.0, colors="#FFFFFF")
+    ax_sub2.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    ax_sub2.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
     plt.setp(ax_sub2.get_xticklabels(), visible=True)
     for label in ax_sub2.get_xticklabels():
       label.set_color("#FFFFFF")
-      label.set_fontsize(8.0)
+      label.set_fontsize(7.5)
     ax_sub2.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
@@ -1374,17 +1454,18 @@ if app_mode == "📈 個股籌碼圖表":
     for spine in ax.spines.values():
       spine.set_visible(True)
       spine.set_color("#777777")
-      spine.set_linewidth(1.3)
+      spine.set_linewidth(1.2)
 
-  bottom_margin = 0.09 if is_wave_mode else 0.08
+  bottom_margin = 0.08
   plt.subplots_adjust(
-      left=0.01, right=0.99, top=0.98, bottom=bottom_margin, hspace=0.12
+      left=0.008, right=0.965, top=0.98, bottom=bottom_margin, hspace=0.10
   )
 
   fig.canvas.draw()
   ax1_bbox = ax1.get_position()
   ax_sub1_bbox = ax_sub1.get_position()
   ax_sub2_bbox = ax_sub2.get_position()
+  ax_sub3_bbox = ax_sub3.get_position() if ax_sub3 is not None else None
 
   ax_x0 = float(ax1_bbox.x0)
   ax_x1 = float(ax1_bbox.x1)
@@ -1392,6 +1473,9 @@ if app_mode == "📈 個股籌碼圖表":
   ax1_top_frac = float(1.0 - ax1_bbox.y1)
   sub1_top_frac = float(1.0 - ax_sub1_bbox.y1)
   sub2_top_frac = float(1.0 - ax_sub2_bbox.y1)
+  sub3_top_frac = (
+      float(1.0 - ax_sub3_bbox.y1) if ax_sub3_bbox is not None else 0.0
+  )
 
   buf = BytesIO()
   fig.savefig(
@@ -1436,7 +1520,7 @@ if app_mode == "📈 個股籌碼圖表":
     })
 
   rows_json = json.dumps(payload_rows, ensure_ascii=False)
-  plot_height = 660 if is_wave_mode else 575
+  plot_height = 575
   init_snap = payload_rows[-1]["snap"] if payload_rows else {}
 
   unified_interactive_html = f"""
@@ -1498,7 +1582,7 @@ if app_mode == "📈 個股籌碼圖表":
 
   <div class="fx-root">
     <div id="fx-chart-wrap">
-      <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; max-height:{plot_height - 6}px; object-fit:contain; display:block; margin:0 auto;" />
+      <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block; margin:0 auto;" />
       <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
     </div>
 
@@ -1563,6 +1647,7 @@ if app_mode == "📈 個股籌碼圖表":
     const ax1TopFrac = {ax1_top_frac};
     const sub1TopFrac = {sub1_top_frac};
     const sub2TopFrac = {sub2_top_frac};
+    const sub3TopFrac = {sub3_top_frac};
 
     function setEl(id, text, cls) {{
       const el = document.getElementById(id);
@@ -1623,12 +1708,20 @@ if app_mode == "📈 個股籌碼圖表":
       ctx.save();
       ctx.font = fontStr;
       ctx.textBaseline = "top";
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3.2;
       ctx.strokeStyle = "#000000";
       ctx.strokeText(txt, xPos, yPos);
       ctx.fillStyle = color;
       ctx.fillText(txt, xPos, yPos);
       ctx.restore();
+    }}
+
+    function drawTokensRow(tokens, startX, yPos, fontStr) {{
+      let curX = startX;
+      (tokens || []).forEach((tk) => {{
+        drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr);
+        curX += ctx.measureText(tk.text).width;
+      }});
     }}
 
     function renderInPlaceOverlay(r, showCrosshair, lineX, lineY, b) {{
@@ -1658,14 +1751,10 @@ if app_mode == "📈 個股籌碼圖表":
 
       const s = r.snap || {{}};
       const headerX = plotLeft + b.width * 0.012;
-      const headerY = b.top + b.height * (ax1TopFrac + 0.015);
-      const fontHeader = "bold 11.5px 'Courier New', monospace";
+      const headerY = b.top + b.height * (ax1TopFrac + 0.014);
+      const fontHeader = "bold 12.5px 'Courier New', monospace";
 
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.82)";
-      ctx.fillRect(headerX - 2, headerY - 1, b.width * 0.84, 16);
-      ctx.restore();
-
+      // 原位顯示逆序天數與 K 棒數據（不畫方塊遮擋下方）
       const revPrefix = `逆序:${{r.rev_no}}  `;
       drawOutlinedText(revPrefix, headerX, headerY, "#00FFFF", fontHeader);
       const afterRevX = headerX + ctx.measureText(revPrefix).width;
@@ -1673,47 +1762,36 @@ if app_mode == "📈 個股籌碼圖表":
       const mainInfo = `[${{stockCode}}] ${{stockName}}  ${{s.header_text || ""}}`;
       drawOutlinedText(mainInfo, afterRevX, headerY, "#FFFFFF", fontHeader);
 
-      const badgeX = plotLeft + b.width * 0.65;
-      drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", "bold 11px 'Courier New', monospace");
+      const badgeX = plotLeft + b.width * 0.66;
+      drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", "bold 12px 'Courier New', monospace");
 
+      // 均線列下移至 headerY + 19，避免遮掩第一行或被第一行遮掩
       if (r.ma_items && r.ma_items.length > 0) {{
-        const maY = headerY + 15;
+        const maY = headerY + 19;
         let curX = headerX;
-        const fontMa = "bold 11px 'Courier New', monospace";
-        ctx.save();
-        ctx.fillStyle = "rgba(0,0,0,0.72)";
-        ctx.fillRect(headerX - 2, maY - 1, b.width * 0.78, 15);
-        ctx.restore();
-
+        const fontMa = "bold 12px 'Courier New', monospace";
         r.ma_items.forEach((m) => {{
           drawOutlinedText(m.text, curX, maY, m.color, fontMa);
           curX += ctx.measureText(m.text + "  ").width;
         }});
       }}
 
-      const fontSub = "bold 10.5px 'Courier New', monospace";
-      if (!isWaveMode) {{
-        const sub1Y = b.top + b.height * (sub1TopFrac + 0.02);
-        ctx.save();
-        ctx.fillStyle = "rgba(0,0,0,0.75)";
-        ctx.fillRect(headerX - 2, sub1Y - 1, b.width * 0.72, 15);
-        ctx.restore();
-        let sx1 = headerX;
-        (s.ind_tokens || []).forEach((tk) => {{
-          drawOutlinedText(tk.text, sx1, sub1Y, tk.color, fontSub);
-          sx1 += ctx.measureText(tk.text).width;
-        }});
+      const fontSub = "bold 12px 'Courier New', monospace";
+      if (isWaveMode) {{
+        const s1Y = b.top + b.height * (sub1TopFrac + 0.014);
+        drawTokensRow(s.ind_tokens, headerX, s1Y, fontSub);
 
-        const sub2Y = b.top + b.height * (sub2TopFrac + 0.02);
-        ctx.save();
-        ctx.fillStyle = "rgba(0,0,0,0.75)";
-        ctx.fillRect(headerX - 2, sub2Y - 1, b.width * 0.82, 15);
-        ctx.restore();
-        let sx2 = headerX;
-        (s.vol_tokens || []).forEach((tk) => {{
-          drawOutlinedText(tk.text, sx2, sub2Y, tk.color, fontSub);
-          sx2 += ctx.measureText(tk.text).width;
-        }});
+        const s2Y = b.top + b.height * (sub2TopFrac + 0.014);
+        drawTokensRow(s.sub2_tokens, headerX, s2Y, fontSub);
+
+        const s3Y = b.top + b.height * (sub3TopFrac + 0.014);
+        drawTokensRow(s.sub3_tokens, headerX, s3Y, fontSub);
+      }} else {{
+        const sub1Y = b.top + b.height * (sub1TopFrac + 0.016);
+        drawTokensRow(s.ind_tokens, headerX, sub1Y, fontSub);
+
+        const sub2Y = b.top + b.height * (sub2TopFrac + 0.016);
+        drawTokensRow(s.vol_tokens, headerX, sub2Y, fontSub);
       }}
     }}
 
