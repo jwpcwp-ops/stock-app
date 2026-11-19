@@ -81,9 +81,9 @@ st.markdown(
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 22px !important;
-            height: 22px !important;
-            font-size: 9.0px !important;
+            min-height: 28px !important;
+            height: 28px !important;
+            font-size: 10.0px !important;
             padding-left: 4px !important;
             padding-right: 4px !important;
         }
@@ -397,7 +397,7 @@ def get_comprehensive_stock_data(stock_id, target_days=250, period_type="日線"
 
 
 # ---------------------------------------------------------
-# 6. Session State 初始化 (加入跨頁連動狀態)
+# 6. Session State 初始化
 # ---------------------------------------------------------
 if "selected_index" not in st.session_state:
   st.session_state.selected_index = 0
@@ -405,34 +405,6 @@ if "selected_synth_strat" not in st.session_state:
   st.session_state.selected_synth_strat = "主力底部吃貨"
 if "app_mode_state" not in st.session_state:
   st.session_state.app_mode_state = "📈 個股籌碼圖表"
-
-# ---------------------------------------------------------
-# 7. 網頁主介面佈局
-#    【第一行】：完全去除下拉選單，改由 3 個快捷按鈕一字排開
-# ---------------------------------------------------------
-btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([2.5, 2.5, 2.5, 2.5])
-
-with btn_col1:
-  if st.button("📈 個股籌碼圖表", use_container_width=True, key="top_go_chart"):
-    st.session_state.app_mode_state = "📈 個股籌碼圖表"
-    st.rerun()
-
-with btn_col2:
-  if st.button("⚡ 9大策略選股", use_container_width=True, key="top_go_strat"):
-    st.session_state.app_mode_state = "⚡ 9大策略選股"
-    st.rerun()
-
-with btn_col3:
-  if st.button("📋 大戶總表", use_container_width=True, key="top_go_table"):
-    st.session_state.app_mode_state = "📋 大戶總表"
-    st.rerun()
-
-with btn_col4:
-  if st.button("📊 基本面與圖表", use_container_width=True, key="top_go_fund"):
-    st.session_state.app_mode_state = "📊 基本面與圖表"
-    st.rerun()
-
-app_mode = st.session_state.app_mode_state
 
 all_strategies = [
     "主力底部吃貨",
@@ -446,42 +418,67 @@ all_strategies = [
     "底部量大強漲",
 ]
 
+# ---------------------------------------------------------
+# 7. 網頁主介面佈局：將「4個功能按鈕 + 個股選單 + 週期選單」全部整合在同一行！
+# ---------------------------------------------------------
+top_cols = st.columns([1.8, 1.8, 1.5, 1.8, 2.2, 1.2])
+
+with top_cols[0]:
+  if st.button("📈 個股籌碼圖表", use_container_width=True, key="top_go_chart"):
+    st.session_state.app_mode_state = "📈 個股籌碼圖表"
+    st.rerun()
+
+with top_cols[1]:
+  if st.button("⚡ 9大策略選股", use_container_width=True, key="top_go_strat"):
+    st.session_state.app_mode_state = "⚡ 9大策略選股"
+    st.rerun()
+
+with top_cols[2]:
+  if st.button("📋 大戶總表", use_container_width=True, key="top_go_table"):
+    st.session_state.app_mode_state = "📋 大戶總表"
+    st.rerun()
+
+with top_cols[3]:
+  if st.button("📊 基本面與圖表", use_container_width=True, key="top_go_fund"):
+    st.session_state.app_mode_state = "📊 基本面與圖表"
+    st.rerun()
+
+app_mode = st.session_state.app_mode_state
+
+# 同一行直接放入「個股選單」與「週期選單」
+with top_cols[4]:
+  if st.session_state.selected_index >= len(stock_options):
+    st.session_state.selected_index = 0
+  selected_stock = st.selectbox(
+      "股票選單",
+      stock_options,
+      index=st.session_state.selected_index,
+      label_visibility="collapsed",
+      key="stock_select_box_top",
+  )
+  try:
+    st.session_state.selected_index = stock_options.index(selected_stock)
+  except:
+    st.session_state.selected_index = 0
+  stock_id = selected_stock.split()[0]
+  stock_name = (
+      selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
+  )
+
+with top_cols[5]:
+  chart_period = st.selectbox(
+      "週期",
+      ["日線", "60分", "週線", "月線"],
+      index=0,
+      label_visibility="collapsed",
+      key="select_period_dropdown_top",
+  )
+  actual_chart_period = chart_period
+
 # =========================================================
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  # 【第二行】：股票與週期選擇
-  sec_row_cols = st.columns([2.0, 1.2, 6.8])
-  with sec_row_cols[0]:
-    if st.session_state.selected_index >= len(stock_options):
-      st.session_state.selected_index = 0
-
-    selected_stock = st.selectbox(
-        "股票選單",
-        stock_options,
-        index=st.session_state.selected_index,
-        label_visibility="collapsed",
-        key="stock_select_box",
-    )
-    try:
-      st.session_state.selected_index = stock_options.index(selected_stock)
-    except:
-      st.session_state.selected_index = 0
-    stock_id = selected_stock.split()[0]
-    stock_name = (
-        selected_stock.split()[1] if len(selected_stock.split()) > 1 else ""
-    )
-
-  with sec_row_cols[1]:
-    chart_period = st.selectbox(
-        "週期",
-        ["日線", "60分", "週線", "月線"],
-        index=0,
-        label_visibility="collapsed",
-        key="select_period_dropdown",
-    )
-    actual_chart_period = chart_period
-
   third_row_cols = st.columns([1.2, 1.2, 0.6])
   with third_row_cols[0]:
     selected_ma = st.pills(
@@ -1737,28 +1734,6 @@ elif app_mode == "📊 基本面與圖表":
       '<p class="sub-header-14">📊 基本面與圖表</p>', unsafe_allow_html=True
   )
 
-  if st.session_state.selected_index >= len(stock_options):
-    st.session_state.selected_index = 0
-
-  selected_fund_stock = st.selectbox(
-      "選擇股票",
-      stock_options,
-      index=st.session_state.selected_index,
-      label_visibility="collapsed",
-      key="fund_stock_select_box",
-  )
-  try:
-    st.session_state.selected_index = stock_options.index(selected_fund_stock)
-  except:
-    st.session_state.selected_index = 0
-
-  target_code = selected_fund_stock.split()[0]
-  target_name = (
-      selected_fund_stock.split()[1]
-      if len(selected_fund_stock.split()) > 1
-      else ""
-  )
-
   quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
   data_sets = [
       {
@@ -1800,7 +1775,7 @@ elif app_mode == "📊 基本面與圖表":
           linewidth=1.5,
       )
     ax.set_title(
-        f"[{target_code}] {ds['title']}",
+        f"[{stock_id}] {ds['title']}",
         color="white",
         fontsize=9.0,
         fontweight="bold",
