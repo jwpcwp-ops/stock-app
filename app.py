@@ -25,6 +25,17 @@ st.set_page_config(
 # 均線粗細設定（數值越小越細，0.4 不易遮擋 K 線）
 MA_LINE_WIDTH = 0.4
 
+MA_COLOR_MAP = {
+    "5": "#00FFFF",
+    "10": "#FFFF00",
+    "20": "#FF00FF",
+    "35": "#00FF66",
+    "60": "#FF9900",
+    "120": "#CC66FF",
+    "200": "#FFFFFF",
+    "分割": "#00FFFF",
+}
+
 # ---------------------------------------------------------
 # 2. 注入自訂 CSS (調整文字、排版、按鈕高亮與 Fullscreen 圖示顯色)
 # ---------------------------------------------------------
@@ -345,7 +356,7 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
     df_yf = df_yf.dropna(subset=["Close"])
     df_k = df_yf.tail(fetch_len).copy()
 
-    if "Volume" not in df_k.columns or df_k["Volume"].sum() == 0:
+    if "Volume" not in df_k.columns or df_k["Volume"].fillna(0).sum() == 0:
       if stock_id == "99991":
         df_k["Volume"] = (
             np.random.randint(3000000, 5000000, size=len(df_k)) * 1000
@@ -353,6 +364,14 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
       else:
         df_k["Volume"] = (
             np.random.randint(10000, 50000, size=len(df_k)) * 1000
+        )
+    else:
+      df_k["Volume"] = df_k["Volume"].fillna(0)
+      if (df_k["Volume"] <= 0).all():
+        df_k["Volume"] = (
+            np.random.randint(3000000, 5000000, size=len(df_k)) * 1000
+            if stock_id == "99991"
+            else np.random.randint(10000, 50000, size=len(df_k)) * 1000
         )
 
     records = []
@@ -665,17 +684,6 @@ if app_mode == "📈 個股籌碼圖表":
 
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
-    ma_btn_color_map = {
-        "5": "#00FFFF",
-        "10": "#FFFF00",
-        "20": "#FF00FF",
-        "35": "#00FF66",
-        "60": "#FF9900",
-        "120": "#CC66FF",
-        "200": "#FFFFFF",
-        "分割": "#00FFFF",
-    }
-
     ma_btn_cols = st.columns(len(ma_items))
     for idx_m, m_key in enumerate(ma_items):
       is_on = st.session_state.ma_active_map.get(m_key, False)
@@ -688,7 +696,7 @@ if app_mode == "📈 個股籌碼圖表":
     active_css_rules = []
     for m_key in ma_items:
       active_flag = st.session_state.ma_active_map.get(m_key, False)
-      line_col = ma_btn_color_map.get(m_key, "#00FFFF")
+      line_col = MA_COLOR_MAP.get(m_key, "#00FFFF")
       btn_sel = (
           f"div.st-key-ma_toggle_{m_key} button,"
           f" div[data-testid='stHorizontalBlock'] div.st-key-ma_toggle_{m_key}"
@@ -769,13 +777,13 @@ if app_mode == "📈 個股籌碼圖表":
   last_vol = float(df["vol"].iloc[-1]) if not df.empty else 0.0
 
   ma_config = {
-      "5": (5, show_ma5, "#00FFFF"),
-      "10": (10, show_ma10, "#FFFF00"),
-      "20": (20, show_ma20, "#FF00FF"),
-      "35": (35, show_ma35, "#00FF66"),
-      "60": (60, show_ma60, "#FF9900"),
-      "120": (120, show_ma120, "#CC66FF"),
-      "200": (200, show_ma200, "#FFFFFF"),
+      "5": (5, show_ma5, MA_COLOR_MAP["5"]),
+      "10": (10, show_ma10, MA_COLOR_MAP["10"]),
+      "20": (20, show_ma20, MA_COLOR_MAP["20"]),
+      "35": (35, show_ma35, MA_COLOR_MAP["35"]),
+      "60": (60, show_ma60, MA_COLOR_MAP["60"]),
+      "120": (120, show_ma120, MA_COLOR_MAP["120"]),
+      "200": (200, show_ma200, MA_COLOR_MAP["200"]),
   }
 
   deduct_periods = [5, 35, 65, 120, 200]
@@ -896,12 +904,16 @@ if app_mode == "📈 個股籌碼圖表":
         edgecolor="none",
     )
 
+    x_min_bar = -1.0
+    pad_right_bars = max(4, int(len(x) * 0.12))
+    x_max_bar = float(len(x) + pad_right_bars)
+
     if not df.empty:
       p_max = float(df["high"].max())
       p_min = float(df["low"].min())
       p_range = p_max - p_min if p_max != p_min else 1.0
       ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
-      ax1.set_xlim(-1, len(x) + max(4, int(len(x) * 0.12)))
+      ax1.set_xlim(x_min_bar, x_max_bar)
 
     for count_days in [5, 35, 65, 120, 200]:
       if count_days in deduct_indices:
@@ -1472,14 +1484,17 @@ if app_mode == "📈 個股籌碼圖表":
         spine.set_color("#777777")
         spine.set_linewidth(1.3)
 
-    bottom_margin = 0.08 if is_wave_mode else 0.06
+    bottom_margin = 0.09 if is_wave_mode else 0.08
     plt.subplots_adjust(
-        left=0.01, right=0.99, top=0.98, bottom=bottom_margin, hspace=0.10
+        left=0.01, right=0.99, top=0.98, bottom=bottom_margin, hspace=0.12
     )
 
-    # ---------------------------------------------------------
-    # 飛狐式滑鼠即時跟隨十字線查價區塊
-    # ---------------------------------------------------------
+    # 取得實際繪圖區左右邊界比例，確保十字線與每一根 K 棒精準對齊
+    fig.canvas.draw()
+    ax1_bbox = ax1.get_position()
+    ax_x0 = float(ax1_bbox.x0)
+    ax_x1 = float(ax1_bbox.x1)
+
     buf = BytesIO()
     fig.savefig(
         buf, format="png", dpi=150, facecolor=BG_COLOR, edgecolor="none"
@@ -1490,8 +1505,8 @@ if app_mode == "📈 個股籌碼圖表":
     payload_rows = []
     for idx_r in range(len(df)):
       r = df.iloc[idx_r]
-      ma_txt_parts = []
-      for ma_name, (period, is_show, _) in ma_config.items():
+      ma_items_colored = []
+      for ma_name, (period, is_show, color) in ma_config.items():
         if is_show:
           v_now = float(r[f"ma_{period}"])
           v_prev = (
@@ -1500,7 +1515,9 @@ if app_mode == "📈 個股籌碼圖表":
               else v_now
           )
           arr = "↑" if v_now >= v_prev else "↓"
-          ma_txt_parts.append(f"{ma_name}:{v_now:.1f}{arr}")
+          ma_items_colored.append(
+              {"text": f"{ma_name}:{v_now:.1f}{arr}", "color": color}
+          )
 
       payload_rows.append({
           "date": str(r["date"]),
@@ -1509,65 +1526,86 @@ if app_mode == "📈 個股籌碼圖表":
           "low": round(float(r["low"]), 2),
           "close": round(float(r["close"]), 2),
           "vol": int(round(float(r["vol"]))),
-          "ma_summary": "  ".join(ma_txt_parts),
+          "ma_items": ma_items_colored,
       })
 
     rows_json = json.dumps(payload_rows, ensure_ascii=False)
-    plot_height = 540 if is_wave_mode else 465
+    plot_height = 660 if is_wave_mode else 580
 
     interactive_html = f"""
-    <div id="fx-chart-wrap" style="position:relative; width:100%; background:#000; user-select:none;">
+    <div id="fx-chart-wrap" style="position:relative; width:100%; background:#000; user-select:none; overflow:hidden;">
       <div id="fx-hud" style="
         position:absolute; top:4px; left:8px; z-index:10;
-        background:rgba(10,12,16,0.82); border:1px solid #00ffff;
+        background:rgba(10,12,16,0.88); border:1px solid #00ffff;
         color:#ffffff; font-family:'Courier New',monospace; font-size:11px;
         padding:3px 7px; border-radius:3px; pointer-events:none;
-        white-space:nowrap; overflow:hidden; max-width:96%;
+        white-space:nowrap; overflow:hidden; max-width:95%;
       ">
         [{stock_id}] {stock_name}  |  移動滑鼠即時查價
       </div>
-      <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block;" />
+      <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; max-height:{plot_height - 8}px; object-fit:contain; display:block; margin:0 auto;" />
       <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
     </div>
 
     <script>
     (function() {{
       const rows = {rows_json};
+      const wrap = document.getElementById("fx-chart-wrap");
       const img = document.getElementById("fx-base-img");
       const canvas = document.getElementById("fx-cross-canvas");
       const hud = document.getElementById("fx-hud");
       const ctx = canvas.getContext("2d");
 
       const totalBars = rows.length;
-      const padRightBars = Math.max(4, Math.floor(totalBars * 0.12));
-      const xMinBar = -1.0;
-      const xMaxBar = totalBars + padRightBars;
+      const xMinBar = {x_min_bar};
+      const xMaxBar = {x_max_bar};
+      const axX0 = {ax_x0};
+      const axX1 = {ax_x1};
 
       function syncSize() {{
-        canvas.width = img.clientWidth;
-        canvas.height = img.clientHeight;
+        const w = wrap.clientWidth;
+        const h = wrap.clientHeight;
+        if (w > 0 && h > 0) {{
+          canvas.width = w;
+          canvas.height = h;
+        }}
+      }}
+
+      function getImgBounds() {{
+        const wRect = wrap.getBoundingClientRect();
+        const iRect = img.getBoundingClientRect();
+        return {{
+          left: iRect.left - wRect.left,
+          top: iRect.top - wRect.top,
+          width: iRect.width,
+          height: iRect.height
+        }};
       }}
 
       function drawCross(clientX, clientY) {{
         syncSize();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        const rect = canvas.getBoundingClientRect();
-        const plotLeft = canvas.width * 0.01;
-        const plotRight = canvas.width * 0.965;
+        const b = getImgBounds();
+        if (b.width <= 0 || b.height <= 0 || totalBars <= 0) return;
+
+        const plotLeft = b.left + b.width * axX0;
+        const plotRight = b.left + b.width * axX1;
         const plotW = Math.max(10, plotRight - plotLeft);
 
-        const relX = clientX - rect.left;
+        const wRect = wrap.getBoundingClientRect();
+        const relX = clientX - wRect.left;
         const frac = (relX - plotLeft) / plotW;
         const barPos = xMinBar + frac * (xMaxBar - xMinBar);
-        const idx = Math.round(barPos);
+        let idx = Math.round(barPos);
 
-        if (idx < 0 || idx >= totalBars) return;
+        if (idx < 0) idx = 0;
+        if (idx >= totalBars) idx = totalBars - 1;
 
         const r = rows[idx];
         const fracIdx = (idx - xMinBar) / (xMaxBar - xMinBar);
         const lineX = plotLeft + fracIdx * plotW;
-        const lineY = clientY ? (clientY - rect.top) : (canvas.height * 0.35);
+        const lineY = clientY ? (clientY - wRect.top) : (b.top + b.height * 0.35);
 
         ctx.save();
         ctx.strokeStyle = "#00ffff";
@@ -1575,8 +1613,8 @@ if app_mode == "📈 個股籌碼圖表":
         ctx.setLineDash([4, 3]);
 
         ctx.beginPath();
-        ctx.moveTo(lineX, 0);
-        ctx.lineTo(lineX, canvas.height);
+        ctx.moveTo(lineX, b.top);
+        ctx.lineTo(lineX, b.top + b.height);
         ctx.stroke();
 
         ctx.beginPath();
@@ -1585,13 +1623,21 @@ if app_mode == "📈 個股籌碼圖表":
         ctx.stroke();
         ctx.restore();
 
+        let maHtml = "";
+        if (r.ma_items && r.ma_items.length > 0) {{
+          maHtml = "  |  " + r.ma_items.map(m =>
+            `<span style="color:${{m.color}};font-weight:bold;">${{m.text}}</span>`
+          ).join("  ");
+        }}
+
+        const relOffset = idx - (totalBars - 1);
         hud.innerHTML =
-          `<span style="color:#00ffff;font-weight:bold;">[${{idx - (totalBars - 1)}}]</span> ` +
+          `<span style="color:#00ffff;font-weight:bold;">[${{relOffset}}]</span> ` +
           `<span style="color:#ffff00;">${{r.date}}</span>  ` +
           `開:<b>${{r.open}}</b> 高:<span style="color:#ff3333;"><b>${{r.high}}</b></span> ` +
           `低:<span style="color:#00e64d;"><b>${{r.low}}</b></span> 收:<b>${{r.close}}</b> ` +
           `量:<span style="color:#00ffff;">${{r.vol.toLocaleString()}}</span>張` +
-          (r.ma_summary ? `  |  <span style="color:#ffcc66;">${{r.ma_summary}}</span>` : "");
+          maHtml;
       }}
 
       img.addEventListener("load", syncSize);
