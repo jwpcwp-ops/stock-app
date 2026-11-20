@@ -161,102 +161,93 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 對齊到「金剛指標」右邊界底下的緊湊單行列 */
-        .gold-aligned-bar {
-            width: 76% !important;
-            max-width: 100% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: flex-start !important;
-            gap: 5px !important;
-            flex-wrap: nowrap !important;
-            margin-top: 2px !important;
+        /* 只到「金剛指標」右邊界為止，文字與框框大小一致 */
+        .gold-indicator-limit {
+            width: 74% !important;
+            max-width: 74% !important;
+            margin-top: 3px !important;
             margin-bottom: 4px !important;
         }
-        .gold-aligned-bar [data-testid="stHorizontalBlock"] {
+        .gold-indicator-limit [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
             align-items: center !important;
             justify-content: flex-start !important;
             gap: 4px !important;
             flex-wrap: nowrap !important;
-            margin-bottom: 0px !important;
             width: 100% !important;
+            margin-bottom: 0px !important;
         }
-        .gold-aligned-bar [data-testid="column"] {
+        .gold-indicator-limit [data-testid="column"] {
             flex: 0 0 auto !important;
             width: auto !important;
             min-width: 0 !important;
-            padding: 0px !important;
+            padding: 0 !important;
         }
-        .gold-f-day [data-baseweb="select"] {
-            width: 58px !important;
-            min-width: 58px !important;
+        .gold-status-text {
+            color: #F0B84B;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 24px;
+            height: 24px;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            margin-right: 2px;
         }
-        .gold-f-vol [data-baseweb="select"] {
-            width: 78px !important;
-            min-width: 78px !important;
-        }
-        .gold-f-val [data-baseweb="select"] {
-            width: 64px !important;
-            min-width: 64px !important;
-        }
-        .gold-f-btn button {
-            width: auto !important;
-            min-width: 48px !important;
-            height: 26px !important;
-            min-height: 26px !important;
-            padding: 2px 6px !important;
-            font-size: 10px !important;
-        }
-
-        /* 成交量> 與 值> 專屬小框框：大小貼合字體，不撐大 */
-        .dw-lbl-on {
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background-color: rgba(56, 178, 196, 0.22);
-            color: #38B2C4;
-            border: 1px solid #38B2C4;
-            border-radius: 3px;
-            padding: 0 5px;
+        .gold-tag-box {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             height: 24px;
             min-height: 24px;
-            font-weight: 700;
+            padding: 0 6px;
+            border-radius: 3px;
             font-size: 11px;
+            font-weight: 700;
+            line-height: 24px;
             white-space: nowrap;
-            line-height: 1;
             box-sizing: border-box;
         }
-        .dw-lbl-off {
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+        .gold-tag-idle {
             background-color: #14181f;
             color: #E2E8F0;
             border: 1px solid #3a4554;
-            border-radius: 3px;
-            padding: 0 5px;
-            height: 24px;
-            min-height: 24px;
-            font-weight: 600;
-            font-size: 11px;
-            white-space: nowrap;
-            line-height: 1;
-            box-sizing: border-box;
         }
-        .amber-inline-msg {
-            color: #F0B84B;
-            font-weight: 700;
-            font-size: 12px;
-            white-space: nowrap;
-            margin-right: 4px;
+        .gold-tag-active {
+            background-color: rgba(56, 178, 196, 0.22);
+            color: #38B2C4;
+            border: 1px solid #38B2C4;
         }
-        .amber-no-result {
-            color: #F0B84B;
-            font-weight: 700;
-            font-size: 14px;
-            padding: 6px 2px;
+        .gold-indicator-limit [data-baseweb="select"] > div {
+            min-height: 24px !important;
+            height: 24px !important;
+            font-size: 11px !important;
+            line-height: 22px !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            padding-left: 6px !important;
+            padding-right: 18px !important;
+        }
+        .gold-day-sel [data-baseweb="select"] {
+            width: 48px !important;
+            min-width: 48px !important;
+        }
+        .gold-vol-sel [data-baseweb="select"] {
+            width: 68px !important;
+            min-width: 68px !important;
+        }
+        .gold-val-sel [data-baseweb="select"] {
+            width: 56px !important;
+            min-width: 56px !important;
+        }
+        .gold-refresh-btn button {
+            height: 24px !important;
+            min-height: 24px !important;
+            padding: 0 7px !important;
+            font-size: 11px !important;
+            line-height: 22px !important;
+            white-space: nowrap !important;
         }
     </style>
 """,
@@ -354,7 +345,6 @@ def load_local_cache_cached():
 
 
 def extract_tdcc_arrays(cache_item):
-  """統一解析快取格式（相容新版 tdcc_series 與舊版 big_holder/sheep_holder）"""
   if not cache_item:
     return [], [], []
   if "tdcc_series" in cache_item and cache_item["tdcc_series"]:
@@ -688,7 +678,6 @@ def build_bar_analysis_snapshot(
     period_label,
     stock_id="",
 ):
-  """計算單一根 K 棒（索引 idx_r）對應的完整解盤與原位指標 tokens"""
   r = df.iloc[idx_r]
   df_slice = df.iloc[: idx_r + 1]
 
@@ -1123,7 +1112,6 @@ all_strategies = [
 
 
 def step_feihu_bars(current_bars, direction):
-  """仿飛狐上下方向鍵：6, 11, 18, 29, 45, 69, 105, 159, 240..."""
   seq = FEIHU_BAR_STEPS
   if direction < 0:
     smaller = [v for v in seq if v < current_bars]
@@ -2281,10 +2269,14 @@ elif app_mode == "⚡ 9大策略選股":
   vol_mult_options = [500 * (2**i) for i in range(6)]
   val_up_options = [1.4, 1.8]
 
-  cur_vol_in = st.session_state.get("dw_vol_mult", 500)
-  cur_val_in = st.session_state.get("dw_val_up_sel", 1.4)
-  is_dw_active = (cur_vol_in != 500) or (abs(cur_val_in - 1.4) > 1e-6)
-  lbl_cls = "dw-lbl-on" if is_dw_active else "dw-lbl-off"
+  dw_choice_cur = st.session_state.get("dw_choice_select", "日")
+  min_dw_vol_cur = st.session_state.get("dw_vol_mult", 500)
+  min_dw_val_cur = st.session_state.get("dw_val_up_sel", 1.4)
+
+  is_dw_active = (min_dw_vol_cur != 500) or (
+      abs(float(min_dw_val_cur) - 1.4) > 1e-6
+  )
+  tag_cls = "gold-tag-active" if is_dw_active else "gold-tag-idle"
 
   output_csv = "smart_selected_output.csv"
   if os.path.exists(output_csv):
@@ -2308,59 +2300,6 @@ elif app_mode == "⚡ 9大策略選股":
       )
   )
 
-  st.markdown('<div class="gold-aligned-bar">', unsafe_allow_html=True)
-  f_cols = st.columns([1, 1, 1, 1, 1, 1, 1], gap="small")
-
-  with f_cols[0]:
-    st.markdown('<div class="gold-f-day">', unsafe_allow_html=True)
-    dw_choice = st.selectbox(
-        "日周",
-        ["日", "周"],
-        index=0,
-        key="dw_choice_select",
-        label_visibility="collapsed",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-  with f_cols[1]:
-    st.markdown(
-        f'<div class="{lbl_cls}">成交量&gt;</div>', unsafe_allow_html=True
-    )
-
-  with f_cols[2]:
-    st.markdown('<div class="gold-f-vol">', unsafe_allow_html=True)
-    min_dw_vol = st.selectbox(
-        "成交量倍數",
-        vol_mult_options,
-        index=0,
-        key="dw_vol_mult",
-        label_visibility="collapsed",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-  with f_cols[3]:
-    st.markdown(
-        f'<div class="{lbl_cls}">值&gt;</div>', unsafe_allow_html=True
-    )
-
-  with f_cols[4]:
-    st.markdown('<div class="gold-f-val">', unsafe_allow_html=True)
-    min_dw_val = st.selectbox(
-        "值門檻",
-        val_up_options,
-        index=0,
-        key="dw_val_up_sel",
-        label_visibility="collapsed",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-  with f_cols[5]:
-    st.markdown('<div class="gold-f-btn">', unsafe_allow_html=True)
-    if st.button("🔄 重整", key="btn_refresh_dw_vol"):
-      fetch_raw_history.clear()
-      st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
   if not has_raw_candidates:
     filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
     status_msg = f"【{selected_strat}】目前尚無符合條件的股票標的。"
@@ -2375,9 +2314,9 @@ elif app_mode == "⚡ 9大策略選股":
     if "代碼" in filtered_df.columns:
       filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
 
-    period_arg = "週線" if dw_choice == "周" else "日線"
-    col_v_name = f"最新{dw_choice}量(張)"
-    col_val_name = f"{dw_choice}量比"
+    period_arg = "週線" if dw_choice_cur == "周" else "日線"
+    col_v_name = f"最新{dw_choice_cur}量(張)"
+    col_val_name = f"{dw_choice_cur}量比"
 
     metrics_rows = []
     if "代碼" in filtered_df.columns:
@@ -2407,27 +2346,84 @@ elif app_mode == "⚡ 9大策略選股":
       keep_mask = pd.Series([True] * len(filtered_df))
       if col_v_name in filtered_df.columns:
         keep_mask = keep_mask & (
-            filtered_df[col_v_name].fillna(0) > min_dw_vol
+            filtered_df[col_v_name].fillna(0) > min_dw_vol_cur
         )
       if col_val_name in filtered_df.columns:
         keep_mask = keep_mask & (
-            filtered_df[col_val_name].fillna(0.0) > min_dw_val
+            filtered_df[col_val_name].fillna(0.0) > float(min_dw_val_cur)
         )
       filtered_df = filtered_df[keep_mask].reset_index(drop=True)
 
     if filtered_df.empty:
-      status_msg = f"【{selected_strat}｜{dw_choice}】目前尚無符合條件的股票標的。"
+      status_msg = (
+          f"【{selected_strat}｜{dw_choice_cur}】目前尚無符合條件的股票標的。"
+      )
     else:
       status_msg = (
-          f"【{selected_strat}｜{dw_choice}】目前符合條件共"
+          f"【{selected_strat}｜{dw_choice_cur}】目前符合條件共"
           f" {len(filtered_df)} 檔標的。"
       )
 
-  with f_cols[6]:
+  st.markdown('<div class="gold-indicator-limit">', unsafe_allow_html=True)
+  f_cols = st.columns([1, 1, 1, 1, 1, 1, 1], gap="small")
+
+  with f_cols[0]:
     st.markdown(
-        f'<div class="amber-inline-msg">{status_msg}</div>',
+        f'<div class="gold-status-text">{status_msg}</div>',
         unsafe_allow_html=True,
     )
+
+  with f_cols[1]:
+    st.markdown('<div class="gold-day-sel">', unsafe_allow_html=True)
+    st.selectbox(
+        "日周",
+        ["日", "周"],
+        index=0,
+        key="dw_choice_select",
+        label_visibility="collapsed",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+  with f_cols[2]:
+    st.markdown(
+        f'<div class="gold-tag-box {tag_cls}">成交量&gt;</div>',
+        unsafe_allow_html=True,
+    )
+
+  with f_cols[3]:
+    st.markdown('<div class="gold-vol-sel">', unsafe_allow_html=True)
+    st.selectbox(
+        "成交量倍數",
+        vol_mult_options,
+        index=0,
+        key="dw_vol_mult",
+        label_visibility="collapsed",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+  with f_cols[4]:
+    st.markdown(
+        f'<div class="gold-tag-box {tag_cls}">值&gt;</div>',
+        unsafe_allow_html=True,
+    )
+
+  with f_cols[5]:
+    st.markdown('<div class="gold-val-sel">', unsafe_allow_html=True)
+    st.selectbox(
+        "值門檻",
+        val_up_options,
+        index=0,
+        key="dw_val_up_sel",
+        label_visibility="collapsed",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+  with f_cols[6]:
+    st.markdown('<div class="gold-refresh-btn">', unsafe_allow_html=True)
+    if st.button("🔄 重整", key="btn_refresh_dw_vol"):
+      fetch_raw_history.clear()
+      st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
   st.markdown("</div>", unsafe_allow_html=True)
 
