@@ -120,9 +120,9 @@ st.markdown(
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 28px !important;
-            height: 28px !important;
-            font-size: 10.0px !important;
+            min-height: 26px !important;
+            height: 26px !important;
+            font-size: 10.5px !important;
             padding-left: 4px !important;
             padding-right: 4px !important;
         }
@@ -161,24 +161,60 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 單行量能篩選列樣式（偏青藍反白 & #F0B84B 提示，不放大） */
+        /* 緊湊單行量能篩選列：字與框比例貼合，靠左不拉開空白 */
+        .compact-filter-row [data-testid="stHorizontalBlock"] {
+            justify-content: flex-start !important;
+            gap: 5px !important;
+            flex-wrap: nowrap !important;
+        }
+        .compact-filter-row [data-testid="column"] {
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: 0 !important;
+        }
+        .compact-f-day [data-baseweb="select"] {
+            width: 64px !important;
+            min-width: 64px !important;
+        }
+        .compact-f-vol [data-baseweb="select"] {
+            width: 90px !important;
+            min-width: 90px !important;
+        }
+        .compact-f-val [data-baseweb="select"] {
+            width: 72px !important;
+            min-width: 72px !important;
+        }
+        .compact-f-btn button {
+            width: auto !important;
+            min-width: 52px !important;
+            height: 26px !important;
+            min-height: 26px !important;
+            padding: 2px 7px !important;
+            font-size: 10px !important;
+        }
         .dw-lbl-on {
+            background-color: rgba(56, 178, 196, 0.20);
             color: #38B2C4;
+            border: 1px solid #38B2C4;
+            border-radius: 3px;
+            padding: 0 5px;
             font-weight: 700;
             font-size: 11px;
             white-space: nowrap;
+            line-height: 22px;
         }
         .dw-lbl-off {
             color: #E2E8F0;
             font-weight: 600;
             font-size: 11px;
             white-space: nowrap;
+            line-height: 24px;
         }
         .amber-no-result {
             color: #F0B84B;
             font-weight: 700;
-            font-size: 15px;
-            padding: 8px 4px;
+            font-size: 14px;
+            padding: 6px 2px;
         }
     </style>
 """,
@@ -2200,7 +2236,7 @@ elif app_mode == "⚡ 9大策略選股":
 
   selected_strat = st.session_state.selected_synth_strat
 
-  # 單行橫排篩選列：[ 日 / 周 ] 成交量 > [ 500 起跳倍數 ] 值 > [ 1.4, 1.8 ] [ 🔄 重整 ]
+  # 緊湊單行橫排篩選列：[ 日 / 周 ] 成交量 > [ 500 起跳倍數 ] 值 > [ 1.4, 1.8 ] [ 🔄 重整 ]
   vol_mult_options = [500 * (2**i) for i in range(6)]
   val_up_options = [1.4, 1.8]
 
@@ -2209,8 +2245,11 @@ elif app_mode == "⚡ 9大策略選股":
   is_dw_active = (cur_vol_in != 500) or (abs(cur_val_in - 1.4) > 1e-6)
   lbl_cls = "dw-lbl-on" if is_dw_active else "dw-lbl-off"
 
-  f_cols = st.columns([0.85, 1.15, 1.30, 0.70, 1.30, 0.90], gap="small")
+  st.markdown('<div class="compact-filter-row">', unsafe_allow_html=True)
+  f_cols = st.columns([1, 1, 1, 1, 1, 1], gap="small")
+
   with f_cols[0]:
+    st.markdown('<div class="compact-f-day">', unsafe_allow_html=True)
     dw_choice = st.selectbox(
         "日周",
         ["日", "周"],
@@ -2218,11 +2257,15 @@ elif app_mode == "⚡ 9大策略選股":
         key="dw_choice_select",
         label_visibility="collapsed",
     )
+    st.markdown("</div>", unsafe_allow_html=True)
+
   with f_cols[1]:
     st.markdown(
         f'<div class="{lbl_cls}">成交量 &gt;</div>', unsafe_allow_html=True
     )
+
   with f_cols[2]:
+    st.markdown('<div class="compact-f-vol">', unsafe_allow_html=True)
     min_dw_vol = st.selectbox(
         "成交量倍數",
         vol_mult_options,
@@ -2230,11 +2273,15 @@ elif app_mode == "⚡ 9大策略選股":
         key="dw_vol_mult",
         label_visibility="collapsed",
     )
+    st.markdown("</div>", unsafe_allow_html=True)
+
   with f_cols[3]:
     st.markdown(
         f'<div class="{lbl_cls}">值 &gt;</div>', unsafe_allow_html=True
     )
+
   with f_cols[4]:
+    st.markdown('<div class="compact-f-val">', unsafe_allow_html=True)
     min_dw_val = st.selectbox(
         "值門檻",
         val_up_options,
@@ -2242,10 +2289,16 @@ elif app_mode == "⚡ 9大策略選股":
         key="dw_val_up_sel",
         label_visibility="collapsed",
     )
+    st.markdown("</div>", unsafe_allow_html=True)
+
   with f_cols[5]:
-    if st.button("🔄 重整", key="btn_refresh_dw_vol", use_container_width=True):
+    st.markdown('<div class="compact-f-btn">', unsafe_allow_html=True)
+    if st.button("🔄 重整", key="btn_refresh_dw_vol"):
       fetch_raw_history.clear()
       st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+  st.markdown("</div>", unsafe_allow_html=True)
 
   output_csv = "smart_selected_output.csv"
   if os.path.exists(output_csv):
