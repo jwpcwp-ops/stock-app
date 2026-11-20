@@ -1578,28 +1578,44 @@ if app_mode == "📈 個股籌碼圖表":
       )
     elif selected_indicator == "大戶羊群":
       if len(big_holder) > 0 and len(sheep_holder) > 0:
-        b_plot = big_holder[-len(df) :]
-        s_plot = sheep_holder[-len(df) :]
+        b_plot = np.asarray(big_holder[-len(df) :], dtype=float)
+        s_plot = np.asarray(sheep_holder[-len(df) :], dtype=float)
         ax_sub1.plot(
             x,
             b_plot,
             color="#FF3333",
-            linewidth=0.6,
+            linewidth=1.15,
             linestyle="-",
             label="大戶(%)",
-            zorder=3,
+            zorder=4,
         )
         ax_sub1.plot(
             x,
             s_plot,
             color="#00E64D",
-            linewidth=0.6,
+            linewidth=1.15,
             linestyle="-",
             label="羊群(%)",
-            zorder=3,
+            zorder=4,
         )
 
-    ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+        # 依大戶與羊群實際比例動態縮放 Y 軸，不從 0 起算
+        comb = np.concatenate([b_plot, s_plot])
+        comb = comb[np.isfinite(comb)]
+        if len(comb) > 0:
+          y_lo = float(np.min(comb))
+          y_hi = float(np.max(comb))
+          span = max(y_hi - y_lo, 4.0)
+          pad = span * 0.18
+          ax_sub1.set_ylim(max(0.0, y_lo - pad), min(100.0, y_hi + pad))
+
+          mid_ref = float(np.mean(comb))
+          ax_sub1.axhline(
+              mid_ref, color="#666666", linestyle=":", linewidth=0.9, zorder=2
+          )
+
+    if selected_indicator != "大戶羊群":
+      ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
     ax_sub1.yaxis.tick_right()
     ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
     plt.setp(ax_sub1.get_xticklabels(), visible=False)
