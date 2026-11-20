@@ -2217,7 +2217,112 @@ elif app_mode == "⚡ 9大策略選股":
     if "代碼" in filtered_df.columns:
       filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
 
-    st.success(f"【{selected_strat}】共篩選出 {len(filtered_df)} 檔標的。")
+    st.markdown(
+        '<div style="color:#00FFFF; font-size:12px; font-weight:bold; margin:4px 0 2px 0;">📊 成交量流動性參數設定（支援日線／週線篩選與即時更新量能過濾）</div>',
+        unsafe_allow_html=True,
+    )
+    vf_col0, vf_col1, vf_col2, vf_col3, vf_col4 = st.columns([1.2, 1.35, 1.35, 1.35, 1.0])
+    with vf_col0:
+      strat_period_type = st.selectbox(
+          "量能週期",
+          ["日線", "週線"],
+          index=0,
+          key="strat_vol_period_type",
+      )
+    with vf_col1:
+      min_vol_filter = st.number_input(
+          "最低單期成交量（張）",
+          min_value=0,
+          max_value=50000,
+          value=500,
+          step=100,
+          key="strat_min_vol_张",
+      )
+    with vf_col2:
+      min_ma5_vol_filter = st.number_input(
+          "最低 5 期均量（張）",
+          min_value=0,
+          max_value=50000,
+          value=0,
+          step=100,
+          key="strat_min_ma5_vol",
+      )
+    with vf_col3:
+      min_vol_ratio_filter = st.number_input(
+          "最低 20 期均量比（倍）",
+          min_value=0.0,
+          max_value=20.0,
+          value=0.0,
+          step=0.1,
+          format="%.1f",
+          key="strat_min_vol_ratio",
+      )
+    with vf_col4:
+      st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
+      if st.button("🔄 重整量能", key="btn_refresh_strat_vol", use_container_width=True):
+        fetch_raw_history.clear()
+        st.rerun()
+
+    p_prefix = "週" if strat_period_type == "週線" else "日"
+    col_latest_v = f"最新{p_prefix}量(張)"
+    col_ma5_v = f"5{p_prefix}均量(張)"
+    col_rat20_v = f"20{p_prefix}均量比"
+
+    vol_metrics_rows = []
+    if "代碼" in filtered_df.columns:
+      for _, r_item in filtered_df.iterrows():
+        raw_c = str(r_item["代碼"]).strip()
+        if raw_c in ["", "無", "無符合股票"]:
+          vol_metrics_rows.append({
+              col_latest_v: None,
+              col_ma5_v: None,
+              col_rat20_v: None,
+          })
+          continue
+        c_code = raw_c.zfill(4) if raw_c.isdigit() else raw_c
+        try:
+          df_v, _, _, c_v, _, v_rat = get_continuous_stock_df(
+              c_code, target_days=20, period_type=strat_period_type
+          )
+          ma5_v = (
+              float(df_v["vol_ma5"].iloc[-1])
+              if not df_v.empty and "vol_ma5" in df_v.columns and pd.notna(df_v["vol_ma5"].iloc[-1])
+              else 0.0
+          )
+          vol_metrics_rows.append({
+              col_latest_v: int(round(float(c_v))),
+              col_ma5_v: int(round(ma5_v)),
+              col_rat20_v: round(float(v_rat), 2),
+          })
+        except Exception:
+          vol_metrics_rows.append({
+              col_latest_v: None,
+              col_ma5_v: None,
+              col_rat20_v: None,
+          })
+
+    if vol_metrics_rows:
+      df_vol_m = pd.DataFrame(vol_metrics_rows)
+      filtered_df = pd.concat(
+          [filtered_df.reset_index(drop=True), df_vol_m.reset_index(drop=True)],
+          axis=1,
+      )
+      keep_mask = pd.Series([True] * len(filtered_df))
+      if min_vol_filter > 0 and col_latest_v in filtered_df.columns:
+        keep_mask = keep_mask & (
+            filtered_df[col_latest_v].fillna(0) >= min_vol_filter
+        )
+      if min_ma5_vol_filter > 0 and col_ma5_v in filtered_df.columns:
+        keep_mask = keep_mask & (
+            filtered_df[col_ma5_v].fillna(0) >= min_ma5_vol_filter
+        )
+      if min_vol_ratio_filter > 0 and col_rat20_v in filtered_df.columns:
+        keep_mask = keep_mask & (
+            filtered_df[col_rat20_v].fillna(0.0) >= min_vol_ratio_filter
+        )
+      filtered_df = filtered_df[keep_mask].reset_index(drop=True)
+
+    st.success(f"【{selected_strat}｜{strat_period_type}】目前符合量能條件共 {len(filtered_df)} 檔標的。")
 
     event = st.dataframe(
         filtered_df,
