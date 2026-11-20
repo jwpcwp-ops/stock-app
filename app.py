@@ -2182,11 +2182,7 @@ elif app_mode == "⚡ 9大策略選股":
 
   selected_strat = st.session_state.selected_synth_strat
 
-  st.markdown(
-      f'<p class="sub-header-14">⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【'
-      f"{selected_strat}】</p>",
-      unsafe_allow_html=True,
-  )
+
 
   output_csv = "smart_selected_output.csv"
   if os.path.exists(output_csv):
@@ -2218,50 +2214,91 @@ elif app_mode == "⚡ 9大策略選股":
       filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
 
     st.markdown(
-        '<div style="color:#00FFFF; font-size:12px; font-weight:bold; margin:4px 0 2px 0;">📊 成交量流動性參數設定（支援日線／週線篩選與即時更新量能過濾）</div>',
+        """
+        <style>
+          div.st-key-compact_vol_header_row [data-testid="stNumberInput"] input {
+            font-size: 11px !important;
+            padding: 2px 6px !important;
+            min-height: 26px !important;
+            height: 26px !important;
+          }
+          div.st-key-compact_vol_header_row [data-testid="stNumberInput"] button {
+            width: 22px !important;
+            height: 26px !important;
+            min-height: 26px !important;
+          }
+          div.st-key-compact_vol_header_row [data-testid="stSelectbox"] div[data-baseweb="select"] {
+            min-height: 26px !important;
+            height: 26px !important;
+            font-size: 11px !important;
+          }
+          div.st-key-compact_vol_header_row label {
+            font-size: 10.5px !important;
+            line-height: 1.15 !important;
+            margin-bottom: 2px !important;
+            color: #d8e2ec !important;
+          }
+          div.st-key-compact_vol_header_row [data-testid="stVerticalBlock"] {
+            gap: 1px !important;
+          }
+          div.st-key-compact_vol_header_row [data-testid="stHorizontalBlock"] {
+            align-items: flex-end !important;
+            margin-bottom: 4px !important;
+          }
+        </style>
+        """,
         unsafe_allow_html=True,
     )
-    vf_col0, vf_col1, vf_col2, vf_col3, vf_col4 = st.columns([1.2, 1.35, 1.35, 1.35, 1.0])
-    with vf_col0:
-      strat_period_type = st.selectbox(
-          "量能週期",
-          ["日線", "週線"],
-          index=0,
-          key="strat_vol_period_type",
-      )
-    with vf_col1:
-      min_vol_filter = st.number_input(
-          "最低單期成交量（張）",
-          min_value=0,
-          max_value=50000,
-          value=500,
-          step=100,
-          key="strat_min_vol_张",
-      )
-    with vf_col2:
-      min_ma5_vol_filter = st.number_input(
-          "最低 5 期均量（張）",
-          min_value=0,
-          max_value=50000,
-          value=0,
-          step=100,
-          key="strat_min_ma5_vol",
-      )
-    with vf_col3:
-      min_vol_ratio_filter = st.number_input(
-          "最低 20 期均量比（倍）",
-          min_value=0.0,
-          max_value=20.0,
-          value=0.0,
-          step=0.1,
-          format="%.1f",
-          key="strat_min_vol_ratio",
-      )
-    with vf_col4:
-      st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
-      if st.button("🔄 重整量能", key="btn_refresh_strat_vol", use_container_width=True):
-        fetch_raw_history.clear()
-        st.rerun()
+
+    with st.container(key="compact_vol_header_row"):
+      hdr_cols = st.columns([2.95, 0.85, 1.05, 0.95, 1.05, 0.85])
+      with hdr_cols[0]:
+        st.markdown(
+            f'<div style="font-size:13.5px; font-weight:bold; color:#ffffff; padding-bottom:4px; white-space:nowrap;">'
+            f'⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【{selected_strat}】'
+            f'<span style="color:#00FFFF; font-size:10.5px; font-weight:bold; margin-left:6px;">📊 量能參數</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+      with hdr_cols[1]:
+        strat_period_type = st.selectbox(
+            "量能週期",
+            ["日線", "週線"],
+            index=0,
+            key="strat_vol_period_type",
+        )
+      with hdr_cols[2]:
+        min_vol_filter = st.number_input(
+            "最低單期成交量（張）",
+            min_value=0,
+            max_value=50000,
+            value=500,
+            step=100,
+            key="strat_min_vol_张",
+        )
+      with hdr_cols[3]:
+        min_ma5_vol_filter = st.number_input(
+            "最低 5 期均量（張）",
+            min_value=0,
+            max_value=50000,
+            value=0,
+            step=100,
+            key="strat_min_ma5_vol",
+        )
+      with hdr_cols[4]:
+        min_vol_ratio_filter = st.number_input(
+            "最低 20 期均量比（倍）",
+            min_value=0.0,
+            max_value=20.0,
+            value=0.0,
+            step=0.1,
+            format="%.1f",
+            key="strat_min_vol_ratio",
+        )
+      with hdr_cols[5]:
+        if st.button("🔄 重整量能", key="btn_refresh_strat_vol", use_container_width=True):
+          fetch_raw_history.clear()
+          st.rerun()
 
     p_prefix = "週" if strat_period_type == "週線" else "日"
     col_latest_v = f"最新{p_prefix}量(張)"
