@@ -1120,7 +1120,7 @@ if app_mode == "📈 個股籌碼圖表":
   with third_row_cols[1]:
     selected_indicator = st.pills(
         "指標",
-        ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "集保"],
+        ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "大戶羊群"],
         default="MACD",
         selection_mode="single",
         label_visibility="collapsed",
