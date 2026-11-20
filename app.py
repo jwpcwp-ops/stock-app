@@ -764,7 +764,7 @@ def build_bar_analysis_snapshot(
             "color": "#FF3333" if qt_v >= prev_qt else "#00E64D",
         },
     ]
-  elif selected_indicator == "大戶羊群":
+  elif selected_indicator == "集保":
     b_slice = (
         big_holder[-len(df) :] if len(big_holder) >= len(df) else big_holder
     )
