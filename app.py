@@ -161,27 +161,17 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 單行量能篩選列樣式（偏青藍反白 & #F0B84B 提示） */
-        .dw-filter-active-banner {
-            background-color: #177E89;
-            border: 1px solid #38B2C4;
-            color: #F0F8FA;
-            border-radius: 5px;
-            padding: 4px 10px;
-            font-size: 12px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
+        /* 單行量能篩選列樣式（偏青藍反白 & #F0B84B 提示，不放大） */
         .dw-lbl-on {
             color: #38B2C4;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 11px;
             white-space: nowrap;
         }
         .dw-lbl-off {
             color: #E2E8F0;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 11px;
             white-space: nowrap;
         }
         .amber-no-result {
@@ -2210,19 +2200,16 @@ elif app_mode == "⚡ 9大策略選股":
 
   selected_strat = st.session_state.selected_synth_strat
 
-  # 單行篩選列：日/周：成交量 > [ ___ ] 值 > [ ___ ]（不使用「期」字）
-  raw_dw_vol = st.session_state.get("dw_vol_input", "").strip()
-  raw_dw_val = st.session_state.get("dw_val_input", "").strip()
-  is_dw_active = bool(raw_dw_vol or raw_dw_val)
+  # 單行橫排篩選列：[ 日 / 周 ] 成交量 > [ 500 起跳倍數 ] 值 > [ 1.4, 1.8 ] [ 🔄 重整 ]
+  vol_mult_options = [500 * (2**i) for i in range(6)]
+  val_up_options = [1.4, 1.8]
 
-  if is_dw_active:
-    st.markdown(
-        '<div class="dw-filter-active-banner">使用中：已啟用成交量／值篩選</div>',
-        unsafe_allow_html=True,
-    )
-
+  cur_vol_in = st.session_state.get("dw_vol_mult", 500)
+  cur_val_in = st.session_state.get("dw_val_up_sel", 1.4)
+  is_dw_active = (cur_vol_in != 500) or (abs(cur_val_in - 1.4) > 1e-6)
   lbl_cls = "dw-lbl-on" if is_dw_active else "dw-lbl-off"
-  f_cols = st.columns([0.95, 1.35, 1.45, 0.75, 1.45, 0.95], gap="small")
+
+  f_cols = st.columns([0.85, 1.15, 1.30, 0.70, 1.30, 0.90], gap="small")
   with f_cols[0]:
     dw_choice = st.selectbox(
         "日周",
@@ -2233,13 +2220,14 @@ elif app_mode == "⚡ 9大策略選股":
     )
   with f_cols[1]:
     st.markdown(
-        f'<div class="{lbl_cls}">/周：成交量 &gt;</div>', unsafe_allow_html=True
+        f'<div class="{lbl_cls}">成交量 &gt;</div>', unsafe_allow_html=True
     )
   with f_cols[2]:
-    st.text_input(
-        "成交量",
-        placeholder="___",
-        key="dw_vol_input",
+    min_dw_vol = st.selectbox(
+        "成交量倍數",
+        vol_mult_options,
+        index=0,
+        key="dw_vol_mult",
         label_visibility="collapsed",
     )
   with f_cols[3]:
@@ -2247,35 +2235,17 @@ elif app_mode == "⚡ 9大策略選股":
         f'<div class="{lbl_cls}">值 &gt;</div>', unsafe_allow_html=True
     )
   with f_cols[4]:
-    st.text_input(
-        "值",
-        placeholder="___",
-        key="dw_val_input",
+    min_dw_val = st.selectbox(
+        "值門檻",
+        val_up_options,
+        index=0,
+        key="dw_val_up_sel",
         label_visibility="collapsed",
     )
   with f_cols[5]:
     if st.button("🔄 重整", key="btn_refresh_dw_vol", use_container_width=True):
       fetch_raw_history.clear()
       st.rerun()
-
-  min_dw_vol = None
-  min_dw_val = None
-  if raw_dw_vol:
-    try:
-      min_dw_vol = float(raw_dw_vol)
-    except ValueError:
-      st.markdown(
-          '<div class="amber-no-result">成交量請輸入有效數字</div>',
-          unsafe_allow_html=True,
-      )
-  if raw_dw_val:
-    try:
-      min_dw_val = float(raw_dw_val)
-    except ValueError:
-      st.markdown(
-          '<div class="amber-no-result">值請輸入有效數字</div>',
-          unsafe_allow_html=True,
-      )
 
   output_csv = "smart_selected_output.csv"
   if os.path.exists(output_csv):
@@ -2344,20 +2314,26 @@ elif app_mode == "⚡ 9大策略選股":
           axis=1,
       )
       keep_mask = pd.Series([True] * len(filtered_df))
-      if min_dw_vol is not None and col_v_name in filtered_df.columns:
+      if col_v_name in filtered_df.columns:
         keep_mask = keep_mask & (
             filtered_df[col_v_name].fillna(0) > min_dw_vol
         )
-      if min_dw_val is not None and col_val_name in filtered_df.columns:
+      if col_val_name in filtered_df.columns:
         keep_mask = keep_mask & (
             filtered_df[col_val_name].fillna(0.0) > min_dw_val
         )
       filtered_df = filtered_df[keep_mask].reset_index(drop=True)
 
-    st.markdown(
-        f'<div class="amber-no-result">【{selected_strat}｜{dw_choice}】目前符合條件共 {len(filtered_df)} 檔標的。</div>',
-        unsafe_allow_html=True,
-    )
+    if filtered_df.empty:
+      st.markdown(
+          f'<div class="amber-no-result">【{selected_strat}｜{dw_choice}】目前尚無符合條件的股票標的。</div>',
+          unsafe_allow_html=True,
+      )
+    else:
+      st.markdown(
+          f'<div class="amber-no-result">【{selected_strat}｜{dw_choice}】目前符合條件共 {len(filtered_df)} 檔標的。</div>',
+          unsafe_allow_html=True,
+      )
 
     event = st.dataframe(
         filtered_df,
