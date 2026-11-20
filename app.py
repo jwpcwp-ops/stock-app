@@ -161,54 +161,96 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 緊湊單行量能篩選列：字與框比例貼合，靠左不拉開空白 */
-        .compact-filter-row [data-testid="stHorizontalBlock"] {
+        /* 對齊到「金剛指標」右邊界底下的緊湊單行列 */
+        .gold-aligned-bar {
+            width: 76% !important;
+            max-width: 100% !important;
+            display: flex !important;
+            align-items: center !important;
             justify-content: flex-start !important;
             gap: 5px !important;
             flex-wrap: nowrap !important;
+            margin-top: 2px !important;
+            margin-bottom: 4px !important;
         }
-        .compact-filter-row [data-testid="column"] {
+        .gold-aligned-bar [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            gap: 4px !important;
+            flex-wrap: nowrap !important;
+            margin-bottom: 0px !important;
+            width: 100% !important;
+        }
+        .gold-aligned-bar [data-testid="column"] {
             flex: 0 0 auto !important;
             width: auto !important;
             min-width: 0 !important;
+            padding: 0px !important;
         }
-        .compact-f-day [data-baseweb="select"] {
+        .gold-f-day [data-baseweb="select"] {
+            width: 58px !important;
+            min-width: 58px !important;
+        }
+        .gold-f-vol [data-baseweb="select"] {
+            width: 78px !important;
+            min-width: 78px !important;
+        }
+        .gold-f-val [data-baseweb="select"] {
             width: 64px !important;
             min-width: 64px !important;
         }
-        .compact-f-vol [data-baseweb="select"] {
-            width: 90px !important;
-            min-width: 90px !important;
-        }
-        .compact-f-val [data-baseweb="select"] {
-            width: 72px !important;
-            min-width: 72px !important;
-        }
-        .compact-f-btn button {
+        .gold-f-btn button {
             width: auto !important;
-            min-width: 52px !important;
+            min-width: 48px !important;
             height: 26px !important;
             min-height: 26px !important;
-            padding: 2px 7px !important;
+            padding: 2px 6px !important;
             font-size: 10px !important;
         }
+
+        /* 成交量> 與 值> 專屬小框框：大小貼合字體，不撐大 */
         .dw-lbl-on {
-            background-color: rgba(56, 178, 196, 0.20);
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background-color: rgba(56, 178, 196, 0.22);
             color: #38B2C4;
             border: 1px solid #38B2C4;
             border-radius: 3px;
             padding: 0 5px;
+            height: 24px;
+            min-height: 24px;
             font-weight: 700;
             font-size: 11px;
             white-space: nowrap;
-            line-height: 22px;
+            line-height: 1;
+            box-sizing: border-box;
         }
         .dw-lbl-off {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background-color: #14181f;
             color: #E2E8F0;
+            border: 1px solid #3a4554;
+            border-radius: 3px;
+            padding: 0 5px;
+            height: 24px;
+            min-height: 24px;
             font-weight: 600;
             font-size: 11px;
             white-space: nowrap;
-            line-height: 24px;
+            line-height: 1;
+            box-sizing: border-box;
+        }
+        .amber-inline-msg {
+            color: #F0B84B;
+            font-weight: 700;
+            font-size: 12px;
+            white-space: nowrap;
+            margin-right: 4px;
         }
         .amber-no-result {
             color: #F0B84B;
@@ -2236,7 +2278,6 @@ elif app_mode == "⚡ 9大策略選股":
 
   selected_strat = st.session_state.selected_synth_strat
 
-  # 緊湊單行橫排篩選列：[ 日 / 周 ] 成交量 > [ 500 起跳倍數 ] 值 > [ 1.4, 1.8 ] [ 🔄 重整 ]
   vol_mult_options = [500 * (2**i) for i in range(6)]
   val_up_options = [1.4, 1.8]
 
@@ -2244,61 +2285,6 @@ elif app_mode == "⚡ 9大策略選股":
   cur_val_in = st.session_state.get("dw_val_up_sel", 1.4)
   is_dw_active = (cur_vol_in != 500) or (abs(cur_val_in - 1.4) > 1e-6)
   lbl_cls = "dw-lbl-on" if is_dw_active else "dw-lbl-off"
-
-  st.markdown('<div class="compact-filter-row">', unsafe_allow_html=True)
-  f_cols = st.columns([1, 1, 1, 1, 1, 1], gap="small")
-
-  with f_cols[0]:
-    st.markdown('<div class="compact-f-day">', unsafe_allow_html=True)
-    dw_choice = st.selectbox(
-        "日周",
-        ["日", "周"],
-        index=0,
-        key="dw_choice_select",
-        label_visibility="collapsed",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-  with f_cols[1]:
-    st.markdown(
-        f'<div class="{lbl_cls}">成交量 &gt;</div>', unsafe_allow_html=True
-    )
-
-  with f_cols[2]:
-    st.markdown('<div class="compact-f-vol">', unsafe_allow_html=True)
-    min_dw_vol = st.selectbox(
-        "成交量倍數",
-        vol_mult_options,
-        index=0,
-        key="dw_vol_mult",
-        label_visibility="collapsed",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-  with f_cols[3]:
-    st.markdown(
-        f'<div class="{lbl_cls}">值 &gt;</div>', unsafe_allow_html=True
-    )
-
-  with f_cols[4]:
-    st.markdown('<div class="compact-f-val">', unsafe_allow_html=True)
-    min_dw_val = st.selectbox(
-        "值門檻",
-        val_up_options,
-        index=0,
-        key="dw_val_up_sel",
-        label_visibility="collapsed",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-  with f_cols[5]:
-    st.markdown('<div class="compact-f-btn">', unsafe_allow_html=True)
-    if st.button("🔄 重整", key="btn_refresh_dw_vol"):
-      fetch_raw_history.clear()
-      st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-  st.markdown("</div>", unsafe_allow_html=True)
 
   output_csv = "smart_selected_output.csv"
   if os.path.exists(output_csv):
@@ -2310,23 +2296,74 @@ elif app_mode == "⚡ 9大策略選股":
     df_res = pd.DataFrame(columns=["策略名稱", "代碼"])
 
   if not df_res.empty and "策略名稱" in df_res.columns:
-    filtered_df = df_res[df_res["策略名稱"] == selected_strat].copy()
+    raw_strat_df = df_res[df_res["策略名稱"] == selected_strat].copy()
   else:
-    filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
+    raw_strat_df = pd.DataFrame(columns=["策略名稱", "代碼"])
 
   has_raw_candidates = not (
-      filtered_df.empty
+      raw_strat_df.empty
       or (
-          len(filtered_df) == 1
-          and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]
+          len(raw_strat_df) == 1
+          and raw_strat_df.iloc[0]["代碼"] in ["無", "無符合股票"]
       )
   )
 
-  if not has_raw_candidates:
-    st.markdown(
-        f'<div class="amber-no-result">【{selected_strat}】目前尚無符合條件的股票標的。</div>',
-        unsafe_allow_html=True,
+  st.markdown('<div class="gold-aligned-bar">', unsafe_allow_html=True)
+  f_cols = st.columns([1, 1, 1, 1, 1, 1, 1], gap="small")
+
+  with f_cols[0]:
+    st.markdown('<div class="gold-f-day">', unsafe_allow_html=True)
+    dw_choice = st.selectbox(
+        "日周",
+        ["日", "周"],
+        index=0,
+        key="dw_choice_select",
+        label_visibility="collapsed",
     )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+  with f_cols[1]:
+    st.markdown(
+        f'<div class="{lbl_cls}">成交量&gt;</div>', unsafe_allow_html=True
+    )
+
+  with f_cols[2]:
+    st.markdown('<div class="gold-f-vol">', unsafe_allow_html=True)
+    min_dw_vol = st.selectbox(
+        "成交量倍數",
+        vol_mult_options,
+        index=0,
+        key="dw_vol_mult",
+        label_visibility="collapsed",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+  with f_cols[3]:
+    st.markdown(
+        f'<div class="{lbl_cls}">值&gt;</div>', unsafe_allow_html=True
+    )
+
+  with f_cols[4]:
+    st.markdown('<div class="gold-f-val">', unsafe_allow_html=True)
+    min_dw_val = st.selectbox(
+        "值門檻",
+        val_up_options,
+        index=0,
+        key="dw_val_up_sel",
+        label_visibility="collapsed",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+  with f_cols[5]:
+    st.markdown('<div class="gold-f-btn">', unsafe_allow_html=True)
+    if st.button("🔄 重整", key="btn_refresh_dw_vol"):
+      fetch_raw_history.clear()
+      st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+  if not has_raw_candidates:
+    filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
+    status_msg = f"【{selected_strat}】目前尚無符合條件的股票標的。"
   else:
     id_to_name = dict(
         zip(
@@ -2334,6 +2371,7 @@ elif app_mode == "⚡ 9大策略選股":
             stock_df["名稱"].astype(str),
         )
     )
+    filtered_df = raw_strat_df.copy()
     if "代碼" in filtered_df.columns:
       filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
 
@@ -2378,16 +2416,22 @@ elif app_mode == "⚡ 9大策略選股":
       filtered_df = filtered_df[keep_mask].reset_index(drop=True)
 
     if filtered_df.empty:
-      st.markdown(
-          f'<div class="amber-no-result">【{selected_strat}｜{dw_choice}】目前尚無符合條件的股票標的。</div>',
-          unsafe_allow_html=True,
-      )
+      status_msg = f"【{selected_strat}｜{dw_choice}】目前尚無符合條件的股票標的。"
     else:
-      st.markdown(
-          f'<div class="amber-no-result">【{selected_strat}｜{dw_choice}】目前符合條件共 {len(filtered_df)} 檔標的。</div>',
-          unsafe_allow_html=True,
+      status_msg = (
+          f"【{selected_strat}｜{dw_choice}】目前符合條件共"
+          f" {len(filtered_df)} 檔標的。"
       )
 
+  with f_cols[6]:
+    st.markdown(
+        f'<div class="amber-inline-msg">{status_msg}</div>',
+        unsafe_allow_html=True,
+    )
+
+  st.markdown("</div>", unsafe_allow_html=True)
+
+  if has_raw_candidates and not filtered_df.empty:
     event = st.dataframe(
         filtered_df,
         use_container_width=True,
