@@ -146,9 +146,9 @@ st.markdown(
         }
         
         .stAlert {
-            color: #ffffff !important;
-            background-color: #0b2e13 !important;
-            border: 1px solid #1e7e34 !important;
+            color: #F0B84B !important;
+            background-color: #0b0d10 !important;
+            border: 1px solid #334155 !important;
             margin-top: 8px !important;
             padding-top: 10px !important;
             padding-bottom: 10px !important;
@@ -156,9 +156,39 @@ st.markdown(
             z-index: 1 !important;
         }
         .stAlert p {
-            color: #ffffff !important;
+            color: #F0B84B !important;
             font-size: 14px !important;
             font-weight: bold !important;
+        }
+
+        /* 單行量能篩選列樣式（偏青藍反白 & #F0B84B 提示） */
+        .dw-filter-active-banner {
+            background-color: #177E89;
+            border: 1px solid #38B2C4;
+            color: #F0F8FA;
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .dw-lbl-on {
+            color: #38B2C4;
+            font-weight: 700;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .dw-lbl-off {
+            color: #E2E8F0;
+            font-weight: 600;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .amber-no-result {
+            color: #F0B84B;
+            font-weight: 700;
+            font-size: 15px;
+            padding: 8px 4px;
         }
     </style>
 """,
@@ -202,7 +232,9 @@ def get_bright_effect(stroke_color="#000000", linewidth=2.5):
 @st.cache_data
 def load_stock_list():
   try:
-    df = pd.read_excel("StockIDs.xlsx", sheet_name="StockIDs", dtype={"代碼": str})
+    df = pd.read_excel(
+        "StockIDs.xlsx", sheet_name="StockIDs", dtype={"代碼": str}
+    )
     df["代碼"] = (
         df["代碼"].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
     )
@@ -284,13 +316,13 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
   if period_type in ["60分", "60分鐘"]:
     yf_interval = "60m"
     yf_period = "120d"
-  elif period_type == "週線":
+  elif period_type in ["週線", "周"]:
     yf_interval = "1wk"
     yf_period = "max"
   elif period_type == "月線":
     yf_interval = "1mo"
     yf_period = "max"
-  elif period_type == "日線":
+  elif period_type in ["日線", "日"]:
     yf_interval = "1d"
     yf_period = "5y" if fetch_len > 350 else "3y"
 
@@ -312,7 +344,7 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
     except Exception:
       continue
 
-  if period_type == "日線" and not df_yf.empty:
+  if period_type in ["日線", "日"] and not df_yf.empty:
     try:
       t_obj = yf.Ticker(tickers_to_try[0])
       temp_60m = t_obj.history(period="5d", interval="60m", auto_adjust=True)
@@ -555,7 +587,6 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
   if stock_id in cache_dict:
     b_arr, s_arr, _ = extract_tdcc_arrays(cache_dict[stock_id])
     if len(b_arr) > 0 and len(s_arr) > 0:
-      # 將集保週數據對齊顯示長度
       n_p = len(df_show)
       if len(b_arr) >= n_p:
         big_holder = np.array(b_arr[-n_p:])
@@ -1145,7 +1176,6 @@ if app_mode == "📈 個股籌碼圖表":
     )
 
   with third_row_cols[1]:
-    # 若從大戶籌碼選股跳轉過來，自動切換預設指標為「大戶羊群」
     default_ind_val = (
         st.session_state.default_indicator_override
         if st.session_state.default_indicator_override
@@ -1167,7 +1197,6 @@ if app_mode == "📈 個股籌碼圖表":
       selected_indicator = "MACD"
 
   with third_row_cols[2]:
-    # 單一橫列整齊對齊：120 | 250 | 500 | ↓縮 | ↑擴 | K:xx
     row_bar_cols = st.columns([0.55, 0.55, 0.55, 0.55, 0.55, 0.65])
     preset_vals = [120, 250, 500]
     for p_idx, p_val in enumerate(preset_vals):
@@ -1636,7 +1665,6 @@ if app_mode == "📈 個股籌碼圖表":
             zorder=4,
         )
 
-        # 依大戶與羊群實際比例動態縮放 Y 軸，不從 0 起算
         comb = np.concatenate([b_plot, s_plot])
         comb = comb[np.isfinite(comb)]
         if len(comb) > 0:
@@ -2182,7 +2210,72 @@ elif app_mode == "⚡ 9大策略選股":
 
   selected_strat = st.session_state.selected_synth_strat
 
+  # 單行篩選列：日/周：成交量 > [ ___ ] 值 > [ ___ ]（不使用「期」字）
+  raw_dw_vol = st.session_state.get("dw_vol_input", "").strip()
+  raw_dw_val = st.session_state.get("dw_val_input", "").strip()
+  is_dw_active = bool(raw_dw_vol or raw_dw_val)
 
+  if is_dw_active:
+    st.markdown(
+        '<div class="dw-filter-active-banner">使用中：已啟用成交量／值篩選</div>',
+        unsafe_allow_html=True,
+    )
+
+  lbl_cls = "dw-lbl-on" if is_dw_active else "dw-lbl-off"
+  f_cols = st.columns([0.95, 1.35, 1.45, 0.75, 1.45, 0.95], gap="small")
+  with f_cols[0]:
+    dw_choice = st.selectbox(
+        "日周",
+        ["日", "周"],
+        index=0,
+        key="dw_choice_select",
+        label_visibility="collapsed",
+    )
+  with f_cols[1]:
+    st.markdown(
+        f'<div class="{lbl_cls}">/周：成交量 &gt;</div>', unsafe_allow_html=True
+    )
+  with f_cols[2]:
+    st.text_input(
+        "成交量",
+        placeholder="___",
+        key="dw_vol_input",
+        label_visibility="collapsed",
+    )
+  with f_cols[3]:
+    st.markdown(
+        f'<div class="{lbl_cls}">值 &gt;</div>', unsafe_allow_html=True
+    )
+  with f_cols[4]:
+    st.text_input(
+        "值",
+        placeholder="___",
+        key="dw_val_input",
+        label_visibility="collapsed",
+    )
+  with f_cols[5]:
+    if st.button("🔄 重整", key="btn_refresh_dw_vol", use_container_width=True):
+      fetch_raw_history.clear()
+      st.rerun()
+
+  min_dw_vol = None
+  min_dw_val = None
+  if raw_dw_vol:
+    try:
+      min_dw_vol = float(raw_dw_vol)
+    except ValueError:
+      st.markdown(
+          '<div class="amber-no-result">成交量請輸入有效數字</div>',
+          unsafe_allow_html=True,
+      )
+  if raw_dw_val:
+    try:
+      min_dw_val = float(raw_dw_val)
+    except ValueError:
+      st.markdown(
+          '<div class="amber-no-result">值請輸入有效數字</div>',
+          unsafe_allow_html=True,
+      )
 
   output_csv = "smart_selected_output.csv"
   if os.path.exists(output_csv):
@@ -2198,11 +2291,19 @@ elif app_mode == "⚡ 9大策略選股":
   else:
     filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
 
-  if filtered_df.empty or (
-      len(filtered_df) == 1
-      and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]
-  ):
-    st.info(f"【{selected_strat}】目前尚無符合條件的股票標的。")
+  has_raw_candidates = not (
+      filtered_df.empty
+      or (
+          len(filtered_df) == 1
+          and filtered_df.iloc[0]["代碼"] in ["無", "無符合股票"]
+      )
+  )
+
+  if not has_raw_candidates:
+    st.markdown(
+        f'<div class="amber-no-result">【{selected_strat}】目前尚無符合條件的股票標的。</div>',
+        unsafe_allow_html=True,
+    )
   else:
     id_to_name = dict(
         zip(
@@ -2213,153 +2314,50 @@ elif app_mode == "⚡ 9大策略選股":
     if "代碼" in filtered_df.columns:
       filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
 
-    st.markdown(
-        """
-        <style>
-          div.st-key-compact_vol_header_row [data-testid="stNumberInput"] input {
-            font-size: 11px !important;
-            padding: 2px 6px !important;
-            min-height: 26px !important;
-            height: 26px !important;
-          }
-          div.st-key-compact_vol_header_row [data-testid="stNumberInput"] button {
-            width: 22px !important;
-            height: 26px !important;
-            min-height: 26px !important;
-          }
-          div.st-key-compact_vol_header_row [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 26px !important;
-            height: 26px !important;
-            font-size: 11px !important;
-          }
-          div.st-key-compact_vol_header_row label {
-            font-size: 10.5px !important;
-            line-height: 1.15 !important;
-            margin-bottom: 2px !important;
-            color: #d8e2ec !important;
-          }
-          div.st-key-compact_vol_header_row [data-testid="stVerticalBlock"] {
-            gap: 1px !important;
-          }
-          div.st-key-compact_vol_header_row [data-testid="stHorizontalBlock"] {
-            align-items: flex-end !important;
-            margin-bottom: 4px !important;
-          }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    period_arg = "週線" if dw_choice == "周" else "日線"
+    col_v_name = f"最新{dw_choice}量(張)"
+    col_val_name = f"{dw_choice}量比"
 
-    with st.container(key="compact_vol_header_row"):
-      hdr_cols = st.columns([2.95, 0.85, 1.05, 0.95, 1.05, 0.85])
-      with hdr_cols[0]:
-        st.markdown(
-            f'<div style="font-size:13.5px; font-weight:bold; color:#ffffff; padding-bottom:4px; white-space:nowrap;">'
-            f'⚡ GitHub 雲端 9 大策略選股結果 ｜當前策略：【{selected_strat}】'
-            f'<span style="color:#00FFFF; font-size:10.5px; font-weight:bold; margin-left:6px;">📊 量能參數</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-      with hdr_cols[1]:
-        strat_period_type = st.selectbox(
-            "量能週期",
-            ["日線", "週線"],
-            index=0,
-            key="strat_vol_period_type",
-        )
-      with hdr_cols[2]:
-        min_vol_filter = st.number_input(
-            "最低單期成交量（張）",
-            min_value=0,
-            max_value=50000,
-            value=500,
-            step=100,
-            key="strat_min_vol_张",
-        )
-      with hdr_cols[3]:
-        min_ma5_vol_filter = st.number_input(
-            "最低 5 期均量（張）",
-            min_value=0,
-            max_value=50000,
-            value=0,
-            step=100,
-            key="strat_min_ma5_vol",
-        )
-      with hdr_cols[4]:
-        min_vol_ratio_filter = st.number_input(
-            "最低 20 期均量比（倍）",
-            min_value=0.0,
-            max_value=20.0,
-            value=0.0,
-            step=0.1,
-            format="%.1f",
-            key="strat_min_vol_ratio",
-        )
-      with hdr_cols[5]:
-        if st.button("🔄 重整量能", key="btn_refresh_strat_vol", use_container_width=True):
-          fetch_raw_history.clear()
-          st.rerun()
-
-    p_prefix = "週" if strat_period_type == "週線" else "日"
-    col_latest_v = f"最新{p_prefix}量(張)"
-    col_ma5_v = f"5{p_prefix}均量(張)"
-    col_rat20_v = f"20{p_prefix}均量比"
-
-    vol_metrics_rows = []
+    metrics_rows = []
     if "代碼" in filtered_df.columns:
       for _, r_item in filtered_df.iterrows():
         raw_c = str(r_item["代碼"]).strip()
         if raw_c in ["", "無", "無符合股票"]:
-          vol_metrics_rows.append({
-              col_latest_v: None,
-              col_ma5_v: None,
-              col_rat20_v: None,
-          })
+          metrics_rows.append({col_v_name: None, col_val_name: None})
           continue
         c_code = raw_c.zfill(4) if raw_c.isdigit() else raw_c
         try:
-          df_v, _, _, c_v, _, v_rat = get_continuous_stock_df(
-              c_code, target_days=20, period_type=strat_period_type
+          _, _, _, c_v, _, v_rat = get_continuous_stock_df(
+              c_code, target_days=20, period_type=period_arg
           )
-          ma5_v = (
-              float(df_v["vol_ma5"].iloc[-1])
-              if not df_v.empty and "vol_ma5" in df_v.columns and pd.notna(df_v["vol_ma5"].iloc[-1])
-              else 0.0
-          )
-          vol_metrics_rows.append({
-              col_latest_v: int(round(float(c_v))),
-              col_ma5_v: int(round(ma5_v)),
-              col_rat20_v: round(float(v_rat), 2),
+          metrics_rows.append({
+              col_v_name: int(round(float(c_v))),
+              col_val_name: round(float(v_rat), 2),
           })
         except Exception:
-          vol_metrics_rows.append({
-              col_latest_v: None,
-              col_ma5_v: None,
-              col_rat20_v: None,
-          })
+          metrics_rows.append({col_v_name: None, col_val_name: None})
 
-    if vol_metrics_rows:
-      df_vol_m = pd.DataFrame(vol_metrics_rows)
+    if metrics_rows:
+      df_m = pd.DataFrame(metrics_rows)
       filtered_df = pd.concat(
-          [filtered_df.reset_index(drop=True), df_vol_m.reset_index(drop=True)],
+          [filtered_df.reset_index(drop=True), df_m.reset_index(drop=True)],
           axis=1,
       )
       keep_mask = pd.Series([True] * len(filtered_df))
-      if min_vol_filter > 0 and col_latest_v in filtered_df.columns:
+      if min_dw_vol is not None and col_v_name in filtered_df.columns:
         keep_mask = keep_mask & (
-            filtered_df[col_latest_v].fillna(0) >= min_vol_filter
+            filtered_df[col_v_name].fillna(0) > min_dw_vol
         )
-      if min_ma5_vol_filter > 0 and col_ma5_v in filtered_df.columns:
+      if min_dw_val is not None and col_val_name in filtered_df.columns:
         keep_mask = keep_mask & (
-            filtered_df[col_ma5_v].fillna(0) >= min_ma5_vol_filter
-        )
-      if min_vol_ratio_filter > 0 and col_rat20_v in filtered_df.columns:
-        keep_mask = keep_mask & (
-            filtered_df[col_rat20_v].fillna(0.0) >= min_vol_ratio_filter
+            filtered_df[col_val_name].fillna(0.0) > min_dw_val
         )
       filtered_df = filtered_df[keep_mask].reset_index(drop=True)
 
-    st.success(f"【{selected_strat}｜{strat_period_type}】目前符合量能條件共 {len(filtered_df)} 檔標的。")
+    st.markdown(
+        f'<div class="amber-no-result">【{selected_strat}｜{dw_choice}】目前符合條件共 {len(filtered_df)} 檔標的。</div>',
+        unsafe_allow_html=True,
+    )
 
     event = st.dataframe(
         filtered_df,
@@ -2426,7 +2424,6 @@ elif app_mode == "⚡ 9大策略選股":
 # 分頁三：📋 大戶總表 (含大戶與羊群秒速籌碼選股 + 籌碼增幅榜)
 # =========================================================
 elif app_mode == "📋 大戶總表":
-  # --- 區塊 A：大戶與羊群秒速籌碼選股 ---
   st.markdown(
       '<p class="sub-header-14">⚡ 大戶與羊群秒速籌碼選股（點擊個股列直接跳轉圖表）</p>',
       unsafe_allow_html=True,
@@ -2543,7 +2540,6 @@ elif app_mode == "📋 大戶總表":
 
   st.markdown("---")
 
-  # --- 區塊 B：每週大戶增幅前15名總表 ---
   excel_filename = "大戶持股最新分析總表.xlsx"
   if os.path.exists(excel_filename):
     try:
