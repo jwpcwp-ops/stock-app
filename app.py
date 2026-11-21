@@ -3,7 +3,9 @@ from datetime import datetime
 from io import BytesIO
 import json
 import os
+import ssl
 import urllib.request
+import certifi
 import matplotlib.font_manager as fm
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
@@ -679,6 +681,14 @@ def _parse_pos_float(val):
     return None
 
 
+
+def _build_ssl_context():
+  try:
+    return ssl.create_default_context(cafile=certifi.where())
+  except Exception:
+    return ssl.create_default_context()
+
+
 def _fetch_twse_pe_yield(stock_id):
   """向證交所公開 OpenAPI (BWIBBU_ALL) 與每日本益比報表查詢上市股票最新本益比與現金殖利率。"""
   clean_id = str(stock_id).strip().replace(".0", "")
@@ -698,7 +708,7 @@ def _fetch_twse_pe_yield(stock_id):
               "Accept": "application/json",
           },
       )
-      with urllib.request.urlopen(req, timeout=8) as resp:
+      with urllib.request.urlopen(req, timeout=8, context=_build_ssl_context()) as resp:
         raw_txt = resp.read().decode("utf-8", errors="ignore")
         data = json.loads(raw_txt)
         if isinstance(data, list):
@@ -1014,7 +1024,7 @@ def fetch_stock_fundamentals(stock_id):
           pass
 
   if eps_4q is None:
-    for k_alt in ["trailingEps", "forwardEps", "bookValue"]:
+    for k_alt in ["trailingEps", "forwardEps"]:
       v_alt = _parse_pos_float(info.get(k_alt))
       if v_alt is not None and v_alt > 0:
         eps_4q = v_alt
