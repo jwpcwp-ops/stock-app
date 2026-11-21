@@ -681,7 +681,6 @@ def _parse_pos_float(val):
     return None
 
 
-
 def _build_ssl_context():
   try:
     return ssl.create_default_context(cafile=certifi.where())
@@ -690,7 +689,6 @@ def _build_ssl_context():
 
 
 def _fetch_tpex_pe_yield(stock_id):
-  """向櫃買中心 (TPEx) 公開 API 查詢上櫃股票最新本益比與現金殖利率。"""
   clean_id = str(stock_id).strip().replace(".0", "")
   if not clean_id or clean_id == "99991":
     return None, None
@@ -785,7 +783,6 @@ def _fetch_tpex_pe_yield(stock_id):
 
 
 def _fetch_twse_pe_yield(stock_id):
-  """向證交所公開 OpenAPI (BWIBBU_ALL) 與每日本益比報表查詢上市股票最新本益比與現金殖利率。"""
   clean_id = str(stock_id).strip().replace(".0", "")
   if not clean_id or clean_id == "99991":
     return None, None
@@ -843,7 +840,6 @@ def _fetch_twse_pe_yield(stock_id):
 
 @st.cache_data(ttl=1800)
 def fetch_stock_fundamentals(stock_id):
-  """抓取個股基本面數據：今日本益比、單季 EPS、近 4 季 EPS 合計、殖利率（嚴格使用現金股利）。"""
   result = {
       "pe_str": "--",
       "eps_str": "--",
@@ -862,7 +858,6 @@ def fetch_stock_fundamentals(stock_id):
     return result
 
   base_code = clean_id.zfill(4) if clean_id.isdigit() else clean_id
-  # 上市股優先使用 .TW，其次再試 .TWO（與櫃買無關，5274 為上市股優先走 .TW）
   tickers = []
   for cand in [clean_id, base_code]:
     for suf in [".TW", ".TWO"]:
@@ -1003,7 +998,6 @@ def fetch_stock_fundamentals(stock_id):
         except Exception:
           pass
 
-  # 現金股利序列：計算近一年（365天）累計現金股利作為殖利率分子
   cash_div_events = []
   annual_cash_div = None
   if divs is not None and len(divs) > 0:
@@ -1057,7 +1051,6 @@ def fetch_stock_fundamentals(stock_id):
       except Exception:
         pass
 
-  # 證交所 TWSE 與櫃買中心 TPEx 備援（上市／上櫃股票）：取得本益比與現金殖利率，並可反推近4季 EPS 與現金股利
   twse_pe, twse_yield = _fetch_twse_pe_yield(clean_id)
   if twse_pe is None or twse_yield is None:
     tpex_pe, tpex_yield = _fetch_tpex_pe_yield(clean_id)
@@ -1173,7 +1166,6 @@ def fetch_stock_fundamentals(stock_id):
 
 
 def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
-  """依單根 K 線日期與收盤價，動態更新【基本面快訊】（殖利率 = 現金股利 / 股價）。"""
   q_eps_v = _lookup_asof_value(
       fund_data.get("q_eps_dates", []),
       fund_data.get("q_eps_vals", []),
@@ -1427,7 +1419,6 @@ def build_bar_analysis_snapshot(
     stock_id="",
 ):
   r = df.iloc[idx_r]
-  df_slice = df.iloc[: idx_r + 1]
 
   c_open = float(r["open"])
   c_close = float(r["close"])
@@ -1465,10 +1456,24 @@ def build_bar_analysis_snapshot(
     ma_status = "均線交錯"
   ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
 
-  period_high = float(df_slice["high"].max())
-  period_low = float(df_slice["low"].min())
-  drop_pct = ((period_high - c_low) / period_high) * 100 if period_high > 0 else 0.0
-  rise_pct = ((c_high / period_low) - 1) * 100 if period_low > 0 else 0.0
+  # 單根 K 棒漲跌與振幅（取代原本固定式區間漲跌幅，交由尺規測距處理區間）
+  bar_diff = c_close - p_close
+  bar_chg_pct = (bar_diff / p_close * 100.0) if p_close > 0 else 0.0
+  bar_amp_pct = ((c_high - c_low) / p_close * 100.0) if p_close > 0 else 0.0
+  bar_chg_str = f"{bar_diff:+.2f} ({bar_chg_pct:+.2f}%)"
+  bar_chg_cls = "t-val-red" if bar_diff >= 0 else "t-val-green"
+  bar_amp_str = f"{bar_amp_pct:.2f}%"
+
+  b_slice = big_holder[-len(df) :] if len(big_holder) >= len(df) else big_holder
+  s_slice = (
+      sheep_holder[-len(df) :]
+      if len(sheep_holder) >= len(df)
+      else sheep_holder
+  )
+  b_val = float(b_slice[idx_r]) if len(b_slice) > idx_r else 0.0
+  s_val = float(s_slice[idx_r]) if len(s_slice) > idx_r else 0.0
+  big_str = f"{b_val:.1f}%"
+  sheep_str = f"{s_val:.1f}%"
 
   k_v = float(r["kdj_k"]) if "kdj_k" in df.columns else 0.0
   d_v = float(r["kdj_d"]) if "kdj_d" in df.columns else 0.0
@@ -1624,16 +1629,6 @@ def build_bar_analysis_snapshot(
         },
     ]
   elif selected_indicator == "大戶羊群":
-    b_slice = (
-        big_holder[-len(df) :] if len(big_holder) >= len(df) else big_holder
-    )
-    s_slice = (
-        sheep_holder[-len(df) :]
-        if len(sheep_holder) >= len(df)
-        else sheep_holder
-    )
-    b_val = float(b_slice[idx_r]) if len(b_slice) > idx_r else 0.0
-    s_val = float(s_slice[idx_r]) if len(s_slice) > idx_r else 0.0
     ind_tokens = [
         {"text": "大戶::", "color": "#FFFFFF"},
         {"text": f"{b_val:.1f}%", "color": "#FF3333"},
@@ -1794,10 +1789,12 @@ def build_bar_analysis_snapshot(
       "ma5": f"{ma5_v:.1f}",
       "ma20": f"{ma20_v:.1f}",
       "ma60": f"{ma60_v:.1f}",
-      "period_high": f"{period_high:.2f}",
-      "period_low": f"{period_low:.2f}",
-      "drop_pct": f"-{drop_pct:.2f}%",
-      "rise_pct": f"+{rise_pct:.2f}%",
+      # 預設顯示【當日漲跌與籌碼】，啟動尺規測距時由 JS 自動切換【尺規區間統計】
+      "bar_chg_str": bar_chg_str,
+      "bar_chg_cls": bar_chg_cls,
+      "bar_amp_str": bar_amp_str,
+      "big_str": big_str,
+      "sheep_str": sheep_str,
       "kdj_sig": kdj_sig,
       "kdj_cls": kdj_cls,
       "kd_str": f"{k_v:.1f} / {d_v:.1f}",
@@ -1833,6 +1830,8 @@ if "screened_results" not in st.session_state:
   st.session_state.screened_results = []
 if "default_indicator_override" not in st.session_state:
   st.session_state.default_indicator_override = None
+if "ruler_mode_active" not in st.session_state:
+  st.session_state.ruler_mode_active = False
 
 if "ma_active_map" not in st.session_state:
   st.session_state.ma_active_map = {
@@ -1929,7 +1928,7 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  third_row_cols = st.columns([1.25, 0.90, 1.05])
+  third_row_cols = st.columns([1.22, 0.88, 1.10])
 
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
@@ -2001,7 +2000,7 @@ if app_mode == "📈 個股籌碼圖表":
       selected_indicator = "MACD"
 
   with third_row_cols[2]:
-    row_bar_cols = st.columns([0.55, 0.55, 0.55, 0.55, 0.55, 0.65])
+    row_bar_cols = st.columns([0.52, 0.52, 0.52, 0.50, 0.50, 0.85, 0.55])
     preset_vals = [120, 250, 500]
     for p_idx, p_val in enumerate(preset_vals):
       with row_bar_cols[p_idx]:
@@ -2037,6 +2036,21 @@ if app_mode == "📈 個股籌碼圖表":
         st.rerun()
 
     with row_bar_cols[5]:
+      ruler_on = bool(st.session_state.ruler_mode_active)
+      ruler_lbl = "📏 測距中" if ruler_on else "📏 尺規測距"
+      if st.button(ruler_lbl, key="btn_toggle_ruler", use_container_width=True):
+        st.session_state.ruler_mode_active = not ruler_on
+        st.rerun()
+      if ruler_on:
+        st.markdown(
+            "<style>div.st-key-btn_toggle_ruler button {"
+            " background-color:#FFFF00 !important; color:#000000"
+            " !important; border:1px solid #FFFFFF !important;"
+            " font-weight:bold !important; }}</style>",
+            unsafe_allow_html=True,
+        )
+
+    with row_bar_cols[6]:
       st.markdown(
           f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
           f" text-align:right; line-height:22px; white-space:nowrap;'>K:{st.session_state.k_bars_count}</div>",
@@ -2044,6 +2058,7 @@ if app_mode == "📈 個股籌碼圖表":
       )
 
   k_days_choice = int(st.session_state.k_bars_count)
+  ruler_mode_active = bool(st.session_state.ruler_mode_active)
 
   ma_map = st.session_state.ma_active_map
   show_ma5 = ma_map.get("5", False)
@@ -2664,14 +2679,24 @@ if app_mode == "📈 個股籌碼圖表":
       margin-bottom: 3px;
       text-align: center;
     }}
+    .terminal-title-ruler {{
+      color: #000000;
+      background-color: #ffff00;
+      font-weight: bold;
+      font-size: 12px;
+      padding: 2px 5px;
+      margin-bottom: 3px;
+      text-align: center;
+    }}
     .t-row {{
       font-size: 11px;
       line-height: 1.3;
       margin-bottom: 1px;
       display: flex;
       justify-content: space-between;
+      gap: 4px;
     }}
-    .t-label {{ color: #ffff00; font-weight: bold; }}
+    .t-label {{ color: #ffff00; font-weight: bold; white-space: nowrap; }}
     .t-val-red {{ color: #ff3333; font-weight: bold; }}
     .t-val-green {{ color: #00e64d; font-weight: bold; }}
     .t-val-cyan {{ color: #00ffff; font-weight: bold; }}
@@ -2701,12 +2726,14 @@ if app_mode == "📈 個股籌碼圖表":
         <div class="t-row"><span class="t-label">季60:</span><span id="p-ma60" class="t-val-cyan">{init_snap.get("ma60", "")}</span></div>
       </div>
 
-      <div class="terminal-panel">
-        <div class="terminal-title">【區間漲跌幅】</div>
-        <div class="t-row"><span class="t-label">區間高:</span><span id="p-period-high" class="t-val-cyan">{init_snap.get("period_high", "")}</span></div>
-        <div class="t-row"><span class="t-label">區間低:</span><span id="p-period-low" class="t-val-cyan">{init_snap.get("period_low", "")}</span></div>
-        <div class="t-row"><span class="t-label">回檔幅:</span><span id="p-drop" class="t-val-green">{init_snap.get("drop_pct", "")}</span></div>
-        <div class="t-row"><span class="t-label">彈升幅:</span><span id="p-rise" class="t-val-red">{init_snap.get("rise_pct", "")}</span></div>
+      <div class="terminal-panel" id="p-dynamic-box">
+        <div id="p-dyn-title" class="terminal-title">【當日漲跌與籌碼】</div>
+        <div id="p-dyn-rows">
+          <div class="t-row"><span class="t-label">當日漲跌:</span><span class="{init_snap.get("bar_chg_cls", "t-val-white")}">{init_snap.get("bar_chg_str", "--")}</span></div>
+          <div class="t-row"><span class="t-label">當日振幅:</span><span class="t-val-cyan">{init_snap.get("bar_amp_str", "--")}</span></div>
+          <div class="t-row"><span class="t-label">大戶持股:</span><span class="t-val-red">{init_snap.get("big_str", "--")}</span></div>
+          <div class="t-row"><span class="t-label">羊群持股:</span><span class="t-val-green">{init_snap.get("sheep_str", "--")}</span></div>
+        </div>
       </div>
 
       <div class="terminal-panel">
@@ -2744,6 +2771,7 @@ if app_mode == "📈 個股籌碼圖表":
     const stockCode = {json.dumps(stock_id)};
     const stockName = {json.dumps(stock_name)};
     const isWaveMode = {str(is_wave_mode).lower()};
+    const rulerBtnActive = {str(ruler_mode_active).lower()};
     const totalBars = rows.length;
     const xMinBar = {x_min_bar};
     const xMaxBar = {x_max_bar};
@@ -2757,11 +2785,97 @@ if app_mode == "📈 個股籌碼圖表":
     let crosshairEnabled = true;
     let lastHoverPos = null;
 
+    // 飛狐尺規狀態：支援「📏 尺規測距」按鈕 或「Shift + 點擊」
+    let rulerArmed = rulerBtnActive;
+    let rulerStartIdx = null;
+    let rulerEndIdx = null;
+    let rulerPreviewIdx = null;
+
     function setEl(id, text, cls) {{
       const el = document.getElementById(id);
       if (!el) return;
       el.textContent = text;
       if (cls) el.className = cls;
+    }}
+
+    function calcRangeStats(idxA, idxB) {{
+      if (idxA === null || idxB === null || totalBars <= 0) return null;
+      const i1 = Math.max(0, Math.min(idxA, idxB));
+      const i2 = Math.min(totalBars - 1, Math.max(idxA, idxB));
+      const r1 = rows[i1];
+      const r2 = rows[i2];
+      if (!r1 || !r2) return null;
+
+      const startClose = Number(r1.close);
+      const endClose = Number(r2.close);
+      const diffPts = endClose - startClose;
+      const diffPct = startClose > 0 ? (diffPts / startClose) * 100 : 0;
+
+      let maxH = -Infinity;
+      let minL = Infinity;
+      let sumVol = 0;
+      for (let k = i1; k <= i2; k++) {{
+        const h = Number(rows[k].high);
+        const l = Number(rows[k].low);
+        const v = Number(rows[k].vol || 0);
+        if (h > maxH) maxH = h;
+        if (l < minL) minL = l;
+        sumVol += v;
+      }}
+
+      const barCount = i2 - i1 + 1;
+      const ampPct = minL > 0 ? ((maxH - minL) / minL) * 100 : 0;
+      const avgVol = barCount > 0 ? Math.round(sumVol / barCount) : 0;
+
+      return {{
+        i1, i2,
+        startDate: r1.date,
+        endDate: r2.date,
+        barCount,
+        startClose,
+        endClose,
+        diffPts,
+        diffPct,
+        maxH,
+        minL,
+        ampPct,
+        sumVol: Math.round(sumVol),
+        avgVol
+      }};
+    }}
+
+    function updateDynamicSidePanel(r) {{
+      const titleEl = document.getElementById("p-dyn-title");
+      const rowsEl = document.getElementById("p-dyn-rows");
+      if (!titleEl || !rowsEl) return;
+
+      const targetEnd = (rulerEndIdx !== null) ? rulerEndIdx : rulerPreviewIdx;
+      const st = (rulerStartIdx !== null && targetEnd !== null)
+        ? calcRangeStats(rulerStartIdx, targetEnd)
+        : null;
+
+      if (st) {{
+        const isUp = st.diffPts >= 0;
+        const chgCls = isUp ? "t-val-red" : "t-val-green";
+        const sgn = isUp ? "+" : "";
+        const psgn = st.diffPct >= 0 ? "+" : "";
+        titleEl.className = "terminal-title-ruler";
+        titleEl.textContent = `【尺規區間統計 (${{st.barCount}}K)】`;
+        rowsEl.innerHTML =
+          `<div class="t-row"><span class="t-label">起訖:</span><span class="t-val-cyan">${{st.startDate.slice(5)}}~${{st.endDate.slice(5)}}</span></div>` +
+          `<div class="t-row"><span class="t-label">區間漲跌:</span><span class="${{chgCls}}">${{sgn}}${{st.diffPts.toFixed(2)}} (${{psgn}}${{st.diffPct.toFixed(2)}}%)</span></div>` +
+          `<div class="t-row"><span class="t-label">高低/振:</span><span class="t-val-white">${{st.maxH.toFixed(1)}}/${{st.minL.toFixed(1)}} (${{st.ampPct.toFixed(1)}}%)</span></div>` +
+          `<div class="t-row"><span class="t-label">累量/均:</span><span class="t-val-cyan">${{st.sumVol.toLocaleString()}} / ${{st.avgVol.toLocaleString()}}</span></div>`;
+      }} else {{
+        const s = (r && r.snap) ? r.snap : {{}};
+        titleEl.className = "terminal-title";
+        titleEl.textContent = rulerArmed ? "【尺規測距：點選起訖】" : "【當日漲跌與籌碼】";
+        rowsEl.innerHTML =
+          `<div class="t-row"><span class="t-label">當日漲跌:</span><span class="${{s.bar_chg_cls || "t-val-white"}}">${{s.bar_chg_str || "--"}}</span></div>` +
+          `<div class="t-row"><span class="t-label">當日振幅:</span><span class="t-val-cyan">${{s.bar_amp_str || "--"}}</span></div>` +
+          `<div class="t-row"><span class="t-label">大戶持股:</span><span class="t-val-red">${{s.big_str || "--"}}</span></div>` +
+          `<div class="t-row"><span class="t-label">羊群持股:</span><span class="t-val-green">${{s.sheep_str || "--"}}</span></div>`;
+      }}
     }}
 
     function syncAnalysisPanel(r) {{
@@ -2772,10 +2886,7 @@ if app_mode == "📈 個股籌碼圖表":
       setEl("p-ma20", s.ma20);
       setEl("p-ma60", s.ma60);
 
-      setEl("p-period-high", s.period_high);
-      setEl("p-period-low", s.period_low);
-      setEl("p-drop", s.drop_pct);
-      setEl("p-rise", s.rise_pct);
+      updateDynamicSidePanel(r);
 
       setEl("p-kdj-sig", s.kdj_sig, s.kdj_cls);
       setEl("p-kd", s.kd_str);
@@ -2813,6 +2924,93 @@ if app_mode == "📈 個股籌碼圖表":
         width: iRect.width,
         height: iRect.height
       }};
+    }}
+
+    function clientXToBarIdx(clientX, b) {{
+      const plotLeft = b.left + b.width * axX0;
+      const plotRight = b.left + b.width * axX1;
+      const plotW = Math.max(10, plotRight - plotLeft);
+      const wRect = wrap.getBoundingClientRect();
+      const relX = clientX - wRect.left;
+      const frac = (relX - plotLeft) / plotW;
+      const barPos = xMinBar + frac * (xMaxBar - xMinBar);
+      let idx = Math.round(barPos);
+      if (idx < 0) idx = 0;
+      if (idx >= totalBars) idx = totalBars - 1;
+      return idx;
+    }}
+
+    function barIdxToX(idx, plotLeft, plotW) {{
+      const fracIdx = (idx - xMinBar) / (xMaxBar - xMinBar);
+      return plotLeft + fracIdx * plotW;
+    }}
+
+    function drawRulerOverlay(b) {{
+      const targetB = (rulerEndIdx !== null) ? rulerEndIdx : rulerPreviewIdx;
+      if (rulerStartIdx === null || targetB === null) return;
+
+      const st = calcRangeStats(rulerStartIdx, targetB);
+      if (!st) return;
+
+      const plotLeft = b.left + b.width * axX0;
+      const plotRight = b.left + b.width * axX1;
+      const plotW = Math.max(10, plotRight - plotLeft);
+      const topY = b.top + b.height * ax1TopFrac;
+      const botY = b.top + b.height * (isWaveMode ? 0.92 : 0.90);
+
+      const xA = barIdxToX(st.i1, plotLeft, plotW);
+      const xB = barIdxToX(st.i2, plotLeft, plotW);
+      const boxX = Math.min(xA, xB);
+      const boxW = Math.max(2, Math.abs(xB - xA));
+      const isUp = st.diffPts >= 0;
+
+      ctx.save();
+      ctx.fillStyle = isUp ? "rgba(255, 51, 51, 0.14)" : "rgba(0, 230, 77, 0.14)";
+      ctx.fillRect(boxX, topY, boxW, Math.max(10, botY - topY));
+
+      ctx.strokeStyle = "#FFFF00";
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([5, 3]);
+      [xA, xB].forEach((vx) => {{
+        ctx.beginPath();
+        ctx.moveTo(vx, topY);
+        ctx.lineTo(vx, botY);
+        ctx.stroke();
+      }});
+      ctx.setLineDash([]);
+
+      const sign = isUp ? "+" : "";
+      const pctSign = st.diffPct >= 0 ? "+" : "";
+      const lines = [
+        `【尺規測距】${{st.startDate}} → ${{st.endDate}} (${{st.barCount}}K)`,
+        `區間漲跌: ${{sign}}${{st.diffPts.toFixed(2)}} (${{pctSign}}${{st.diffPct.toFixed(2)}}%)  收: ${{st.startClose.toFixed(2)}} → ${{st.endClose.toFixed(2)}}`,
+        `區間高低: ${{st.maxH.toFixed(2)}} / ${{st.minL.toFixed(2)}}  振幅: ${{st.ampPct.toFixed(2)}}%`,
+        `累積量: ${{st.sumVol.toLocaleString()}}  均量: ${{st.avgVol.toLocaleString()}}`
+      ];
+
+      const cardW = 355;
+      const cardH = 74;
+      let cardX = Math.max(xA, xB) + 10;
+      if (cardX + cardW > plotRight - 6) {{
+        cardX = Math.min(xA, xB) - cardW - 10;
+      }}
+      if (cardX < plotLeft + 6) cardX = plotLeft + 10;
+      const cardY = topY + 46;
+
+      ctx.fillStyle = "rgba(12, 16, 24, 0.92)";
+      ctx.strokeStyle = isUp ? "#FF5555" : "#00E64D";
+      ctx.lineWidth = 1.4;
+      ctx.fillRect(cardX, cardY, cardW, cardH);
+      ctx.strokeRect(cardX, cardY, cardW, cardH);
+
+      lines.forEach((ln, idxLine) => {{
+        let col = "#FFFFFF";
+        if (idxLine === 0) col = "#00FFFF";
+        else if (idxLine === 1) col = isUp ? "#FF4444" : "#00E64D";
+        else if (idxLine === 2) col = "#FFFF00";
+        drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
+      }});
+      ctx.restore();
     }}
 
     function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW) {{
@@ -2862,6 +3060,8 @@ if app_mode == "📈 個股籌碼圖表":
         ctx.stroke();
         ctx.restore();
       }}
+
+      drawRulerOverlay(b);
 
       const s = r.snap || {{}};
       const headerX = plotLeft + b.width * 0.010;
@@ -2921,21 +3121,19 @@ if app_mode == "📈 個股籌碼圖表":
       const b = getImgBounds();
       if (b.width <= 0 || b.height <= 0 || totalBars <= 0) return;
 
+      const idx = clientXToBarIdx(clientX, b);
+      const r = rows[idx];
+
+      if (rulerStartIdx !== null && rulerEndIdx === null) {{
+        rulerPreviewIdx = idx;
+      }}
+
       const plotLeft = b.left + b.width * axX0;
       const plotRight = b.left + b.width * axX1;
       const plotW = Math.max(10, plotRight - plotLeft);
       const wRect = wrap.getBoundingClientRect();
 
-      const relX = clientX - wRect.left;
-      const frac = (relX - plotLeft) / plotW;
-      const barPos = xMinBar + frac * (xMaxBar - xMinBar);
-      let idx = Math.round(barPos);
-      if (idx < 0) idx = 0;
-      if (idx >= totalBars) idx = totalBars - 1;
-
-      const r = rows[idx];
-      const fracIdx = (idx - xMinBar) / (xMaxBar - xMinBar);
-      const lineX = plotLeft + fracIdx * plotW;
+      const lineX = barIdxToX(idx, plotLeft, plotW);
       const lineY = clientY ? (clientY - wRect.top) : (b.top + b.height * 0.35);
 
       lastHoverPos = {{ r, lineX, lineY, b }};
@@ -2959,6 +3157,30 @@ if app_mode == "📈 個股籌碼圖表":
     canvas.addEventListener("mousedown", function(e) {{
       if (e.button === 0) {{
         wrap.focus();
+        const b = getImgBounds();
+        const idx = clientXToBarIdx(e.clientX, b);
+
+        if (rulerArmed || e.shiftKey) {{
+          if (rulerStartIdx === null || rulerEndIdx !== null) {{
+            rulerStartIdx = idx;
+            rulerEndIdx = null;
+            rulerPreviewIdx = idx;
+          }} else {{
+            rulerEndIdx = idx;
+            rulerPreviewIdx = idx;
+          }}
+          onHover(e.clientX, e.clientY);
+          return;
+        }}
+
+        if (rulerStartIdx !== null && rulerEndIdx !== null) {{
+          rulerStartIdx = null;
+          rulerEndIdx = null;
+          rulerPreviewIdx = null;
+          onHover(e.clientX, e.clientY);
+          return;
+        }}
+
         crosshairEnabled = !crosshairEnabled;
         onHover(e.clientX, e.clientY);
       }}
@@ -2970,7 +3192,14 @@ if app_mode == "📈 個股籌碼圖表":
 
     canvas.addEventListener("mouseleave", function() {{
       lastHoverPos = null;
-      initDefault();
+      if (rulerStartIdx !== null && rulerEndIdx !== null && totalBars > 0) {{
+        const b = getImgBounds();
+        const latest = rows[totalBars - 1];
+        renderInPlaceOverlay(latest, false, 0, 0, b);
+        syncAnalysisPanel(latest);
+      }} else {{
+        initDefault();
+      }}
     }});
 
     function triggerFeihuStep(dir) {{
@@ -3001,7 +3230,12 @@ if app_mode == "📈 個股籌碼圖表":
     }}
 
     wrap.addEventListener("keydown", function(e) {{
-      if (e.key === "ArrowUp") {{
+      if (e.key === "Escape") {{
+        rulerStartIdx = null;
+        rulerEndIdx = null;
+        rulerPreviewIdx = null;
+        initDefault();
+      }} else if (e.key === "ArrowUp") {{
         e.preventDefault();
         triggerFeihuStep(+1);
       }} else if (e.key === "ArrowDown") {{
