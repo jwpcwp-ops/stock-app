@@ -163,8 +163,8 @@ st.markdown(
 
         /* 鎖定包含 gold-row-anchor 的控制列，強制整排所有元件高度統一為 30px 並完全水平置中對齊 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) {
-            width: 44.4% !important;
-            max-width: 44.4% !important;
+            width: auto !important;
+            max-width: none !important;
             min-width: 0 !important;
             display: flex !important;
             flex-direction: row !important;
@@ -191,7 +191,6 @@ st.markdown(
             align-items: center !important;
             height: 30px !important;
         }
-        /* 消除每一欄內部 div / markdown / selectbox / button 的上下額外間距，讓大家完全平行 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stVerticalBlock"],
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stElementContainer"],
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stMarkdownContainer"],
@@ -252,50 +251,24 @@ st.markdown(
             color: #38B2C4 !important;
             border: 1px solid #38B2C4 !important;
         }
-        /* 日/周 方格：BaseWeb valueContainer 預設有巨大 padding-right 與 text-overflow，強制清除並給予足夠寬度 */
+        /* 各下拉選單寬度配置，確保文字與右側向下箭頭(svg)皆完整顯示在框內 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select {
-            width: 68px !important;
-            min-width: 68px !important;
-            max-width: 68px !important;
+            width: 64px !important;
+            min-width: 64px !important;
+            max-width: 64px !important;
         }
-        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div {
-            padding-left: 8px !important;
-            padding-right: 6px !important;
-            gap: 2px !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div {
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-            margin-right: 0 !important;
-            overflow: visible !important;
-            text-overflow: clip !important;
-            max-width: none !important;
-            flex: 0 0 auto !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div:first-child,
-        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div:first-child div {
-            color: #FACC15 !important;
-            min-width: 16px !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] svg {
-            width: 14px !important;
-            height: 14px !important;
-            margin: 0 !important;
-            flex-shrink: 0 !important;
-        }
-        /* 成交量 500 緊湊且不截斷文字 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_vol_mult {
-            width: 78px !important;
-            min-width: 78px !important;
-            max-width: 78px !important;
+            width: 86px !important;
+            min-width: 86px !important;
+            max-width: 86px !important;
         }
-        /* 值 1.4 / 1.8 緊湊且完整顯示小數點後一位 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_val_up_sel {
-            width: 68px !important;
-            min-width: 68px !important;
-            max-width: 68px !important;
+            width: 76px !important;
+            min-width: 76px !important;
+            max-width: 76px !important;
         }
-        /* 下拉選單框體統一高度 30px，與左右標籤框完全平行 */
+
+        /* 下拉選單框體統一高度 30px，保留箭頭顯示空間 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] {
             min-height: 30px !important;
             height: 30px !important;
@@ -305,19 +278,33 @@ st.markdown(
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] > div {
             min-height: 30px !important;
             height: 30px !important;
+            width: 100% !important;
             font-size: 13.5px !important;
             font-weight: 800 !important;
             line-height: 28px !important;
             padding-top: 0 !important;
             padding-bottom: 0 !important;
             padding-left: 8px !important;
-            padding-right: 18px !important;
+            padding-right: 6px !important;
             background-color: #161b22 !important;
             border-color: #3f4b5b !important;
             border-radius: 5px !important;
             box-sizing: border-box !important;
             display: flex !important;
             align-items: center !important;
+            justify-content: space-between !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] > div > div:first-child {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div:first-child,
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div:first-child div {
+            color: #FACC15 !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] span,
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] div {
@@ -325,6 +312,19 @@ st.markdown(
             font-weight: 800 !important;
             white-space: nowrap !important;
         }
+        /* 明確確保下拉箭頭 svg 顯示且大小適中 */
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] svg {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            width: 15px !important;
+            height: 15px !important;
+            min-width: 15px !important;
+            margin-left: 2px !important;
+            flex-shrink: 0 !important;
+            fill: currentColor !important;
+        }
+
         /* 重整按鈕統一高度 30px，與整排完全平行 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-btn_refresh_dw_vol button {
             height: 30px !important;
