@@ -699,13 +699,15 @@ def _fetch_tpex_pe_yield(stock_id):
       "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis",
       "https://www.tpex.org.tw/web/stock/aftertrading/peratio_analysis/pera_result.php?l=zh-tw&o=json",
   ]
+  pe_found, yld_found = None, None
   for url in urls:
     try:
       req = urllib.request.Request(
           url,
           headers={
-              "User-Agent": "Mozilla/5.0",
-              "Accept": "application/json",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+              "Accept": "application/json, text/plain, */*",
+              "Referer": "https://www.tpex.org.tw/",
           },
       )
       with urllib.request.urlopen(req, timeout=8, context=_build_ssl_context()) as resp:
@@ -725,38 +727,61 @@ def _fetch_tpex_pe_yield(stock_id):
                   or item.get("PEratio")
                   or item.get("本益比")
               )
-              yld_raw = (
-                  item.get("DividendYield")
-                  or item.get("CashDividendYield")
-                  or item.get("Yield")
-                  or item.get("殖利率(%)")
-                  or item.get("殖利率")
-              )
+              yld_raw = None
+              for yk in [
+                  "DividendYield",
+                  "CashDividendYield",
+                  "Yield",
+                  "殖利率(%)",
+                  "現金殖利率(%)",
+                  "現金殖利率",
+                  "殖利率",
+              ]:
+                if yk in item and item.get(yk) not in (None, "", "-", "--"):
+                  yld_raw = item.get(yk)
+                  break
+              if yld_raw is None:
+                for k_any, v_any in item.items():
+                  if ("yield" in str(k_any).lower() or "殖利率" in str(k_any)) and v_any not in (None, "", "-", "--"):
+                    yld_raw = v_any
+                    break
               pe_v = _parse_pos_float(pe_raw)
               if pe_v is not None and pe_v <= 0:
                 pe_v = None
               yld_v = _parse_pos_float(yld_raw)
               if yld_v is not None and yld_v < 0:
                 yld_v = None
-              if pe_v is not None or yld_v is not None:
-                return pe_v, yld_v
+              if pe_found is None and pe_v is not None:
+                pe_found = pe_v
+              if yld_found is None and yld_v is not None:
+                yld_found = yld_v
+              if pe_found is not None and yld_found is not None:
+                return pe_found, yld_found
         elif isinstance(data, dict) and data.get("aaData"):
           for r_item in data.get("aaData", []):
-            if not isinstance(r_item, list) or len(r_item) < 6:
+            if not isinstance(r_item, list) or len(r_item) < 5:
               continue
             r_code = str(r_item[0]).strip()
             if r_code in (clean_id, code_4):
-              pe_v = _parse_pos_float(r_item[2])
+              pe_v = _parse_pos_float(r_item[2]) if len(r_item) > 2 else None
               if pe_v is not None and pe_v <= 0:
                 pe_v = None
-              yld_v = _parse_pos_float(r_item[5])
-              if yld_v is not None and yld_v < 0:
-                yld_v = None
-              if pe_v is not None or yld_v is not None:
-                return pe_v, yld_v
+              yld_v = None
+              for col_i in [5, 4, 6, 3]:
+                if len(r_item) > col_i:
+                  cand_y = _parse_pos_float(r_item[col_i])
+                  if cand_y is not None and 0 <= cand_y <= 50:
+                    yld_v = cand_y
+                    break
+              if pe_found is None and pe_v is not None:
+                pe_found = pe_v
+              if yld_found is None and yld_v is not None:
+                yld_found = yld_v
+              if pe_found is not None and yld_found is not None:
+                return pe_found, yld_found
     except Exception:
       continue
-  return None, None
+  return pe_found, yld_found
 
 
 def _fetch_twse_pe_yield(stock_id):
@@ -998,6 +1023,15 @@ def fetch_stock_fundamentals(stock_id):
           cash_div_events.append((d_norm.strftime("%Y/%m/%d"), rolling_cash))
         if cash_div_events:
           annual_cash_div = float(cash_div_events[-1][1])
+          if annual_cash_div <= 0:
+            last_div_dt = div_s.index[-1]
+            last_win_start = last_div_dt - pd.Timedelta(days=365)
+            last_yr_sum = float(
+                div_s[(div_s.index > last_win_start) & (div_s.index <= last_div_dt)].sum()
+            )
+            if last_yr_sum > 0:
+              annual_cash_div = last_yr_sum
+              cash_div_events[-1] = (datetime.today().strftime("%Y/%m/%d"), last_yr_sum)
     except Exception:
       pass
 
