@@ -1,3 +1,7 @@
+ # 把整份完整的 app.py 一次輸出或存成檔案
+
+
+
 import base64
 from datetime import datetime
 from io import BytesIO
@@ -161,38 +165,41 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 只到「金剛指標」右邊界為止，文字與框框大小一致 */
+        /* 限制並對齊在「金剛指標」按鈕右邊界底下（9 欄中的第 4 欄右緣 ≈ 44.4%） */
         .gold-indicator-limit {
-            width: 74% !important;
-            max-width: 74% !important;
+            width: 44.4% !important;
+            max-width: 44.4% !important;
             margin-top: 3px !important;
             margin-bottom: 4px !important;
+            overflow: hidden !important;
         }
         .gold-indicator-limit [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
             align-items: center !important;
             justify-content: flex-start !important;
-            gap: 4px !important;
+            gap: 3px !important;
             flex-wrap: nowrap !important;
             width: 100% !important;
             margin-bottom: 0px !important;
         }
         .gold-indicator-limit [data-testid="column"] {
-            flex: 0 0 auto !important;
+            flex: 0 1 auto !important;
             width: auto !important;
             min-width: 0 !important;
             padding: 0 !important;
         }
         .gold-status-text {
             color: #F0B84B;
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 700;
             line-height: 24px;
             height: 24px;
             white-space: nowrap;
-            display: inline-flex;
-            align-items: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 170px;
+            display: inline-block;
             margin-right: 2px;
         }
         .gold-tag-box {
@@ -201,9 +208,9 @@ st.markdown(
             justify-content: center;
             height: 24px;
             min-height: 24px;
-            padding: 0 6px;
+            padding: 0 5px;
             border-radius: 3px;
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 700;
             line-height: 24px;
             white-space: nowrap;
@@ -222,30 +229,30 @@ st.markdown(
         .gold-indicator-limit [data-baseweb="select"] > div {
             min-height: 24px !important;
             height: 24px !important;
-            font-size: 11px !important;
+            font-size: 10.5px !important;
             line-height: 22px !important;
             padding-top: 0 !important;
             padding-bottom: 0 !important;
-            padding-left: 6px !important;
-            padding-right: 18px !important;
+            padding-left: 5px !important;
+            padding-right: 16px !important;
         }
         .gold-day-sel [data-baseweb="select"] {
-            width: 48px !important;
-            min-width: 48px !important;
+            width: 44px !important;
+            min-width: 44px !important;
         }
         .gold-vol-sel [data-baseweb="select"] {
-            width: 68px !important;
-            min-width: 68px !important;
+            width: 60px !important;
+            min-width: 60px !important;
         }
         .gold-val-sel [data-baseweb="select"] {
-            width: 56px !important;
-            min-width: 56px !important;
+            width: 50px !important;
+            min-width: 50px !important;
         }
         .gold-refresh-btn button {
             height: 24px !important;
             min-height: 24px !important;
-            padding: 0 7px !important;
-            font-size: 11px !important;
+            padding: 0 6px !important;
+            font-size: 10.5px !important;
             line-height: 22px !important;
             white-space: nowrap !important;
         }
@@ -2365,7 +2372,7 @@ elif app_mode == "⚡ 9大策略選股":
       )
 
   st.markdown('<div class="gold-indicator-limit">', unsafe_allow_html=True)
-  f_cols = st.columns([1, 1, 1, 1, 1, 1, 1], gap="small")
+  f_cols = st.columns([1.8, 0.65, 0.75, 0.85, 0.55, 0.75, 0.75], gap="small")
 
   with f_cols[0]:
     st.markdown(
