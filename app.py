@@ -2686,6 +2686,14 @@ if app_mode == "📈 個股籌碼圖表":
 
     <div id="fx-side-wrap">
       <div class="terminal-panel">
+        <div class="terminal-title">【基本面快訊】</div>
+        <div class="t-row"><span class="t-label">今日本益比:</span><span id="p-pe" class="t-val-cyan">{init_snap.get("pe_str", "--")}</span></div>
+        <div class="t-row"><span class="t-label">EPS:</span><span id="p-eps" class="t-val-white">{init_snap.get("eps_str", "--")}</span></div>
+        <div class="t-row"><span class="t-label">近4季EPS:</span><span id="p-eps4q" class="t-val-red">{init_snap.get("eps_4q_str", "--")}</span></div>
+        <div class="t-row"><span class="t-label">殖利率:</span><span id="p-yield" class="t-val-green">{init_snap.get("yield_str", "--")}</span></div>
+      </div>
+
+      <div class="terminal-panel">
         <div class="terminal-title">【均線解盤】</div>
         <div class="t-row"><span class="t-label">狀態:</span><span id="p-ma-status" class="{init_snap.get("ma_cls", "t-val-white")}">{init_snap.get("ma_status", "")}</span></div>
         <div class="t-row"><span class="t-label">MA5:</span><span id="p-ma5" class="t-val-cyan">{init_snap.get("ma5", "")}</span></div>
@@ -2720,16 +2728,6 @@ if app_mode == "📈 個股籌碼圖表":
         <div class="terminal-title">【多空與波段判定】</div>
         <div class="t-row"><span class="t-label">多空:</span><span id="p-trend" class="{init_snap.get("trend_cls", "t-val-white")}">{init_snap.get("trend_txt", "")}</span></div>
         <div class="t-row"><span class="t-label">波段狀態:</span><span id="p-wave" class="{init_snap.get("wave_cls", "t-val-white")}">{init_snap.get("wave_txt", "")}</span></div>
-        <div class="t-row"><span class="t-label">紅天數:</span><span id="p-red" class="t-val-red">{init_snap.get("red_days", "")}</span></div>
-        <div class="t-row"><span class="t-label">綠天數:</span><span id="p-green" class="t-val-green">{init_snap.get("green_days", "")}</span></div>
-      </div>
-
-      <div class="terminal-panel">
-        <div class="terminal-title">【基本面快訊】</div>
-        <div class="t-row"><span class="t-label">今日本益比:</span><span id="p-pe" class="t-val-cyan">{init_snap.get("pe_str", "--")}</span></div>
-        <div class="t-row"><span class="t-label">EPS:</span><span id="p-eps" class="t-val-white">{init_snap.get("eps_str", "--")}</span></div>
-        <div class="t-row"><span class="t-label">近4季EPS:</span><span id="p-eps4q" class="t-val-red">{init_snap.get("eps_4q_str", "--")}</span></div>
-        <div class="t-row"><span class="t-label">殖利率:</span><span id="p-yield" class="t-val-green">{init_snap.get("yield_str", "--")}</span></div>
       </div>
     </div>
   </div>
@@ -2790,8 +2788,6 @@ if app_mode == "📈 個股籌碼圖表":
 
       setEl("p-trend", s.trend_txt, s.trend_cls);
       setEl("p-wave", s.wave_txt, s.wave_cls);
-      setEl("p-red", s.red_days);
-      setEl("p-green", s.green_days);
 
       setEl("p-pe", s.pe_str || "--");
       setEl("p-eps", s.eps_str || "--");
