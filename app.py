@@ -251,7 +251,6 @@ st.markdown(
             color: #38B2C4 !important;
             border: 1px solid #38B2C4 !important;
         }
-        /* 各下拉選單寬度配置，確保文字與右側向下箭頭(svg)皆完整顯示在框內 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select {
             width: 64px !important;
             min-width: 64px !important;
@@ -268,7 +267,6 @@ st.markdown(
             max-width: 76px !important;
         }
 
-        /* 下拉選單框體統一高度 30px，保留箭頭顯示空間 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] {
             min-height: 30px !important;
             height: 30px !important;
@@ -312,7 +310,6 @@ st.markdown(
             font-weight: 800 !important;
             white-space: nowrap !important;
         }
-        /* 明確確保下拉箭頭 svg 顯示且大小適中 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] svg {
             display: block !important;
             visibility: visible !important;
@@ -325,7 +322,6 @@ st.markdown(
             fill: currentColor !important;
         }
 
-        /* 重整按鈕統一高度 30px，與整排完全平行 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-btn_refresh_dw_vol button {
             height: 30px !important;
             min-height: 30px !important;
@@ -422,7 +418,7 @@ def find_stock_index_by_code(code_str):
 
 
 # ---------------------------------------------------------
-# 5. 本地快取支援與資料抓取
+# 5. 本地快取支援、資料抓取與基本面查詢
 # ---------------------------------------------------------
 CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
@@ -577,6 +573,132 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
       })
     return records
   return []
+
+
+@st.cache_data(ttl=1800)
+def fetch_stock_fundamentals(stock_id):
+  """抓取個股基本面數據：今日本益比、單季 EPS、近 4 季 EPS 合計、殖利率。"""
+  result = {
+      "pe_str": "--",
+      "eps_str": "--",
+      "eps_4q_str": "--",
+      "yield_str": "--",
+  }
+  clean_id = str(stock_id).strip()
+  if not clean_id or clean_id == "99991":
+    return result
+
+  tickers = [f"{clean_id}.TW", f"{clean_id}.TWO"]
+  info = {}
+  last_price = None
+  q_inc = None
+
+  for tk in tickers:
+    try:
+      t = yf.Ticker(tk)
+      tmp_info = t.info or {}
+      if tmp_info and (
+          tmp_info.get("regularMarketPrice")
+          or tmp_info.get("currentPrice")
+          or tmp_info.get("trailingPE")
+          or tmp_info.get("trailingEps")
+          or tmp_info.get("dividendYield")
+      ):
+        info = tmp_info
+        last_price = (
+            info.get("regularMarketPrice")
+            or info.get("currentPrice")
+            or info.get("previousClose")
+        )
+        try:
+          q_inc = t.quarterly_income_stmt
+        except Exception:
+          q_inc = None
+        break
+    except Exception:
+      continue
+
+  if not info:
+    return result
+
+  single_eps = None
+  eps_4q = None
+
+  if q_inc is not None and not q_inc.empty:
+    for r_name in ["Basic EPS", "Diluted EPS", "EPS"]:
+      if r_name in q_inc.index:
+        vals = (
+            pd.to_numeric(q_inc.loc[r_name], errors="coerce").dropna().tolist()
+        )
+        if len(vals) >= 1:
+          single_eps = float(vals[0])
+        if len(vals) >= 4:
+          eps_4q = float(sum(vals[:4]))
+        elif len(vals) > 0:
+          eps_4q = float(sum(vals))
+        break
+
+  if single_eps is None:
+    q_eps_info = info.get("epsCurrentQuarter") or info.get(
+        "epsTrailingTwelveMonths"
+    )
+    if q_eps_info is not None:
+      try:
+        single_eps = float(q_eps_info)
+      except Exception:
+        pass
+
+  if eps_4q is None:
+    ttm_eps = info.get("trailingEps")
+    if ttm_eps is not None:
+      try:
+        eps_4q = float(ttm_eps)
+      except Exception:
+        pass
+
+  pe_val = None
+  if last_price is not None and eps_4q is not None and eps_4q > 0:
+    try:
+      pe_val = float(last_price) / float(eps_4q)
+    except Exception:
+      pe_val = None
+  if pe_val is None:
+    raw_pe = info.get("trailingPE") or info.get("forwardPE")
+    if raw_pe is not None:
+      try:
+        v = float(raw_pe)
+        if v > 0:
+          pe_val = v
+      except Exception:
+        pass
+
+  yield_pct = None
+  raw_yield = info.get("dividendYield")
+  if raw_yield is not None:
+    try:
+      y_f = float(raw_yield)
+      yield_pct = y_f * 100.0 if y_f <= 0.5 else y_f
+    except Exception:
+      yield_pct = None
+
+  if yield_pct is None:
+    div_rate = info.get("dividendRate") or info.get("trailingAnnualDividendRate")
+    if div_rate is not None and last_price is not None and float(last_price) > 0:
+      try:
+        yield_pct = (float(div_rate) / float(last_price)) * 100.0
+      except Exception:
+        yield_pct = None
+
+  if pe_val is not None:
+    result["pe_str"] = f"{pe_val:.2f}倍"
+  if single_eps is not None:
+    result["eps_str"] = f"{single_eps:.2f}元"
+  if eps_4q is not None:
+    result["eps_4q_str"] = f"{eps_4q:.2f}元"
+  if yield_pct is not None:
+    result["yield_str"] = f"{yield_pct:.2f}%"
+
+  return result
 
 
 def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
@@ -1918,6 +2040,7 @@ if app_mode == "📈 個股籌碼圖表":
   plt.close(fig)
   img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
 
+  fund_data = fetch_stock_fundamentals(stock_id)
   payload_rows = []
   total_bars_cnt = len(df)
   for idx_r in range(total_bars_cnt):
@@ -1945,6 +2068,7 @@ if app_mode == "📈 個股籌碼圖表":
         actual_chart_period,
         stock_id=stock_id,
     )
+    snap.update(fund_data)
     feihu_rev_no = total_bars_cnt - idx_r
 
     payload_rows.append({
@@ -1961,8 +2085,10 @@ if app_mode == "📈 個股籌碼圖表":
 
   rows_json = json.dumps(payload_rows, ensure_ascii=False)
   feihu_steps_json = json.dumps(FEIHU_BAR_STEPS)
-  plot_height = 575
+  plot_height = 675
   init_snap = payload_rows[-1]["snap"] if payload_rows else {}
+  for _k, _v in fund_data.items():
+    init_snap.setdefault(_k, _v)
 
   unified_interactive_html = f"""
   <style>
@@ -2067,6 +2193,14 @@ if app_mode == "📈 個股籌碼圖表":
         <div class="t-row"><span class="t-label">紅天數:</span><span id="p-red" class="t-val-red">{init_snap.get("red_days", "")}</span></div>
         <div class="t-row"><span class="t-label">綠天數:</span><span id="p-green" class="t-val-green">{init_snap.get("green_days", "")}</span></div>
       </div>
+
+      <div class="terminal-panel">
+        <div class="terminal-title">【基本面快訊】</div>
+        <div class="t-row"><span class="t-label">今日本益比:</span><span id="p-pe" class="t-val-cyan">{init_snap.get("pe_str", "--")}</span></div>
+        <div class="t-row"><span class="t-label">EPS:</span><span id="p-eps" class="t-val-white">{init_snap.get("eps_str", "--")}</span></div>
+        <div class="t-row"><span class="t-label">近4季EPS:</span><span id="p-eps4q" class="t-val-red">{init_snap.get("eps_4q_str", "--")}</span></div>
+        <div class="t-row"><span class="t-label">殖利率:</span><span id="p-yield" class="t-val-green">{init_snap.get("yield_str", "--")}</span></div>
+      </div>
     </div>
   </div>
 
@@ -2128,6 +2262,11 @@ if app_mode == "📈 個股籌碼圖表":
       setEl("p-wave", s.wave_txt, s.wave_cls);
       setEl("p-red", s.red_days);
       setEl("p-green", s.green_days);
+
+      setEl("p-pe", s.pe_str || "--");
+      setEl("p-eps", s.eps_str || "--");
+      setEl("p-eps4q", s.eps_4q_str || "--");
+      setEl("p-yield", s.yield_str || "--");
     }}
 
     function syncSize() {{
