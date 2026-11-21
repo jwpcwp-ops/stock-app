@@ -689,6 +689,76 @@ def _build_ssl_context():
     return ssl.create_default_context()
 
 
+def _fetch_tpex_pe_yield(stock_id):
+  """向櫃買中心 (TPEx) 公開 API 查詢上櫃股票最新本益比與現金殖利率。"""
+  clean_id = str(stock_id).strip().replace(".0", "")
+  if not clean_id or clean_id == "99991":
+    return None, None
+  code_4 = clean_id.zfill(4) if clean_id.isdigit() else clean_id
+  urls = [
+      "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis",
+      "https://www.tpex.org.tw/web/stock/aftertrading/peratio_analysis/pera_result.php?l=zh-tw&o=json",
+  ]
+  for url in urls:
+    try:
+      req = urllib.request.Request(
+          url,
+          headers={
+              "User-Agent": "Mozilla/5.0",
+              "Accept": "application/json",
+          },
+      )
+      with urllib.request.urlopen(req, timeout=8, context=_build_ssl_context()) as resp:
+        raw_txt = resp.read().decode("utf-8", errors="ignore")
+        data = json.loads(raw_txt)
+        if isinstance(data, list):
+          for item in data:
+            item_code = str(
+                item.get("SecuritiesCompanyCode")
+                or item.get("Code")
+                or item.get("股票代號")
+                or ""
+            ).strip()
+            if item_code in (clean_id, code_4):
+              pe_raw = (
+                  item.get("PriceEarningRatio")
+                  or item.get("PEratio")
+                  or item.get("本益比")
+              )
+              yld_raw = (
+                  item.get("DividendYield")
+                  or item.get("CashDividendYield")
+                  or item.get("Yield")
+                  or item.get("殖利率(%)")
+                  or item.get("殖利率")
+              )
+              pe_v = _parse_pos_float(pe_raw)
+              if pe_v is not None and pe_v <= 0:
+                pe_v = None
+              yld_v = _parse_pos_float(yld_raw)
+              if yld_v is not None and yld_v < 0:
+                yld_v = None
+              if pe_v is not None or yld_v is not None:
+                return pe_v, yld_v
+        elif isinstance(data, dict) and data.get("aaData"):
+          for r_item in data.get("aaData", []):
+            if not isinstance(r_item, list) or len(r_item) < 6:
+              continue
+            r_code = str(r_item[0]).strip()
+            if r_code in (clean_id, code_4):
+              pe_v = _parse_pos_float(r_item[2])
+              if pe_v is not None and pe_v <= 0:
+                pe_v = None
+              yld_v = _parse_pos_float(r_item[5])
+              if yld_v is not None and yld_v < 0:
+                yld_v = None
+              if pe_v is not None or yld_v is not None:
+                return pe_v, yld_v
+    except Exception:
+      continue
+  return None, None
+
+
 def _fetch_twse_pe_yield(stock_id):
   """向證交所公開 OpenAPI (BWIBBU_ALL) 與每日本益比報表查詢上市股票最新本益比與現金殖利率。"""
   clean_id = str(stock_id).strip().replace(".0", "")
@@ -953,8 +1023,14 @@ def fetch_stock_fundamentals(stock_id):
       except Exception:
         pass
 
-  # 證交所 TWSE 備援（上市股票）：取得本益比與現金殖利率，並可反推近4季 EPS 與現金股利
+  # 證交所 TWSE 與櫃買中心 TPEx 備援（上市／上櫃股票）：取得本益比與現金殖利率，並可反推近4季 EPS 與現金股利
   twse_pe, twse_yield = _fetch_twse_pe_yield(clean_id)
+  if twse_pe is None or twse_yield is None:
+    tpex_pe, tpex_yield = _fetch_tpex_pe_yield(clean_id)
+    if twse_pe is None:
+      twse_pe = tpex_pe
+    if twse_yield is None:
+      twse_yield = tpex_yield
   if last_price is None or float(last_price) <= 0:
     try:
       hist_df = fetch_raw_history(clean_id, "日線", 5)
@@ -3348,6 +3424,12 @@ elif app_mode == "📊 基本面與圖表":
       f'<p class="sub-header-14">📊 基本面與圖表 ｜ [{stock_id}] {stock_name}</p>',
       unsafe_allow_html=True,
   )
+  _tab4_fund = fetch_stock_fundamentals(stock_id)
+  _m_cols = st.columns(4)
+  _m_cols[0].metric("今日本益比", _tab4_fund.get("pe_str", "--"))
+  _m_cols[1].metric("單季 EPS", _tab4_fund.get("eps_str", "--"))
+  _m_cols[2].metric("近4季 EPS", _tab4_fund.get("eps_4q_str", "--"))
+  _m_cols[3].metric("現金殖利率", _tab4_fund.get("yield_str", "--"))
 
   quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
   data_sets = [
