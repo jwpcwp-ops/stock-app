@@ -228,27 +228,37 @@ st.markdown(
             color: #38B2C4 !important;
             border: 1px solid #38B2C4 !important;
         }
-        /* 日/周 方格加寬並消除內部多餘 padding，確保「日」或「周」清楚顯示 */
+        /* 日/周 方格：BaseWeb valueContainer 預設有巨大 padding-right 與 text-overflow，強制清除並給予足夠寬度 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select {
-            width: 58px !important;
-            min-width: 58px !important;
-            max-width: 58px !important;
+            width: 68px !important;
+            min-width: 68px !important;
+            max-width: 68px !important;
             margin-right: 2px !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div {
-            padding-left: 7px !important;
-            padding-right: 4px !important;
+            padding-left: 8px !important;
+            padding-right: 6px !important;
+            gap: 2px !important;
         }
-        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div:first-child {
-            padding-right: 2px !important;
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
             margin-right: 0 !important;
             overflow: visible !important;
+            text-overflow: clip !important;
+            max-width: none !important;
+            flex: 0 0 auto !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div:first-child,
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div:first-child div {
             color: #FACC15 !important;
+            min-width: 16px !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] svg {
             width: 14px !important;
             height: 14px !important;
-            margin-left: 0 !important;
+            margin: 0 !important;
+            flex-shrink: 0 !important;
         }
         /* 成交量 500 緊湊且不截斷文字 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_vol_mult {
