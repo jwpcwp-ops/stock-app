@@ -228,12 +228,27 @@ st.markdown(
             color: #38B2C4 !important;
             border: 1px solid #38B2C4 !important;
         }
-        /* 日/周 超窄方格 */
+        /* 日/周 方格加寬並消除內部多餘 padding，確保「日」或「周」清楚顯示 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select {
-            width: 46px !important;
-            min-width: 46px !important;
-            max-width: 46px !important;
+            width: 58px !important;
+            min-width: 58px !important;
+            max-width: 58px !important;
             margin-right: 2px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div {
+            padding-left: 7px !important;
+            padding-right: 4px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div > div:first-child {
+            padding-right: 2px !important;
+            margin-right: 0 !important;
+            overflow: visible !important;
+            color: #FACC15 !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] svg {
+            width: 14px !important;
+            height: 14px !important;
+            margin-left: 0 !important;
         }
         /* 成交量 500 緊湊且不截斷文字 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_vol_mult {
