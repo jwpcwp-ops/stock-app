@@ -3454,16 +3454,43 @@ elif app_mode == "📋 大戶總表":
 # 分頁四：📊 基本面與圖表
 # =========================================================
 elif app_mode == "📊 基本面與圖表":
+  _tab4_fund = fetch_stock_fundamentals(stock_id)
+
+  # 1. 基本面分析表排在最上方
   st.markdown(
-      f'<p class="sub-header-14">📊 基本面與圖表 ｜ [{stock_id}] {stock_name}</p>',
+      f'<p class="sub-header-14">📋 基本面分析表 ｜ [{stock_id}] {stock_name}</p>',
       unsafe_allow_html=True,
   )
-  _tab4_fund = fetch_stock_fundamentals(stock_id)
   _m_cols = st.columns(4)
   _m_cols[0].metric("今日本益比", _tab4_fund.get("pe_str", "--"))
   _m_cols[1].metric("單季 EPS", _tab4_fund.get("eps_str", "--"))
   _m_cols[2].metric("近4季 EPS", _tab4_fund.get("eps_4q_str", "--"))
   _m_cols[3].metric("現金殖利率", _tab4_fund.get("yield_str", "--"))
+
+  _latest_cash_div = _tab4_fund.get("latest_cash_div")
+  _cash_div_str = (
+      f"{float(_latest_cash_div):.2f} 元"
+      if _latest_cash_div is not None and pd.notna(_latest_cash_div)
+      else "--"
+  )
+  _fund_table_df = pd.DataFrame([
+      {
+          "證券代號": stock_id,
+          "公司名稱": stock_name,
+          "今日本益比": _tab4_fund.get("pe_str", "--"),
+          "單季 EPS": _tab4_fund.get("eps_str", "--"),
+          "近4季 EPS": _tab4_fund.get("eps_4q_str", "--"),
+          "近一年現金股利": _cash_div_str,
+          "現金殖利率": _tab4_fund.get("yield_str", "--"),
+      }
+  ])
+  st.dataframe(_fund_table_df, use_container_width=True, hide_index=True)
+
+  # 2. 其餘基本面圖表往下移
+  st.markdown(
+      f'<p class="sub-header-14">📊 基本面趨勢圖表 ｜ [{stock_id}] {stock_name}</p>',
+      unsafe_allow_html=True,
+  )
 
   quarters = ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1"]
   data_sets = [
