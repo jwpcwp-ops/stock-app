@@ -161,7 +161,7 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 鎖定包含 gold-row-anchor 的控制列，對齊在金剛指標右側邊界內，去除外框並強化排版美感 */
+        /* 鎖定包含 gold-row-anchor 的控制列，強制整排所有元件高度統一為 30px 並完全水平置中對齊 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) {
             width: 44.4% !important;
             max-width: 44.4% !important;
@@ -170,11 +170,11 @@ st.markdown(
             flex-direction: row !important;
             align-items: center !important;
             justify-content: flex-start !important;
-            gap: 4px !important;
+            gap: 5px !important;
             flex-wrap: nowrap !important;
-            margin-top: 3px !important;
+            margin-top: 4px !important;
             margin-bottom: 6px !important;
-            padding: 2px 2px !important;
+            padding: 0 !important;
             background-color: transparent !important;
             border: none !important;
             box-sizing: border-box !important;
@@ -186,37 +186,61 @@ st.markdown(
             min-width: 0 !important;
             max-width: none !important;
             padding: 0 !important;
+            margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            height: 30px !important;
+        }
+        /* 消除每一欄內部 div / markdown / selectbox / button 的上下額外間距，讓大家完全平行 */
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stVerticalBlock"],
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stElementContainer"],
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stMarkdownContainer"],
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stSelectbox"],
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stButton"] {
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 30px !important;
+            height: 30px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-testid="stMarkdownContainer"] p {
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 30px !important;
+            display: flex !important;
+            align-items: center !important;
         }
         .gold-status-text {
             color: #F0B84B !important;
             font-size: 13.5px !important;
             font-weight: 800 !important;
-            line-height: 26px !important;
-            height: 26px !important;
+            line-height: 30px !important;
+            height: 30px !important;
             white-space: nowrap !important;
             display: inline-flex !important;
             align-items: center !important;
-            margin-right: 3px !important;
+            margin: 0 2px 0 0 !important;
         }
         .gold-tag-box {
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            height: 26px !important;
-            min-height: 26px !important;
-            padding: 0 7px !important;
-            border-radius: 4px !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 0 8px !important;
+            border-radius: 5px !important;
             font-size: 13px !important;
             font-weight: 800 !important;
-            line-height: 26px !important;
+            line-height: 28px !important;
             white-space: nowrap !important;
             box-sizing: border-box !important;
+            margin: 0 !important;
         }
         .gold-dw-label {
             background-color: #111827 !important;
             color: #F8FAFC !important;
             border: 1px solid #374151 !important;
-            margin-right: 1px !important;
         }
         .gold-tag-idle {
             background-color: #161b22 !important;
@@ -233,7 +257,6 @@ st.markdown(
             width: 68px !important;
             min-width: 68px !important;
             max-width: 68px !important;
-            margin-right: 2px !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select div[data-baseweb="select"] > div {
             padding-left: 8px !important;
@@ -265,34 +288,36 @@ st.markdown(
             width: 78px !important;
             min-width: 78px !important;
             max-width: 78px !important;
-            margin-right: 2px !important;
         }
         /* 值 1.4 / 1.8 緊湊且完整顯示小數點後一位 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_val_up_sel {
             width: 68px !important;
             min-width: 68px !important;
             max-width: 68px !important;
-            margin-right: 2px !important;
         }
-        /* 下拉選單框體與文字美觀放大 */
+        /* 下拉選單框體統一高度 30px，與左右標籤框完全平行 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] {
-            min-height: 26px !important;
-            height: 26px !important;
+            min-height: 30px !important;
+            height: 30px !important;
             width: 100% !important;
+            margin: 0 !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] > div {
-            min-height: 26px !important;
-            height: 26px !important;
+            min-height: 30px !important;
+            height: 30px !important;
             font-size: 13.5px !important;
             font-weight: 800 !important;
-            line-height: 24px !important;
+            line-height: 28px !important;
             padding-top: 0 !important;
             padding-bottom: 0 !important;
-            padding-left: 6px !important;
+            padding-left: 8px !important;
             padding-right: 18px !important;
             background-color: #161b22 !important;
             border-color: #3f4b5b !important;
-            border-radius: 4px !important;
+            border-radius: 5px !important;
+            box-sizing: border-box !important;
+            display: flex !important;
+            align-items: center !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] span,
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] div {
@@ -300,20 +325,24 @@ st.markdown(
             font-weight: 800 !important;
             white-space: nowrap !important;
         }
-        /* 重整按鈕緊湊美觀 */
+        /* 重整按鈕統一高度 30px，與整排完全平行 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-btn_refresh_dw_vol button {
-            height: 26px !important;
-            min-height: 26px !important;
-            padding: 0 8px !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 0 9px !important;
+            margin: 0 !important;
             font-size: 13px !important;
             font-weight: 800 !important;
-            line-height: 24px !important;
+            line-height: 28px !important;
             white-space: nowrap !important;
             width: auto !important;
             background-color: #161b22 !important;
             color: #F1F5F9 !important;
             border: 1px solid #3f4b5b !important;
-            border-radius: 4px !important;
+            border-radius: 5px !important;
+            box-sizing: border-box !important;
+            display: inline-flex !important;
+            align-items: center !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-btn_refresh_dw_vol button:hover {
             background-color: #242c37 !important;
