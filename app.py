@@ -578,6 +578,11 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
 def _norm_y_m_d(date_val):
   if not date_val:
     return ""
+  try:
+    if isinstance(date_val, (pd.Timestamp, datetime)):
+      return pd.to_datetime(date_val).strftime("%Y/%m/%d")
+  except Exception:
+    pass
   s = str(date_val).strip().split(" ")[0].replace("-", "/")
   parts = s.split("/")
   if len(parts) == 3:
@@ -614,7 +619,51 @@ def _lookup_asof_value(date_list, val_list, bar_date_str):
       chosen = v_item
     else:
       break
+  if chosen is None and len(val_list) > 0:
+    return val_list[0]
   return chosen
+
+
+def _extract_eps_row_from_df(df_stmt):
+  if df_stmt is None or not isinstance(df_stmt, pd.DataFrame) or df_stmt.empty:
+    return None
+  candidate_names = [
+      "Basic EPS",
+      "Diluted EPS",
+      "EPS",
+      "BasicEPS",
+      "DilutedEPS",
+      "Earning Per Share",
+      "Earnings Per Share",
+  ]
+  idx_lower_map = {str(i).strip().lower(): i for i in df_stmt.index}
+  matched_row_key = None
+  for cname in candidate_names:
+    if cname in df_stmt.index:
+      matched_row_key = cname
+      break
+    low_k = cname.lower()
+    if low_k in idx_lower_map:
+      matched_row_key = idx_lower_map[low_k]
+      break
+  if matched_row_key is None:
+    for idx_item in df_stmt.index:
+      s_idx = str(idx_item).lower()
+      if "eps" in s_idx or "earning per share" in s_idx:
+        matched_row_key = idx_item
+        break
+  if matched_row_key is None:
+    return None
+
+  row_s = pd.to_numeric(df_stmt.loc[matched_row_key], errors="coerce").dropna()
+  if row_s.empty:
+    return None
+  try:
+    row_s.index = pd.to_datetime(row_s.index)
+    row_s = row_s.sort_index()
+  except Exception:
+    pass
+  return row_s
 
 
 @st.cache_data(ttl=1800)
@@ -633,134 +682,223 @@ def fetch_stock_fundamentals(stock_id):
       "cash_div_vals": [],
       "latest_cash_div": None,
   }
-  clean_id = str(stock_id).strip()
+  clean_id = str(stock_id).strip().replace(".0", "")
   if not clean_id or clean_id == "99991":
     return result
 
-  tickers = [f"{clean_id}.TW", f"{clean_id}.TWO"]
+  base_code = clean_id.zfill(4) if clean_id.isdigit() else clean_id
+  tickers = []
+  for cand in [clean_id, base_code]:
+    for suf in [".TW", ".TWO"]:
+      tk = f"{cand}{suf}"
+      if tk not in tickers:
+        tickers.append(tk)
+
   info = {}
   last_price = None
   q_inc = None
+  a_inc = None
   divs = None
 
   for tk in tickers:
     try:
       t = yf.Ticker(tk)
-      tmp_info = t.info or {}
-      if tmp_info and (
+      tmp_info = {}
+      try:
+        tmp_info = t.info or {}
+      except Exception:
+        tmp_info = {}
+
+      tmp_price = (
           tmp_info.get("regularMarketPrice")
           or tmp_info.get("currentPrice")
-          or tmp_info.get("trailingPE")
-          or tmp_info.get("trailingEps")
-          or tmp_info.get("dividendYield")
-      ):
+          or tmp_info.get("previousClose")
+      )
+
+      try:
+        tmp_q_inc = t.quarterly_income_stmt
+      except Exception:
+        tmp_q_inc = None
+
+      try:
+        tmp_a_inc = t.income_stmt
+      except Exception:
+        tmp_a_inc = None
+
+      try:
+        tmp_divs = t.dividends
+      except Exception:
+        tmp_divs = None
+
+      if tmp_price is None:
+        try:
+          h_tmp = t.history(period="5d", interval="1d", auto_adjust=True)
+          if h_tmp is not None and not h_tmp.empty and "Close" in h_tmp.columns:
+            tmp_price = float(h_tmp["Close"].dropna().iloc[-1])
+        except Exception:
+          pass
+
+      has_any_data = (
+          bool(tmp_info)
+          or (tmp_q_inc is not None and not tmp_q_inc.empty)
+          or (tmp_divs is not None and len(tmp_divs) > 0)
+          or (tmp_price is not None)
+      )
+
+      if has_any_data:
         info = tmp_info
-        last_price = (
-            info.get("regularMarketPrice")
-            or info.get("currentPrice")
-            or info.get("previousClose")
-        )
-        try:
-          q_inc = t.quarterly_income_stmt
-        except Exception:
-          q_inc = None
-        try:
-          divs = t.dividends
-        except Exception:
-          divs = None
+        last_price = tmp_price
+        q_inc = tmp_q_inc
+        a_inc = tmp_a_inc
+        divs = tmp_divs
         break
     except Exception:
       continue
-
-  if not info:
-    return result
 
   single_eps = None
   eps_4q = None
   q_eps_events = []
   eps_4q_events = []
 
-  if q_inc is not None and not q_inc.empty:
-    for r_name in ["Basic EPS", "Diluted EPS", "EPS"]:
-      if r_name in q_inc.index:
-        row_s = pd.to_numeric(q_inc.loc[r_name], errors="coerce").dropna().sort_index()
-        vals = row_s.tolist()
-        dt_idx = list(row_s.index)
-        if len(vals) >= 1:
-          single_eps = float(vals[-1])
-        if len(vals) >= 4:
-          eps_4q = float(sum(vals[-4:]))
-        elif len(vals) > 0:
-          eps_4q = float(sum(vals))
+  q_row = _extract_eps_row_from_df(q_inc)
+  if q_row is not None and not q_row.empty:
+    vals = [float(v) for v in q_row.tolist()]
+    dt_idx = list(q_row.index)
+    single_eps = float(vals[-1])
+    if len(vals) >= 4:
+      eps_4q = float(sum(vals[-4:]))
+    else:
+      eps_4q = float(sum(vals))
 
-        for i_q, (q_dt, q_val) in enumerate(zip(dt_idx, vals)):
-          eff_dt = (pd.to_datetime(q_dt) + pd.Timedelta(days=45)).strftime("%Y/%m/%d")
-          q_eps_events.append((eff_dt, float(q_val)))
-          win_q = vals[max(0, i_q - 3) : i_q + 1]
-          eps_4q_events.append((eff_dt, float(sum(win_q))))
-        break
+    for i_q, (q_dt, q_val) in enumerate(zip(dt_idx, vals)):
+      try:
+        eff_dt = (pd.to_datetime(q_dt) + pd.Timedelta(days=45)).strftime("%Y/%m/%d")
+      except Exception:
+        eff_dt = _norm_y_m_d(q_dt)
+      q_eps_events.append((eff_dt, float(q_val)))
+      win_q = vals[max(0, i_q - 3) : i_q + 1]
+      eps_4q_events.append((eff_dt, float(sum(win_q))))
+
+  if single_eps is None or eps_4q is None:
+    a_row = _extract_eps_row_from_df(a_inc)
+    if a_row is not None and not a_row.empty:
+      a_vals = [float(v) for v in a_row.tolist()]
+      a_dt_idx = list(a_row.index)
+      if eps_4q is None:
+        eps_4q = float(a_vals[-1])
+      if single_eps is None:
+        single_eps = float(a_vals[-1]) / 4.0
+      for a_dt, a_val in zip(a_dt_idx, a_vals):
+        try:
+          eff_dt = (pd.to_datetime(a_dt) + pd.Timedelta(days=60)).strftime("%Y/%m/%d")
+        except Exception:
+          eff_dt = _norm_y_m_d(a_dt)
+        if not eps_4q_events:
+          eps_4q_events.append((eff_dt, float(a_val)))
+        if not q_eps_events:
+          q_eps_events.append((eff_dt, float(a_val) / 4.0))
 
   if single_eps is None:
-    q_eps_info = info.get("epsCurrentQuarter") or info.get(
-        "epsTrailingTwelveMonths"
-    )
-    if q_eps_info is not None:
-      try:
-        single_eps = float(q_eps_info)
-      except Exception:
-        pass
+    for k_eps in [
+        "epsCurrentQuarter",
+        "epsForward",
+        "trailingEps",
+        "epsTrailingTwelveMonths",
+    ]:
+      v_raw = info.get(k_eps)
+      if v_raw is not None and pd.notna(v_raw):
+        try:
+          f_v = float(v_raw)
+          if k_eps in ["trailingEps", "epsTrailingTwelveMonths"]:
+            single_eps = f_v / 4.0
+          else:
+            single_eps = f_v
+          break
+        except Exception:
+          pass
 
   if eps_4q is None:
-    ttm_eps = info.get("trailingEps")
-    if ttm_eps is not None:
-      try:
-        eps_4q = float(ttm_eps)
-      except Exception:
-        pass
+    for k_ttm in ["trailingEps", "epsTrailingTwelveMonths", "forwardEps"]:
+      v_raw = info.get(k_ttm)
+      if v_raw is not None and pd.notna(v_raw):
+        try:
+          eps_4q = float(v_raw)
+          break
+        except Exception:
+          pass
+
+  if single_eps is not None and not q_eps_events:
+    q_eps_events.append((datetime.today().strftime("%Y/%m/%d"), float(single_eps)))
+  if eps_4q is not None and not eps_4q_events:
+    eps_4q_events.append((datetime.today().strftime("%Y/%m/%d"), float(eps_4q)))
 
   # 現金股利序列：計算近一年（365天）累計現金股利作為殖利率分子
   cash_div_events = []
   annual_cash_div = None
   if divs is not None and len(divs) > 0:
     try:
-      div_s = pd.to_numeric(divs, errors="coerce").dropna().sort_index()
-      if hasattr(div_s.index, "tz") and div_s.index.tz is not None:
-        div_s.index = div_s.index.tz_convert("Asia/Taipei").tz_localize(None)
-      for d_idx in div_s.index:
-        d_norm = pd.to_datetime(d_idx).normalize()
-        win_start = d_norm - pd.Timedelta(days=365)
-        rolling_cash = float(
-            div_s[(div_s.index > win_start) & (div_s.index <= d_idx)].sum()
-        )
-        cash_div_events.append((d_norm.strftime("%Y/%m/%d"), rolling_cash))
-      if cash_div_events:
-        annual_cash_div = cash_div_events[-1][1]
+      div_s = pd.to_numeric(divs, errors="coerce").dropna()
+      if not div_s.empty:
+        div_s.index = pd.to_datetime(div_s.index)
+        if hasattr(div_s.index, "tz") and div_s.index.tz is not None:
+          div_s.index = div_s.index.tz_convert("Asia/Taipei").tz_localize(None)
+        div_s = div_s.sort_index()
+        for d_idx in div_s.index:
+          d_norm = pd.to_datetime(d_idx).normalize()
+          win_start = d_norm - pd.Timedelta(days=365)
+          rolling_cash = float(
+              div_s[(div_s.index > win_start) & (div_s.index <= d_idx)].sum()
+          )
+          cash_div_events.append((d_norm.strftime("%Y/%m/%d"), rolling_cash))
+        if cash_div_events:
+          annual_cash_div = float(cash_div_events[-1][1])
     except Exception:
       pass
 
   if annual_cash_div is None:
-    div_rate = info.get("dividendRate") or info.get("trailingAnnualDividendRate")
-    if div_rate is not None:
+    for k_div in ["dividendRate", "trailingAnnualDividendRate"]:
+      v_raw = info.get(k_div)
+      if v_raw is not None and pd.notna(v_raw):
+        try:
+          annual_cash_div = float(v_raw)
+          break
+        except Exception:
+          pass
+
+  if annual_cash_div is None and last_price is not None and float(last_price) > 0:
+    raw_yield = info.get("dividendYield") or info.get(
+        "trailingAnnualDividendYield"
+    )
+    if raw_yield is not None and pd.notna(raw_yield):
       try:
-        annual_cash_div = float(div_rate)
+        y_f = float(raw_yield)
+        y_pct = y_f * 100.0 if y_f <= 0.5 else y_f
+        annual_cash_div = (y_pct / 100.0) * float(last_price)
       except Exception:
-        annual_cash_div = None
+        pass
+
+  if annual_cash_div is not None and not cash_div_events:
+    cash_div_events.append(
+        (datetime.today().strftime("%Y/%m/%d"), float(annual_cash_div))
+    )
 
   pe_val = None
-  if last_price is not None and eps_4q is not None and eps_4q > 0:
+  if last_price is not None and eps_4q is not None and float(eps_4q) > 0:
     try:
       pe_val = float(last_price) / float(eps_4q)
     except Exception:
       pe_val = None
   if pe_val is None:
-    raw_pe = info.get("trailingPE") or info.get("forwardPE")
-    if raw_pe is not None:
-      try:
-        v = float(raw_pe)
-        if v > 0:
-          pe_val = v
-      except Exception:
-        pass
+    for k_pe in ["trailingPE", "forwardPE"]:
+      raw_pe = info.get(k_pe)
+      if raw_pe is not None and pd.notna(raw_pe):
+        try:
+          v = float(raw_pe)
+          if v > 0:
+            pe_val = v
+            break
+        except Exception:
+          pass
 
   yield_pct = None
   if (
@@ -773,13 +911,15 @@ def fetch_stock_fundamentals(stock_id):
     except Exception:
       yield_pct = None
   if yield_pct is None:
-    raw_yield = info.get("dividendYield")
-    if raw_yield is not None:
-      try:
-        y_f = float(raw_yield)
-        yield_pct = y_f * 100.0 if y_f <= 0.5 else y_f
-      except Exception:
-        yield_pct = None
+    for k_y in ["dividendYield", "trailingAnnualDividendYield"]:
+      raw_yield = info.get(k_y)
+      if raw_yield is not None and pd.notna(raw_yield):
+        try:
+          y_f = float(raw_yield)
+          yield_pct = y_f * 100.0 if y_f <= 0.5 else y_f
+          break
+        except Exception:
+          pass
 
   if pe_val is not None:
     result["pe_str"] = f"{pe_val:.2f}倍"
@@ -825,16 +965,22 @@ def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
   if cash_div_v is None:
     cash_div_v = fund_data.get("latest_cash_div")
 
-  eps_str = f"{q_eps_v:.2f}元" if q_eps_v is not None else fund_data.get("eps_str", "--")
+  eps_str = (
+      f"{q_eps_v:.2f}元"
+      if q_eps_v is not None
+      else fund_data.get("eps_str", "--")
+  )
   eps_4q_str = (
-      f"{eps_4q_v:.2f}元" if eps_4q_v is not None else fund_data.get("eps_4q_str", "--")
+      f"{eps_4q_v:.2f}元"
+      if eps_4q_v is not None
+      else fund_data.get("eps_4q_str", "--")
   )
 
   denom_eps = eps_4q_v if eps_4q_v is not None else q_eps_v
   if bar_close_val and bar_close_val > 0 and denom_eps is not None and denom_eps > 0:
     pe_str = f"{(float(bar_close_val) / float(denom_eps)):.2f}倍"
   else:
-    pe_str = "--"
+    pe_str = fund_data.get("pe_str", "--")
 
   if (
       bar_close_val
@@ -844,7 +990,7 @@ def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
   ):
     yield_str = f"{(float(cash_div_v) / float(bar_close_val)) * 100.0:.2f}%"
   else:
-    yield_str = "--"
+    yield_str = fund_data.get("yield_str", "--")
 
   return {
       "pe_str": pe_str,
