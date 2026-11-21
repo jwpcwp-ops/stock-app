@@ -1465,10 +1465,10 @@ def build_bar_analysis_snapshot(
     ma_status = "均線交錯"
   ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
 
-  high30 = float(df_slice["high"].tail(30).max())
-  low30 = float(df_slice["low"].tail(30).min())
-  drop_pct = ((high30 - c_low) / high30) * 100 if high30 > 0 else 0.0
-  rise_pct = ((c_high / low30) - 1) * 100 if low30 > 0 else 0.0
+  period_high = float(df_slice["high"].max())
+  period_low = float(df_slice["low"].min())
+  drop_pct = ((period_high - c_low) / period_high) * 100 if period_high > 0 else 0.0
+  rise_pct = ((c_high / period_low) - 1) * 100 if period_low > 0 else 0.0
 
   k_v = float(r["kdj_k"]) if "kdj_k" in df.columns else 0.0
   d_v = float(r["kdj_d"]) if "kdj_d" in df.columns else 0.0
@@ -1794,8 +1794,8 @@ def build_bar_analysis_snapshot(
       "ma5": f"{ma5_v:.1f}",
       "ma20": f"{ma20_v:.1f}",
       "ma60": f"{ma60_v:.1f}",
-      "high30": f"{high30:.2f}",
-      "low30": f"{low30:.2f}",
+      "period_high": f"{period_high:.2f}",
+      "period_low": f"{period_low:.2f}",
       "drop_pct": f"-{drop_pct:.2f}%",
       "rise_pct": f"+{rise_pct:.2f}%",
       "kdj_sig": kdj_sig,
@@ -2703,8 +2703,8 @@ if app_mode == "📈 個股籌碼圖表":
 
       <div class="terminal-panel">
         <div class="terminal-title">【區間漲跌幅】</div>
-        <div class="t-row"><span class="t-label">近30高:</span><span id="p-high30" class="t-val-cyan">{init_snap.get("high30", "")}</span></div>
-        <div class="t-row"><span class="t-label">近30低:</span><span id="p-low30" class="t-val-cyan">{init_snap.get("low30", "")}</span></div>
+        <div class="t-row"><span class="t-label">區間高:</span><span id="p-period-high" class="t-val-cyan">{init_snap.get("period_high", "")}</span></div>
+        <div class="t-row"><span class="t-label">區間低:</span><span id="p-period-low" class="t-val-cyan">{init_snap.get("period_low", "")}</span></div>
         <div class="t-row"><span class="t-label">回檔幅:</span><span id="p-drop" class="t-val-green">{init_snap.get("drop_pct", "")}</span></div>
         <div class="t-row"><span class="t-label">彈升幅:</span><span id="p-rise" class="t-val-red">{init_snap.get("rise_pct", "")}</span></div>
       </div>
@@ -2772,8 +2772,8 @@ if app_mode == "📈 個股籌碼圖表":
       setEl("p-ma20", s.ma20);
       setEl("p-ma60", s.ma60);
 
-      setEl("p-high30", s.high30);
-      setEl("p-low30", s.low30);
+      setEl("p-period-high", s.period_high);
+      setEl("p-period-low", s.period_low);
       setEl("p-drop", s.drop_pct);
       setEl("p-rise", s.rise_pct);
 
