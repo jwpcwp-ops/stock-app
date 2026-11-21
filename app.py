@@ -575,14 +575,63 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
   return []
 
 
+def _norm_y_m_d(date_val):
+  if not date_val:
+    return ""
+  s = str(date_val).strip().split(" ")[0].replace("-", "/")
+  parts = s.split("/")
+  if len(parts) == 3:
+    try:
+      y = int(parts[0])
+      if y < 1911:
+        y += 1911
+      return f"{y:04d}/{int(parts[1]):02d}/{int(parts[2]):02d}"
+    except Exception:
+      pass
+  return s
+
+
+def _build_asof_table(events):
+  rows = []
+  for dt_v, num_v in events:
+    nd = _norm_y_m_d(dt_v)
+    if nd and num_v is not None and pd.notna(num_v):
+      try:
+        rows.append((nd, float(num_v)))
+      except Exception:
+        pass
+  rows.sort(key=lambda item: item[0])
+  return [item[0] for item in rows], [item[1] for item in rows]
+
+
+def _lookup_asof_value(date_list, val_list, bar_date_str):
+  if not date_list or not val_list:
+    return None
+  q_date = _norm_y_m_d(bar_date_str)
+  chosen = None
+  for d_item, v_item in zip(date_list, val_list):
+    if d_item <= q_date:
+      chosen = v_item
+    else:
+      break
+  return chosen
+
+
 @st.cache_data(ttl=1800)
 def fetch_stock_fundamentals(stock_id):
-  """抓取個股基本面數據：今日本益比、單季 EPS、近 4 季 EPS 合計、殖利率。"""
+  """抓取個股基本面數據：今日本益比、單季 EPS、近 4 季 EPS 合計、殖利率（嚴格使用現金股利）。"""
   result = {
       "pe_str": "--",
       "eps_str": "--",
       "eps_4q_str": "--",
       "yield_str": "--",
+      "q_eps_dates": [],
+      "q_eps_vals": [],
+      "eps_4q_dates": [],
+      "eps_4q_vals": [],
+      "cash_div_dates": [],
+      "cash_div_vals": [],
+      "latest_cash_div": None,
   }
   clean_id = str(stock_id).strip()
   if not clean_id or clean_id == "99991":
@@ -592,6 +641,7 @@ def fetch_stock_fundamentals(stock_id):
   info = {}
   last_price = None
   q_inc = None
+  divs = None
 
   for tk in tickers:
     try:
@@ -614,6 +664,10 @@ def fetch_stock_fundamentals(stock_id):
           q_inc = t.quarterly_income_stmt
         except Exception:
           q_inc = None
+        try:
+          divs = t.dividends
+        except Exception:
+          divs = None
         break
     except Exception:
       continue
@@ -623,19 +677,27 @@ def fetch_stock_fundamentals(stock_id):
 
   single_eps = None
   eps_4q = None
+  q_eps_events = []
+  eps_4q_events = []
 
   if q_inc is not None and not q_inc.empty:
     for r_name in ["Basic EPS", "Diluted EPS", "EPS"]:
       if r_name in q_inc.index:
-        vals = (
-            pd.to_numeric(q_inc.loc[r_name], errors="coerce").dropna().tolist()
-        )
+        row_s = pd.to_numeric(q_inc.loc[r_name], errors="coerce").dropna().sort_index()
+        vals = row_s.tolist()
+        dt_idx = list(row_s.index)
         if len(vals) >= 1:
-          single_eps = float(vals[0])
+          single_eps = float(vals[-1])
         if len(vals) >= 4:
-          eps_4q = float(sum(vals[:4]))
+          eps_4q = float(sum(vals[-4:]))
         elif len(vals) > 0:
           eps_4q = float(sum(vals))
+
+        for i_q, (q_dt, q_val) in enumerate(zip(dt_idx, vals)):
+          eff_dt = (pd.to_datetime(q_dt) + pd.Timedelta(days=45)).strftime("%Y/%m/%d")
+          q_eps_events.append((eff_dt, float(q_val)))
+          win_q = vals[max(0, i_q - 3) : i_q + 1]
+          eps_4q_events.append((eff_dt, float(sum(win_q))))
         break
 
   if single_eps is None:
@@ -656,6 +718,34 @@ def fetch_stock_fundamentals(stock_id):
       except Exception:
         pass
 
+  # 現金股利序列：計算近一年（365天）累計現金股利作為殖利率分子
+  cash_div_events = []
+  annual_cash_div = None
+  if divs is not None and len(divs) > 0:
+    try:
+      div_s = pd.to_numeric(divs, errors="coerce").dropna().sort_index()
+      if hasattr(div_s.index, "tz") and div_s.index.tz is not None:
+        div_s.index = div_s.index.tz_convert("Asia/Taipei").tz_localize(None)
+      for d_idx in div_s.index:
+        d_norm = pd.to_datetime(d_idx).normalize()
+        win_start = d_norm - pd.Timedelta(days=365)
+        rolling_cash = float(
+            div_s[(div_s.index > win_start) & (div_s.index <= d_idx)].sum()
+        )
+        cash_div_events.append((d_norm.strftime("%Y/%m/%d"), rolling_cash))
+      if cash_div_events:
+        annual_cash_div = cash_div_events[-1][1]
+    except Exception:
+      pass
+
+  if annual_cash_div is None:
+    div_rate = info.get("dividendRate") or info.get("trailingAnnualDividendRate")
+    if div_rate is not None:
+      try:
+        annual_cash_div = float(div_rate)
+      except Exception:
+        annual_cash_div = None
+
   pe_val = None
   if last_price is not None and eps_4q is not None and eps_4q > 0:
     try:
@@ -673,19 +763,21 @@ def fetch_stock_fundamentals(stock_id):
         pass
 
   yield_pct = None
-  raw_yield = info.get("dividendYield")
-  if raw_yield is not None:
+  if (
+      annual_cash_div is not None
+      and last_price is not None
+      and float(last_price) > 0
+  ):
     try:
-      y_f = float(raw_yield)
-      yield_pct = y_f * 100.0 if y_f <= 0.5 else y_f
+      yield_pct = (float(annual_cash_div) / float(last_price)) * 100.0
     except Exception:
       yield_pct = None
-
   if yield_pct is None:
-    div_rate = info.get("dividendRate") or info.get("trailingAnnualDividendRate")
-    if div_rate is not None and last_price is not None and float(last_price) > 0:
+    raw_yield = info.get("dividendYield")
+    if raw_yield is not None:
       try:
-        yield_pct = (float(div_rate) / float(last_price)) * 100.0
+        y_f = float(raw_yield)
+        yield_pct = y_f * 100.0 if y_f <= 0.5 else y_f
       except Exception:
         yield_pct = None
 
@@ -698,7 +790,68 @@ def fetch_stock_fundamentals(stock_id):
   if yield_pct is not None:
     result["yield_str"] = f"{yield_pct:.2f}%"
 
+  q_d, q_v = _build_asof_table(q_eps_events)
+  e4_d, e4_v = _build_asof_table(eps_4q_events)
+  cd_d, cd_v = _build_asof_table(cash_div_events)
+
+  result["q_eps_dates"] = q_d
+  result["q_eps_vals"] = q_v
+  result["eps_4q_dates"] = e4_d
+  result["eps_4q_vals"] = e4_v
+  result["cash_div_dates"] = cd_d
+  result["cash_div_vals"] = cd_v
+  result["latest_cash_div"] = annual_cash_div
+
   return result
+
+
+def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
+  """依單根 K 線日期與收盤價，動態更新【基本面快訊】（殖利率 = 現金股利 / 股價）。"""
+  q_eps_v = _lookup_asof_value(
+      fund_data.get("q_eps_dates", []),
+      fund_data.get("q_eps_vals", []),
+      bar_date_str,
+  )
+  eps_4q_v = _lookup_asof_value(
+      fund_data.get("eps_4q_dates", []),
+      fund_data.get("eps_4q_vals", []),
+      bar_date_str,
+  )
+  cash_div_v = _lookup_asof_value(
+      fund_data.get("cash_div_dates", []),
+      fund_data.get("cash_div_vals", []),
+      bar_date_str,
+  )
+  if cash_div_v is None:
+    cash_div_v = fund_data.get("latest_cash_div")
+
+  eps_str = f"{q_eps_v:.2f}元" if q_eps_v is not None else fund_data.get("eps_str", "--")
+  eps_4q_str = (
+      f"{eps_4q_v:.2f}元" if eps_4q_v is not None else fund_data.get("eps_4q_str", "--")
+  )
+
+  denom_eps = eps_4q_v if eps_4q_v is not None else q_eps_v
+  if bar_close_val and bar_close_val > 0 and denom_eps is not None and denom_eps > 0:
+    pe_str = f"{(float(bar_close_val) / float(denom_eps)):.2f}倍"
+  else:
+    pe_str = "--"
+
+  if (
+      bar_close_val
+      and bar_close_val > 0
+      and cash_div_v is not None
+      and float(cash_div_v) >= 0
+  ):
+    yield_str = f"{(float(cash_div_v) / float(bar_close_val)) * 100.0:.2f}%"
+  else:
+    yield_str = "--"
+
+  return {
+      "pe_str": pe_str,
+      "eps_str": eps_str,
+      "eps_4q_str": eps_4q_str,
+      "yield_str": yield_str,
+  }
 
 
 def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
@@ -2068,7 +2221,11 @@ if app_mode == "📈 個股籌碼圖表":
         actual_chart_period,
         stock_id=stock_id,
     )
-    snap.update(fund_data)
+    snap.update(
+        build_bar_fundamental_snap(
+            fund_data, str(r["date"]), float(r["close"])
+        )
+    )
     feihu_rev_no = total_bars_cnt - idx_r
 
     payload_rows.append({
