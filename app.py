@@ -1,7 +1,3 @@
- # 把整份完整的 app.py 一次輸出或存成檔案
-
-
-
 import base64
 from datetime import datetime
 from io import BytesIO
@@ -165,13 +161,17 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 限制並對齊在「金剛指標」按鈕右邊界底下（9 欄中的第 4 欄右緣 ≈ 44.4%） */
+        /* 集中濃縮並對齊在「金剛指標」按鈕右邊界底下（9 欄中的第 4 欄右緣 ≈ 44.4%） */
         .gold-indicator-limit {
             width: 44.4% !important;
             max-width: 44.4% !important;
             margin-top: 3px !important;
             margin-bottom: 4px !important;
-            overflow: hidden !important;
+            padding: 2px 4px !important;
+            background-color: #090b0e !important;
+            border: 1px solid #26303d !important;
+            border-radius: 4px !important;
+            box-sizing: border-box !important;
         }
         .gold-indicator-limit [data-testid="stHorizontalBlock"] {
             display: flex !important;
@@ -191,28 +191,26 @@ st.markdown(
         }
         .gold-status-text {
             color: #F0B84B;
-            font-size: 10.5px;
+            font-size: 12px;
             font-weight: 700;
-            line-height: 24px;
-            height: 24px;
+            line-height: 26px;
+            height: 26px;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 170px;
-            display: inline-block;
-            margin-right: 2px;
+            display: inline-flex;
+            align-items: center;
+            margin-right: 3px;
         }
         .gold-tag-box {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            height: 24px;
-            min-height: 24px;
-            padding: 0 5px;
+            height: 26px;
+            min-height: 26px;
+            padding: 0 6px;
             border-radius: 3px;
-            font-size: 10.5px;
+            font-size: 12px;
             font-weight: 700;
-            line-height: 24px;
+            line-height: 26px;
             white-space: nowrap;
             box-sizing: border-box;
         }
@@ -227,33 +225,35 @@ st.markdown(
             border: 1px solid #38B2C4;
         }
         .gold-indicator-limit [data-baseweb="select"] > div {
-            min-height: 24px !important;
-            height: 24px !important;
-            font-size: 10.5px !important;
-            line-height: 22px !important;
+            min-height: 26px !important;
+            height: 26px !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            line-height: 24px !important;
             padding-top: 0 !important;
             padding-bottom: 0 !important;
-            padding-left: 5px !important;
-            padding-right: 16px !important;
+            padding-left: 6px !important;
+            padding-right: 18px !important;
         }
         .gold-day-sel [data-baseweb="select"] {
-            width: 44px !important;
-            min-width: 44px !important;
+            width: 46px !important;
+            min-width: 46px !important;
         }
         .gold-vol-sel [data-baseweb="select"] {
-            width: 60px !important;
-            min-width: 60px !important;
+            width: 66px !important;
+            min-width: 66px !important;
         }
         .gold-val-sel [data-baseweb="select"] {
-            width: 50px !important;
-            min-width: 50px !important;
+            width: 54px !important;
+            min-width: 54px !important;
         }
         .gold-refresh-btn button {
-            height: 24px !important;
-            min-height: 24px !important;
-            padding: 0 6px !important;
-            font-size: 10.5px !important;
-            line-height: 22px !important;
+            height: 26px !important;
+            min-height: 26px !important;
+            padding: 0 8px !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            line-height: 24px !important;
             white-space: nowrap !important;
         }
     </style>
@@ -2309,7 +2309,7 @@ elif app_mode == "⚡ 9大策略選股":
 
   if not has_raw_candidates:
     filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
-    status_msg = f"【{selected_strat}】目前尚無符合條件的股票標的。"
+    status_msg = f"【{selected_strat}】尚無符合"
   else:
     id_to_name = dict(
         zip(
@@ -2362,17 +2362,12 @@ elif app_mode == "⚡ 9大策略選股":
       filtered_df = filtered_df[keep_mask].reset_index(drop=True)
 
     if filtered_df.empty:
-      status_msg = (
-          f"【{selected_strat}｜{dw_choice_cur}】目前尚無符合條件的股票標的。"
-      )
+      status_msg = f"【{selected_strat}｜{dw_choice_cur}】0檔"
     else:
-      status_msg = (
-          f"【{selected_strat}｜{dw_choice_cur}】目前符合條件共"
-          f" {len(filtered_df)} 檔標的。"
-      )
+      status_msg = f"【{selected_strat}｜{dw_choice_cur}】{len(filtered_df)}檔"
 
   st.markdown('<div class="gold-indicator-limit">', unsafe_allow_html=True)
-  f_cols = st.columns([1.8, 0.65, 0.75, 0.85, 0.55, 0.75, 0.75], gap="small")
+  f_cols = st.columns([1.2, 0.55, 0.72, 0.80, 0.50, 0.68, 0.72], gap="small")
 
   with f_cols[0]:
     st.markdown(
