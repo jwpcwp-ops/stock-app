@@ -666,6 +666,76 @@ def _extract_eps_row_from_df(df_stmt):
   return row_s
 
 
+def _parse_pos_float(val):
+  if val is None:
+    return None
+  s = str(val).replace(",", "").strip()
+  if not s or s in ("-", "--", "N/A", "nan", "None"):
+    return None
+  try:
+    fv = float(s)
+    return fv if np.isfinite(fv) else None
+  except Exception:
+    return None
+
+
+def _fetch_twse_pe_yield(stock_id):
+  """向證交所公開 OpenAPI (BWIBBU_ALL) 與每日本益比報表查詢上市股票最新本益比與現金殖利率。"""
+  clean_id = str(stock_id).strip().replace(".0", "")
+  if not clean_id or clean_id == "99991":
+    return None, None
+  code_4 = clean_id.zfill(4) if clean_id.isdigit() else clean_id
+  urls = [
+      "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
+      "https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d?response=json",
+  ]
+  for url in urls:
+    try:
+      req = urllib.request.Request(
+          url,
+          headers={
+              "User-Agent": "Mozilla/5.0",
+              "Accept": "application/json",
+          },
+      )
+      with urllib.request.urlopen(req, timeout=8) as resp:
+        raw_txt = resp.read().decode("utf-8", errors="ignore")
+        data = json.loads(raw_txt)
+        if isinstance(data, list):
+          for item in data:
+            item_code = str(item.get("Code", "")).strip()
+            if item_code in (clean_id, code_4):
+              pe_v = _parse_pos_float(item.get("PEratio"))
+              if pe_v is not None and pe_v <= 0:
+                pe_v = None
+              yld_v = _parse_pos_float(item.get("DividendYield"))
+              if yld_v is not None and yld_v < 0:
+                yld_v = None
+              if pe_v is not None or yld_v is not None:
+                return pe_v, yld_v
+        elif isinstance(data, dict) and data.get("data"):
+          fields = [str(f).strip() for f in data.get("fields", [])]
+          code_idx = fields.index("證券代號") if "證券代號" in fields else 0
+          pe_idx = fields.index("本益比") if "本益比" in fields else -1
+          yld_idx = fields.index("殖利率(%)") if "殖利率(%)" in fields else -1
+          for r_item in data.get("data", []):
+            if not isinstance(r_item, list) or len(r_item) <= code_idx:
+              continue
+            r_code = str(r_item[code_idx]).strip()
+            if r_code in (clean_id, code_4):
+              pe_v = _parse_pos_float(r_item[pe_idx]) if pe_idx >= 0 and len(r_item) > pe_idx else None
+              if pe_v is not None and pe_v <= 0:
+                pe_v = None
+              yld_v = _parse_pos_float(r_item[yld_idx]) if yld_idx >= 0 and len(r_item) > yld_idx else None
+              if yld_v is not None and yld_v < 0:
+                yld_v = None
+              if pe_v is not None or yld_v is not None:
+                return pe_v, yld_v
+    except Exception:
+      continue
+  return None, None
+
+
 @st.cache_data(ttl=1800)
 def fetch_stock_fundamentals(stock_id):
   """抓取個股基本面數據：今日本益比、單季 EPS、近 4 季 EPS 合計、殖利率（嚴格使用現金股利）。"""
@@ -687,6 +757,7 @@ def fetch_stock_fundamentals(stock_id):
     return result
 
   base_code = clean_id.zfill(4) if clean_id.isdigit() else clean_id
+  # 上市股優先使用 .TW，其次再試 .TWO（與櫃買無關，5274 為上市股優先走 .TW）
   tickers = []
   for cand in [clean_id, base_code]:
     for suf in [".TW", ".TWO"]:
@@ -827,11 +898,6 @@ def fetch_stock_fundamentals(stock_id):
         except Exception:
           pass
 
-  if single_eps is not None and not q_eps_events:
-    q_eps_events.append((datetime.today().strftime("%Y/%m/%d"), float(single_eps)))
-  if eps_4q is not None and not eps_4q_events:
-    eps_4q_events.append((datetime.today().strftime("%Y/%m/%d"), float(eps_4q)))
-
   # 現金股利序列：計算近一年（365天）累計現金股利作為殖利率分子
   cash_div_events = []
   annual_cash_div = None
@@ -877,6 +943,28 @@ def fetch_stock_fundamentals(stock_id):
       except Exception:
         pass
 
+  # 證交所 TWSE 備援（上市股票）：取得本益比與現金殖利率，並可反推近4季 EPS 與現金股利
+  twse_pe, twse_yield = _fetch_twse_pe_yield(clean_id)
+  if last_price is None or float(last_price) <= 0:
+    try:
+      hist_df = fetch_raw_history(clean_id, "日線", 5)
+      if hist_df:
+        last_price = float(hist_df[-1]["close"])
+    except Exception:
+      pass
+
+  if eps_4q is None and twse_pe is not None and twse_pe > 0 and last_price is not None and float(last_price) > 0:
+    eps_4q = float(last_price) / float(twse_pe)
+  if single_eps is None and eps_4q is not None:
+    single_eps = float(eps_4q) / 4.0
+
+  if annual_cash_div is None and twse_yield is not None and twse_yield >= 0 and last_price is not None and float(last_price) > 0:
+    annual_cash_div = (float(twse_yield) / 100.0) * float(last_price)
+
+  if single_eps is not None and not q_eps_events:
+    q_eps_events.append((datetime.today().strftime("%Y/%m/%d"), float(single_eps)))
+  if eps_4q is not None and not eps_4q_events:
+    eps_4q_events.append((datetime.today().strftime("%Y/%m/%d"), float(eps_4q)))
   if annual_cash_div is not None and not cash_div_events:
     cash_div_events.append(
         (datetime.today().strftime("%Y/%m/%d"), float(annual_cash_div))
@@ -888,6 +976,8 @@ def fetch_stock_fundamentals(stock_id):
       pe_val = float(last_price) / float(eps_4q)
     except Exception:
       pe_val = None
+  if pe_val is None and twse_pe is not None and twse_pe > 0:
+    pe_val = float(twse_pe)
   if pe_val is None:
     for k_pe in ["trailingPE", "forwardPE"]:
       raw_pe = info.get(k_pe)
@@ -910,6 +1000,8 @@ def fetch_stock_fundamentals(stock_id):
       yield_pct = (float(annual_cash_div) / float(last_price)) * 100.0
     except Exception:
       yield_pct = None
+  if yield_pct is None and twse_yield is not None and twse_yield >= 0:
+    yield_pct = float(twse_yield)
   if yield_pct is None:
     for k_y in ["dividendYield", "trailingAnnualDividendYield"]:
       raw_yield = info.get(k_y)
@@ -920,6 +1012,21 @@ def fetch_stock_fundamentals(stock_id):
           break
         except Exception:
           pass
+
+  if eps_4q is None:
+    for k_alt in ["trailingEps", "forwardEps", "bookValue"]:
+      v_alt = _parse_pos_float(info.get(k_alt))
+      if v_alt is not None and v_alt > 0:
+        eps_4q = v_alt
+        break
+  if single_eps is None and eps_4q is not None:
+    single_eps = float(eps_4q) / 4.0
+
+  if pe_val is None and last_price is not None and eps_4q is not None and float(eps_4q) > 0:
+    pe_val = float(last_price) / float(eps_4q)
+
+  if yield_pct is None and annual_cash_div is not None and last_price is not None and float(last_price) > 0:
+    yield_pct = (float(annual_cash_div) / float(last_price)) * 100.0
 
   if pe_val is not None:
     result["pe_str"] = f"{pe_val:.2f}倍"
