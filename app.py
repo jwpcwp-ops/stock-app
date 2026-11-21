@@ -161,7 +161,7 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 真正鎖定包含 gold-row-anchor 的那一整排 stHorizontalBlock，強制縮限在 44.4%（金剛指標右邊界）內 */
+        /* 鎖定包含 gold-row-anchor 的控制列，對齊在金剛指標右側邊界內，去除外框並強化排版美感 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) {
             width: 44.4% !important;
             max-width: 44.4% !important;
@@ -172,12 +172,11 @@ st.markdown(
             justify-content: flex-start !important;
             gap: 4px !important;
             flex-wrap: nowrap !important;
-            margin-top: 2px !important;
+            margin-top: 3px !important;
             margin-bottom: 6px !important;
-            padding: 3px 6px !important;
-            background-color: #0b0e14 !important;
-            border: 1px solid #2b3544 !important;
-            border-radius: 5px !important;
+            padding: 2px 2px !important;
+            background-color: transparent !important;
+            border: none !important;
             box-sizing: border-box !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) > div[data-testid="column"],
@@ -190,28 +189,34 @@ st.markdown(
         }
         .gold-status-text {
             color: #F0B84B !important;
-            font-size: 14px !important;
+            font-size: 13.5px !important;
             font-weight: 800 !important;
-            line-height: 28px !important;
-            height: 28px !important;
+            line-height: 26px !important;
+            height: 26px !important;
             white-space: nowrap !important;
             display: inline-flex !important;
             align-items: center !important;
-            margin-right: 4px !important;
+            margin-right: 3px !important;
         }
         .gold-tag-box {
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            height: 28px !important;
-            min-height: 28px !important;
+            height: 26px !important;
+            min-height: 26px !important;
             padding: 0 7px !important;
             border-radius: 4px !important;
-            font-size: 13.5px !important;
+            font-size: 13px !important;
             font-weight: 800 !important;
-            line-height: 28px !important;
+            line-height: 26px !important;
             white-space: nowrap !important;
             box-sizing: border-box !important;
+        }
+        .gold-dw-label {
+            background-color: #111827 !important;
+            color: #F8FAFC !important;
+            border: 1px solid #374151 !important;
+            margin-right: 1px !important;
         }
         .gold-tag-idle {
             background-color: #161b22 !important;
@@ -225,54 +230,70 @@ st.markdown(
         }
         /* 日/周 超窄方格 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_choice_select {
-            width: 48px !important;
-            min-width: 48px !important;
-            max-width: 48px !important;
+            width: 46px !important;
+            min-width: 46px !important;
+            max-width: 46px !important;
+            margin-right: 2px !important;
         }
-        /* 成交量 500 緊湊方格 */
+        /* 成交量 500 緊湊且不截斷文字 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_vol_mult {
-            width: 72px !important;
-            min-width: 72px !important;
-            max-width: 72px !important;
+            width: 78px !important;
+            min-width: 78px !important;
+            max-width: 78px !important;
+            margin-right: 2px !important;
         }
-        /* 值 1.4 緊湊方格 */
+        /* 值 1.4 / 1.8 緊湊且完整顯示小數點後一位 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-dw_val_up_sel {
-            width: 60px !important;
-            min-width: 60px !important;
-            max-width: 60px !important;
+            width: 68px !important;
+            min-width: 68px !important;
+            max-width: 68px !important;
+            margin-right: 2px !important;
         }
-        /* 放大下拉選單文字 */
+        /* 下拉選單框體與文字美觀放大 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] {
-            min-height: 28px !important;
-            height: 28px !important;
+            min-height: 26px !important;
+            height: 26px !important;
             width: 100% !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] > div {
-            min-height: 28px !important;
-            height: 28px !important;
-            font-size: 14px !important;
+            min-height: 26px !important;
+            height: 26px !important;
+            font-size: 13.5px !important;
             font-weight: 800 !important;
-            line-height: 26px !important;
+            line-height: 24px !important;
             padding-top: 0 !important;
             padding-bottom: 0 !important;
             padding-left: 6px !important;
-            padding-right: 16px !important;
+            padding-right: 18px !important;
+            background-color: #161b22 !important;
+            border-color: #3f4b5b !important;
+            border-radius: 4px !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] span,
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] div {
-            font-size: 14px !important;
-            font-weight: 800 !important;
-        }
-        /* 重整按鈕放大字體並緊湊 */
-        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-btn_refresh_dw_vol button {
-            height: 28px !important;
-            min-height: 28px !important;
-            padding: 0 9px !important;
             font-size: 13.5px !important;
             font-weight: 800 !important;
-            line-height: 26px !important;
+            white-space: nowrap !important;
+        }
+        /* 重整按鈕緊湊美觀 */
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-btn_refresh_dw_vol button {
+            height: 26px !important;
+            min-height: 26px !important;
+            padding: 0 8px !important;
+            font-size: 13px !important;
+            font-weight: 800 !important;
+            line-height: 24px !important;
             white-space: nowrap !important;
             width: auto !important;
+            background-color: #161b22 !important;
+            color: #F1F5F9 !important;
+            border: 1px solid #3f4b5b !important;
+            border-radius: 4px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-btn_refresh_dw_vol button:hover {
+            background-color: #242c37 !important;
+            color: #00ffff !important;
+            border-color: #00ffff !important;
         }
     </style>
 """,
@@ -2384,7 +2405,7 @@ elif app_mode == "⚡ 9大策略選股":
     else:
       status_msg = f"【{selected_strat}｜{dw_choice_cur}】{len(filtered_df)}檔"
 
-  f_cols = st.columns(7, gap="small")
+  f_cols = st.columns(8, gap="small")
 
   with f_cols[0]:
     st.markdown(
@@ -2393,6 +2414,12 @@ elif app_mode == "⚡ 9大策略選股":
     )
 
   with f_cols[1]:
+    st.markdown(
+        '<div class="gold-tag-box gold-dw-label">日/周</div>',
+        unsafe_allow_html=True,
+    )
+
+  with f_cols[2]:
     st.selectbox(
         "日周",
         ["日", "周"],
@@ -2401,13 +2428,13 @@ elif app_mode == "⚡ 9大策略選股":
         label_visibility="collapsed",
     )
 
-  with f_cols[2]:
+  with f_cols[3]:
     st.markdown(
         f'<div class="gold-tag-box {tag_cls}">成交量&gt;</div>',
         unsafe_allow_html=True,
     )
 
-  with f_cols[3]:
+  with f_cols[4]:
     st.selectbox(
         "成交量倍數",
         vol_mult_options,
@@ -2416,13 +2443,13 @@ elif app_mode == "⚡ 9大策略選股":
         label_visibility="collapsed",
     )
 
-  with f_cols[4]:
+  with f_cols[5]:
     st.markdown(
         f'<div class="gold-tag-box {tag_cls}">值&gt;</div>',
         unsafe_allow_html=True,
     )
 
-  with f_cols[5]:
+  with f_cols[6]:
     st.selectbox(
         "值門檻",
         val_up_options,
@@ -2431,7 +2458,7 @@ elif app_mode == "⚡ 9大策略選股":
         label_visibility="collapsed",
     )
 
-  with f_cols[6]:
+  with f_cols[7]:
     if st.button("🔄 重整", key="btn_refresh_dw_vol"):
       fetch_raw_history.clear()
       st.rerun()
