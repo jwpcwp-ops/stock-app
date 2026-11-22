@@ -1456,13 +1456,12 @@ def build_bar_analysis_snapshot(
     ma_status = "均線交錯"
   ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
 
-  # 單根 K 棒漲跌與振幅（取代原本固定式區間漲跌幅，交由尺規測距處理區間）
   bar_diff = c_close - p_close
   bar_chg_pct = (bar_diff / p_close * 100.0) if p_close > 0 else 0.0
   bar_amp_pct = ((c_high - c_low) / p_close * 100.0) if p_close > 0 else 0.0
   bar_chg_str = f"{bar_diff:+.2f} ({bar_chg_pct:+.2f}%)"
   bar_chg_cls = "t-val-red" if bar_diff >= 0 else "t-val-green"
-  bar_amp_str = f"{bar_amp_pct:.2f}%"
+  bar_amp_str = f"{bar_amp_pct:+.2f}%"
 
   b_slice = big_holder[-len(df) :] if len(big_holder) >= len(df) else big_holder
   s_slice = (
@@ -1789,7 +1788,6 @@ def build_bar_analysis_snapshot(
       "ma5": f"{ma5_v:.1f}",
       "ma20": f"{ma20_v:.1f}",
       "ma60": f"{ma60_v:.1f}",
-      # 預設顯示【當日漲跌與籌碼】，啟動尺規測距時由 JS 自動切換【尺規區間統計】
       "bar_chg_str": bar_chg_str,
       "bar_chg_cls": bar_chg_cls,
       "bar_amp_str": bar_amp_str,
@@ -2171,7 +2169,7 @@ if app_mode == "📈 個股籌碼圖表":
     p_max = float(df["high"].max())
     p_min = float(df["low"].min())
     p_range = p_max - p_min if p_max != p_min else 1.0
-    ax1.set_ylim(p_min - p_range * 0.08, p_max + p_range * 0.15)
+    ax1.set_ylim(p_min - p_range * 0.12, p_max + p_range * 0.15)
     ax1.set_xlim(x_min_bar, x_max_bar)
 
     high_idx = int(df["high"].values.argmax())
@@ -2293,7 +2291,7 @@ if app_mode == "📈 個股籌碼圖表":
       )
 
   ymin_lim, ymax_lim = ax1.get_ylim()
-  band_height = (ymax_lim - ymin_lim) * 0.035
+  band_height = (ymax_lim - ymin_lim) * 0.045
   trend_colors = [
       BAR_UP_COLOR if is_bull else BAR_DOWN_COLOR
       for is_bull in df["long_trend"]
@@ -2309,6 +2307,37 @@ if app_mode == "📈 個股籌碼圖表":
       alpha=1.0,
       zorder=2,
   )
+
+  # 在底圖最下方橫條區自動標示月份數字（例如 11 10 9 8 7 6 5 4 3 2 1）
+  if not df.empty:
+    month_marks = []
+    prev_ym = None
+    for idx_m, dt_str in enumerate(df["date"].astype(str)):
+      parts = dt_str.split(" ")[0].split("/")
+      if len(parts) >= 2:
+        ym = f"{parts[0]}/{parts[1]}"
+        if ym != prev_ym:
+          prev_ym = ym
+          try:
+            m_num = int(parts[1])
+            month_marks.append((idx_m, str(m_num)))
+          except Exception:
+            pass
+    step_m = max(1, int(np.ceil(len(month_marks) / 14.0)))
+    for m_i, (m_idx, m_lbl) in enumerate(month_marks):
+      if m_i % step_m == 0:
+        t_m = ax1.text(
+            m_idx,
+            ymin_lim + band_height * 0.50,
+            m_lbl,
+            color="#FFFFFF",
+            fontsize=7.2,
+            fontweight="bold",
+            ha="center",
+            va="center",
+            zorder=7,
+        )
+        t_m.set_path_effects(get_bright_effect("#000000", 2.0))
 
   ax1.yaxis.tick_right()
   ax1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
@@ -2859,12 +2888,13 @@ if app_mode == "📈 個股籌碼圖表":
         const chgCls = isUp ? "t-val-red" : "t-val-green";
         const sgn = isUp ? "+" : "";
         const psgn = st.diffPct >= 0 ? "+" : "";
+        const ampSign = isUp ? "+" : "-";
         titleEl.className = "terminal-title-ruler";
         titleEl.textContent = `【尺規區間統計 (${{st.barCount}}K)】`;
         rowsEl.innerHTML =
           `<div class="t-row"><span class="t-label">起訖:</span><span class="t-val-cyan">${{st.startDate.slice(5)}}~${{st.endDate.slice(5)}}</span></div>` +
           `<div class="t-row"><span class="t-label">區間漲跌:</span><span class="${{chgCls}}">${{sgn}}${{st.diffPts.toFixed(2)}} (${{psgn}}${{st.diffPct.toFixed(2)}}%)</span></div>` +
-          `<div class="t-row"><span class="t-label">高低/振:</span><span class="t-val-white">${{st.maxH.toFixed(1)}}/${{st.minL.toFixed(1)}} (${{st.ampPct.toFixed(1)}}%)</span></div>` +
+          `<div class="t-row"><span class="t-label">高低/振:</span><span class="${{chgCls}}">${{st.maxH.toFixed(1)}}/${{st.minL.toFixed(1)}} (${{ampSign}}${{st.ampPct.toFixed(1)}}%)</span></div>` +
           `<div class="t-row"><span class="t-label">累量/均:</span><span class="t-val-cyan">${{st.sumVol.toLocaleString()}} / ${{st.avgVol.toLocaleString()}}</span></div>`;
       }} else {{
         const s = (r && r.snap) ? r.snap : {{}};
@@ -2981,10 +3011,11 @@ if app_mode == "📈 個股籌碼圖表":
 
       const sign = isUp ? "+" : "";
       const pctSign = st.diffPct >= 0 ? "+" : "";
+      const ampSign = isUp ? "+" : "-";
       const lines = [
         `【尺規測距】${{st.startDate}} → ${{st.endDate}} (${{st.barCount}}K)`,
         `區間漲跌: ${{sign}}${{st.diffPts.toFixed(2)}} (${{pctSign}}${{st.diffPct.toFixed(2)}}%)  收: ${{st.startClose.toFixed(2)}} → ${{st.endClose.toFixed(2)}}`,
-        `區間高低: ${{st.maxH.toFixed(2)}} / ${{st.minL.toFixed(2)}}  振幅: ${{st.ampPct.toFixed(2)}}%`,
+        `區間高低: ${{st.maxH.toFixed(2)}} / ${{st.minL.toFixed(2)}}  振幅: ${{ampSign}}${{st.ampPct.toFixed(2)}}%`,
         `累積量: ${{st.sumVol.toLocaleString()}}  均量: ${{st.avgVol.toLocaleString()}}`
       ];
 
@@ -3007,7 +3038,7 @@ if app_mode == "📈 個股籌碼圖表":
         let col = "#FFFFFF";
         if (idxLine === 0) col = "#00FFFF";
         else if (idxLine === 1) col = isUp ? "#FF4444" : "#00E64D";
-        else if (idxLine === 2) col = "#FFFF00";
+        else if (idxLine === 2) col = isUp ? "#FF4444" : "#00E64D";
         drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
       }});
       ctx.restore();
