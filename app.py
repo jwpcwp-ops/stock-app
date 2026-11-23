@@ -442,23 +442,26 @@ def find_stock_index_by_code(code_str):
 # ---------------------------------------------------------
 # 5. 本地快取支援、資料抓取與基本面查詢
 # ---------------------------------------------------------
-CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
+CACHE_FILES = ["羊群籌碼_219檔.jsonl", "羊群籌碼_fetch_cache.jsonl"]
 
 
 @st.cache_data
 def load_local_cache_cached():
   cache_dict = {}
-  if os.path.exists(CACHE_FILE):
-    try:
-      with open(CACHE_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-          if line.strip():
-            data = json.loads(line)
-            s_id = str(data.get("stock_id", "")).strip()
-            if s_id:
-              cache_dict[s_id] = data
-    except Exception:
-      pass
+  for c_file in CACHE_FILES:
+    if os.path.exists(c_file):
+      try:
+        with open(c_file, "r", encoding="utf-8") as f:
+          for line in f:
+            if line.strip():
+              data = json.loads(line)
+              s_id = str(
+                  data.get("stock_id") or data.get("代號") or data.get("id") or ""
+              ).strip()
+              if s_id and s_id not in cache_dict:
+                cache_dict[s_id] = data
+      except Exception:
+        pass
   return cache_dict
 
 
