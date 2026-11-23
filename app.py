@@ -26,6 +26,8 @@ st.set_page_config(
 
 # 均線粗細設定（數值越小越細，0.4 不易遮擋 K 線）
 MA_LINE_WIDTH = 0.4
+# KDJ / RSI 指標線條粗細設定（原本為 0.65，現調整為 1.15 更清晰）
+IND_LINE_WIDTH = 1.15
 
 MA_COLOR_MAP = {
     "5": "#00FFFF",
@@ -87,13 +89,14 @@ st.markdown(
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
-            gap: 4px !important;
+            gap: 3px !important;
             align-items: center !important;
             margin-bottom: 4px !important;
         }
         .stButton button {
             font-size: 9.5px !important;
-            padding: 2px 5px !important;
+            padding: 1px 3px !important;
+            min-width: 0px !important;
             min-height: 22px !important;
             height: 22px !important;
         }
@@ -1998,17 +2001,17 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  third_row_cols = st.columns([1.22, 0.92, 1.06])
+  third_row_cols = st.columns([1.06, 1.00, 1.14])
 
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
-    ma_btn_cols = st.columns(len(ma_items))
+    ma_btn_cols = st.columns(len(ma_items), gap="small")
     for idx_m, m_key in enumerate(ma_items):
-      is_on = st.session_state.ma_active_map.get(m_key, False)
       with ma_btn_cols[idx_m]:
-        lbl = f"●{m_key}" if is_on else f"○{m_key}"
-        if st.button(lbl, key=f"ma_toggle_{m_key}", use_container_width=True):
-          st.session_state.ma_active_map[m_key] = not is_on
+        if st.button(m_key, key=f"ma_toggle_{m_key}", use_container_width=True):
+          st.session_state.ma_active_map[m_key] = not st.session_state.ma_active_map.get(
+              m_key, False
+          )
           st.rerun()
 
     active_css_rules = []
@@ -2028,7 +2031,9 @@ if app_mode == "📈 個股籌碼圖表":
                         color: #000000 !important;
                         border: 1px solid #ffffff !important;
                         font-weight: bold !important;
-                        box-shadow: 0 0 5px {line_col} !important;
+                        box-shadow: 0 0 4px {line_col} !important;
+                        padding: 1px 2px !important;
+                        font-size: 9px !important;
                     }}
                 """
         )
@@ -2041,6 +2046,8 @@ if app_mode == "📈 個股籌碼圖表":
                         border: 1px solid #3d4a5a !important;
                         font-weight: bold !important;
                         box-shadow: none !important;
+                        padding: 1px 2px !important;
+                        font-size: 9px !important;
                     }}
                 """
         )
@@ -2428,13 +2435,13 @@ if app_mode == "📈 個股籌碼圖表":
   def _plot_kdj_axis(ax_kdj):
     ax_kdj.set_facecolor(PANEL_BG)
     ax_kdj.plot(
-        x, df["kdj_k"], linewidth=0.65, color="#FF00FF", label="K", zorder=3
+        x, df["kdj_k"], linewidth=IND_LINE_WIDTH, color="#FF00FF", label="K", zorder=3
     )
     ax_kdj.plot(
-        x, df["kdj_d"], linewidth=0.65, color="#00FFFF", label="D", zorder=3
+        x, df["kdj_d"], linewidth=IND_LINE_WIDTH, color="#00FFFF", label="D", zorder=3
     )
     ax_kdj.plot(
-        x, df["kdj_j"], linewidth=0.65, color="#FFFFFF", label="J", zorder=3
+        x, df["kdj_j"], linewidth=IND_LINE_WIDTH, color="#FFFFFF", label="J", zorder=3
     )
     ax_kdj.axhline(
         80, color="#FF6666", linestyle="--", linewidth=0.85, alpha=0.75, zorder=2
@@ -2461,12 +2468,12 @@ if app_mode == "📈 個股籌碼圖表":
   def _plot_rsi_axis(ax_rsi):
     ax_rsi.set_facecolor(PANEL_BG)
     ax_rsi.plot(
-        x, df["rsi_6"], linewidth=0.65, color="#FF00FF", label="RSI6", zorder=3
+        x, df["rsi_6"], linewidth=IND_LINE_WIDTH, color="#FF00FF", label="RSI6", zorder=3
     )
     ax_rsi.plot(
         x,
         df["rsi_12"],
-        linewidth=0.65,
+        linewidth=IND_LINE_WIDTH,
         color="#00FFFF",
         label="RSI12",
         zorder=3,
@@ -2483,7 +2490,7 @@ if app_mode == "📈 個股籌碼圖表":
   def _plot_wr_axis(ax_wr):
     ax_wr.set_facecolor(PANEL_BG)
     ax_wr.plot(
-        x, df["w_r"], linewidth=0.65, color="#FFFF00", label="W%", zorder=3
+        x, df["w_r"], linewidth=IND_LINE_WIDTH, color="#FFFF00", label="W%", zorder=3
     )
     ax_wr.axhline(
         -20, color="#FF6666", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
