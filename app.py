@@ -1599,133 +1599,6 @@ def build_bar_analysis_snapshot(
   else:
     wave_txt, wave_cls = "空方波段整理中", "t-val-green"
 
-  ind_tokens = []
-  sub2_tokens = []
-  sub3_tokens = []
-
-  if selected_indicator == "MACD":
-    dif_v = float(r["macd_dif"])
-    dem_v = float(r["macd_dem"])
-    osc_v = float(r["macd_osc"])
-    prev_dif = float(df["macd_dif"].iloc[idx_r - 1]) if idx_r > 0 else dif_v
-    prev_dem = float(df["macd_dem"].iloc[idx_r - 1]) if idx_r > 0 else dem_v
-    prev_osc = float(df["macd_osc"].iloc[idx_r - 1]) if idx_r > 0 else osc_v
-    dif_arr = "▲" if dif_v >= prev_dif else "▼"
-    dem_arr = "▲" if dem_v >= prev_dem else "▼"
-    osc_arr = "▲" if osc_v >= prev_osc else "▼"
-    osc_col = "#FF3333" if osc_v >= 0 else "#00E64D"
-    ind_tokens = [
-        {"text": "MACD(長)", "color": "#FFFFFF"},
-        {"text": "DIF::", "color": "#FF00FF"},
-        {"text": f"{dif_v:.2f}{dif_arr}", "color": "#FF00FF"},
-        {"text": "DEA::", "color": "#00FFFF"},
-        {"text": f"{dem_v:.2f}{dem_arr}", "color": "#00FFFF"},
-        {"text": "MACD::", "color": osc_col},
-        {"text": f"{osc_v:.2f}{osc_arr}", "color": osc_col},
-    ]
-  elif selected_indicator == "BIAS":
-    bias_v = float(r["bias_val"])
-    prev_bias = float(df["bias_val"].iloc[idx_r - 1]) if idx_r > 0 else bias_v
-    b_arr = "▲" if bias_v >= prev_bias else "▼"
-    ind_tokens = [
-        {"text": "BIAS(60)::", "color": "#FFFFFF"},
-        {
-            "text": f"{bias_v:.2f}%{b_arr}",
-            "color": "#FF3333" if bias_v >= 0 else "#00E64D",
-        },
-    ]
-  elif selected_indicator == "KDJ":
-    k_diff = float(r["kdj_diff"])
-    kd_arr = "▲" if k_diff >= 0 else "▼"
-    ind_tokens = [
-        {"text": "KD(9,3,3)", "color": "#FFFFFF"},
-        {"text": "K::", "color": "#FF00FF"},
-        {"text": f"{k_v:.2f}", "color": "#FF00FF"},
-        {"text": "D::", "color": "#00FFFF"},
-        {"text": f"{d_v:.2f}", "color": "#00FFFF"},
-        {"text": "J::", "color": "#FFFFFF"},
-        {"text": f"{j_v:.2f}", "color": "#FFFFFF"},
-        {"text": "乖離::", "color": "#FFFF00"},
-        {"text": f"{k_diff:.2f}{kd_arr}", "color": "#FFFF00"},
-    ]
-  elif selected_indicator == "RSI":
-    r6_v = float(r["rsi_6"])
-    r12_v = float(r["rsi_12"])
-    rdiff_v = float(r["rsi_diff"])
-    rd_arr = "▲" if rdiff_v >= 0 else "▼"
-    ind_tokens = [
-        {"text": "RSI(6,12)", "color": "#FFFFFF"},
-        {"text": "RSI6::", "color": "#FF00FF"},
-        {"text": f"{r6_v:.2f}", "color": "#FF00FF"},
-        {"text": "RSI12::", "color": "#00FFFF"},
-        {"text": f"{r12_v:.2f}", "color": "#00FF00"},
-        {"text": "差值::", "color": "#FFFF00"},
-        {"text": f"{rdiff_v:.2f}{rd_arr}", "color": "#FFFF00"},
-    ]
-  elif selected_indicator == "W%":
-    wr_v = float(r["w_r"])
-    prev_wr = float(df["w_r"].iloc[idx_r - 1]) if idx_r > 0 else wr_v
-    w_arr = "▲" if wr_v >= prev_wr else "▼"
-    ind_tokens = [
-        {"text": "W%::", "color": "#FFFFFF"},
-        {
-            "text": f"{wr_v:.2f}%{w_arr}",
-            "color": "#FF3333" if wr_v >= prev_wr else "#00E64D",
-        },
-    ]
-  elif selected_indicator == "QT":
-    qt_v = float(r["qt"])
-    prev_qt = float(df["qt"].iloc[idx_r - 1]) if idx_r > 0 else qt_v
-    q_arr = "▲" if qt_v >= prev_qt else "▼"
-    ind_tokens = [
-        {"text": "QT::", "color": "#FFFFFF"},
-        {
-            "text": f"{qt_v:.2f}{q_arr}",
-            "color": "#FF3333" if qt_v >= prev_qt else "#00E64D",
-        },
-    ]
-  elif selected_indicator == "大戶羊群":
-    ind_tokens = [
-        {"text": "大戶::", "color": "#FFFFFF"},
-        {"text": f"{b_val:.1f}%", "color": "#FF3333"},
-        {"text": "散戶::", "color": "#FFFFFF"},
-        {"text": f"{s_val:.1f}%", "color": "#00E64D"},
-    ]
-  elif selected_indicator == "波段":
-    bdif_v = float(r["band_macd_dif"])
-    bdem_v = float(r["band_macd_dem"])
-    bosc_v = float(r["band_macd_osc"])
-    bbias_rev_v = float(r["band_bias_val_rev"])
-    mtm_v = float(r["mtm_val"])
-    mtm_avg_v = float(r["mtm_ma1"])
-
-    ind_tokens = [
-        {"text": "波段 MACD(5,10,5)", "color": "#FFFFFF"},
-        {"text": "DIF::", "color": "#FFFF00"},
-        {"text": f"{bdif_v:.2f}", "color": "#FFFF00"},
-        {"text": "DEA::", "color": "#FF3333"},
-        {"text": f"{bdem_v:.2f}", "color": "#FF3333"},
-        {"text": "OSC::", "color": "#FF3333" if bosc_v >= 0 else "#00E64D"},
-        {
-            "text": f"{bosc_v:.2f}",
-            "color": "#FF3333" if bosc_v >= 0 else "#00E64D",
-        },
-    ]
-    sub2_tokens = [
-        {"text": "波段 BIAS(20,反向)::", "color": "#FFFFFF"},
-        {
-            "text": f"{bbias_rev_v:.2f}%",
-            "color": "#FF3333" if bbias_rev_v >= 0 else "#00E64D",
-        },
-    ]
-    sub3_tokens = [
-        {"text": "波段 MTM(10,1)", "color": "#FFFFFF"},
-        {"text": "MTM::", "color": "#FFFF00"},
-        {"text": f"{mtm_v:.2f}", "color": "#FFFF00"},
-        {"text": "Avg::", "color": "#00FF66"},
-        {"text": f"{mtm_avg_v:.2f}", "color": "#00FF66"},
-    ]
-
   prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
   prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
   prev_v20 = float(df["vol_ma20"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma20_v
@@ -1769,6 +1642,142 @@ def build_bar_analysis_snapshot(
           "color": "#FF3333" if vr20_is_up else "#00E64D",
       },
   ]
+
+  kdj_tokens = [
+      {"text": "KD(9,3,3)", "color": "#FFFFFF"},
+      {"text": "K::", "color": "#FF00FF"},
+      {"text": f"{k_v:.2f}", "color": "#FF00FF"},
+      {"text": "D::", "color": "#00FFFF"},
+      {"text": f"{d_v:.2f}", "color": "#00FFFF"},
+      {"text": "J::", "color": "#FFFFFF"},
+      {"text": f"{j_v:.2f}", "color": "#FFFFFF"},
+      {"text": "乖離::", "color": "#FFFF00"},
+      {
+          "text": f"{kd_diff:.2f}{'▲' if kd_diff >= 0 else '▼'}",
+          "color": "#FFFF00",
+      },
+  ]
+
+  dif_v = float(r["macd_dif"])
+  dem_v = float(r["macd_dem"])
+  osc_v = float(r["macd_osc"])
+  prev_dif = float(df["macd_dif"].iloc[idx_r - 1]) if idx_r > 0 else dif_v
+  prev_dem = float(df["macd_dem"].iloc[idx_r - 1]) if idx_r > 0 else dem_v
+  prev_osc = float(df["macd_osc"].iloc[idx_r - 1]) if idx_r > 0 else osc_v
+  dif_arr = "▲" if dif_v >= prev_dif else "▼"
+  dem_arr = "▲" if dem_v >= prev_dem else "▼"
+  osc_arr = "▲" if osc_v >= prev_osc else "▼"
+  osc_col = "#FF3333" if osc_v >= 0 else "#00E64D"
+  macd_tokens = [
+      {"text": "MACD(長)", "color": "#FFFFFF"},
+      {"text": "DIF::", "color": "#FF00FF"},
+      {"text": f"{dif_v:.2f}{dif_arr}", "color": "#FF00FF"},
+      {"text": "DEA::", "color": "#00FFFF"},
+      {"text": f"{dem_v:.2f}{dem_arr}", "color": "#00FFFF"},
+      {"text": "MACD::", "color": osc_col},
+      {"text": f"{osc_v:.2f}{osc_arr}", "color": osc_col},
+  ]
+
+  ind_tokens = []
+  sub2_tokens = []
+  sub3_tokens = []
+
+  if selected_indicator == "組合":
+    ind_tokens = kdj_tokens
+    sub2_tokens = macd_tokens
+    sub3_tokens = vol_tokens
+  elif selected_indicator == "MACD":
+    ind_tokens = macd_tokens
+  elif selected_indicator == "BIAS":
+    bias_v = float(r["bias_val"])
+    prev_bias = float(df["bias_val"].iloc[idx_r - 1]) if idx_r > 0 else bias_v
+    b_arr = "▲" if bias_v >= prev_bias else "▼"
+    ind_tokens = [
+        {"text": "BIAS(60)::", "color": "#FFFFFF"},
+        {
+            "text": f"{bias_v:.2f}%{b_arr}",
+            "color": "#FF3333" if bias_v >= 0 else "#00E64D",
+        },
+    ]
+  elif selected_indicator == "KDJ":
+    ind_tokens = kdj_tokens
+  elif selected_indicator == "RSI":
+    r6_v = float(r["rsi_6"])
+    r12_v = float(r["rsi_12"])
+    rdiff_v = float(r["rsi_diff"])
+    rd_arr = "▲" if rdiff_v >= 0 else "▼"
+    ind_tokens = [
+        {"text": "RSI(6,12)", "color": "#FFFFFF"},
+        {"text": "RSI6::", "color": "#FF00FF"},
+        {"text": f"{r6_v:.2f}", "color": "#FF00FF"},
+        {"text": "RSI12::", "color": "#00FFFF"},
+        {"text": f"{r12_v:.2f}", "color": "#00FF00"},
+        {"text": "差值::", "color": "#FFFF00"},
+        {"text": f"{rdiff_v:.2f}{rd_arr}", "color": "#FFFF00"},
+    ]
+  elif selected_indicator == "W%":
+    wr_v = float(r["w_r"])
+    prev_wr = float(df["w_r"].iloc[idx_r - 1]) if idx_r > 0 else wr_v
+    w_arr = "▲" if wr_v >= prev_wr else "▼"
+    ind_tokens = [
+        {"text": "W%::", "color": "#FFFFFF"},
+        {
+            "text": f"{wr_v:.2f}%{w_arr}",
+            "color": "#FF3333" if wr_v >= prev_wr else "#00E64D",
+        },
+    ]
+  elif selected_indicator == "QT":
+    qt_v = float(r["qt"])
+    prev_qt = float(df["qt"].iloc[idx_r - 1]) if idx_r > 0 else qt_v
+    q_arr = "▲" if qt_v >= prev_qt else "▼"
+    ind_tokens = [
+        {"text": "QT::", "color": "#FFFFFF"},
+        {
+            "text": f"{qt_v:.2f}{q_arr}",
+            "color": "#FF3333" if qt_v >= prev_qt else "#00E64D",
+        },
+    ]
+  elif selected_indicator == "集保":
+    ind_tokens = [
+        {"text": "大戶::", "color": "#FFFFFF"},
+        {"text": f"{b_val:.1f}%", "color": "#FF3333"},
+        {"text": "羊群::", "color": "#FFFFFF"},
+        {"text": f"{s_val:.1f}%", "color": "#00E64D"},
+    ]
+  elif selected_indicator == "波段":
+    bdif_v = float(r["band_macd_dif"])
+    bdem_v = float(r["band_macd_dem"])
+    bosc_v = float(r["band_macd_osc"])
+    bbias_rev_v = float(r["band_bias_val_rev"])
+    mtm_v = float(r["mtm_val"])
+    mtm_avg_v = float(r["mtm_ma1"])
+
+    ind_tokens = [
+        {"text": "波段 MACD(5,10,5)", "color": "#FFFFFF"},
+        {"text": "DIF::", "color": "#FFFF00"},
+        {"text": f"{bdif_v:.2f}", "color": "#FFFF00"},
+        {"text": "DEA::", "color": "#FF3333"},
+        {"text": f"{bdem_v:.2f}", "color": "#FF3333"},
+        {"text": "OSC::", "color": "#FF3333" if bosc_v >= 0 else "#00E64D"},
+        {
+            "text": f"{bosc_v:.2f}",
+            "color": "#FF3333" if bosc_v >= 0 else "#00E64D",
+        },
+    ]
+    sub2_tokens = [
+        {"text": "波段 BIAS(20,反向)::", "color": "#FFFFFF"},
+        {
+            "text": f"{bbias_rev_v:.2f}%",
+            "color": "#FF3333" if bbias_rev_v >= 0 else "#00E64D",
+        },
+    ]
+    sub3_tokens = [
+        {"text": "波段 MTM(10,1)", "color": "#FFFFFF"},
+        {"text": "MTM::", "color": "#FFFF00"},
+        {"text": f"{mtm_v:.2f}", "color": "#FFFF00"},
+        {"text": "Avg::", "color": "#00FF66"},
+        {"text": f"{mtm_avg_v:.2f}", "color": "#00FF66"},
+    ]
 
   o_up = c_open >= p_open
   h_up = c_high >= p_high
@@ -1983,7 +1992,7 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  third_row_cols = st.columns([1.22, 0.88, 1.10])
+  third_row_cols = st.columns([1.18, 0.96, 1.06])
 
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
@@ -2045,7 +2054,7 @@ if app_mode == "📈 個股籌碼圖表":
 
     selected_indicator = st.pills(
         "指標",
-        ["波段", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "大戶羊群"],
+        ["波段", "組合", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "集保"],
         default=default_ind_val,
         selection_mode="single",
         label_visibility="collapsed",
@@ -2171,9 +2180,11 @@ if app_mode == "📈 個股籌碼圖表":
   plt.style.use("dark_background")
 
   is_wave_mode = selected_indicator == "波段"
+  is_combo_mode = selected_indicator == "組合"
+  is_four_pane = is_wave_mode or is_combo_mode
   fig = plt.figure(figsize=(10.0, 4.65))
 
-  if is_wave_mode:
+  if is_four_pane:
     gs = fig.add_gridspec(
         4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=0.08
     )
@@ -2401,6 +2412,103 @@ if app_mode == "📈 個股籌碼圖表":
   plt.setp(ax1.get_xticklabels(), visible=False)
   ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
+
+  def _plot_kdj_axis(ax_kdj):
+    ax_kdj.set_facecolor(PANEL_BG)
+    ax_kdj.plot(
+        x, df["kdj_k"], linewidth=0.65, color="#FF00FF", label="K", zorder=3
+    )
+    ax_kdj.plot(
+        x, df["kdj_d"], linewidth=0.65, color="#00FFFF", label="D", zorder=3
+    )
+    ax_kdj.plot(
+        x, df["kdj_j"], linewidth=0.65, color="#FFFFFF", label="J", zorder=3
+    )
+    ax_kdj.axhline(
+        80, color="#FF6666", linestyle="--", linewidth=0.85, alpha=0.75, zorder=2
+    )
+    ax_kdj.axhline(
+        20, color="#00E64D", linestyle="--", linewidth=0.85, alpha=0.75, zorder=2
+    )
+    ax_kdj.axhline(
+        50, color="#666666", linestyle=":", linewidth=0.75, alpha=0.55, zorder=1
+    )
+    kdj_comb = np.concatenate([
+        df["kdj_k"].fillna(50).values,
+        df["kdj_d"].fillna(50).values,
+        df["kdj_j"].fillna(50).values,
+    ])
+    kdj_comb = kdj_comb[np.isfinite(kdj_comb)]
+    if len(kdj_comb) > 0:
+      y_lo = min(0.0, float(np.min(kdj_comb)))
+      y_hi = max(100.0, float(np.max(kdj_comb)))
+      pad_y = max(4.0, (y_hi - y_lo) * 0.08)
+      ax_kdj.set_ylim(y_lo - pad_y, y_hi + pad_y)
+
+
+  def _plot_macd_axis(ax_macd):
+    ax_macd.set_facecolor(PANEL_BG)
+    ax_macd.bar(
+        x,
+        df["macd_osc"],
+        width=0.75,
+        color=macd_bar_colors,
+        edgecolor="none",
+        linewidth=0,
+        alpha=1.0,
+        zorder=2,
+    )
+    ax_macd.plot(
+        x,
+        df["macd_dif"],
+        linewidth=0.6,
+        color="#FF00FF",
+        label="DIF",
+        zorder=3,
+    )
+    ax_macd.plot(
+        x,
+        df["macd_dem"],
+        linewidth=0.6,
+        color="#00FFFF",
+        label="DEA",
+        zorder=3,
+    )
+    ax_macd.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+
+
+  def _plot_vol_axis(ax_vol):
+    ax_vol.set_facecolor(PANEL_BG)
+    ax_vol.bar(
+        x,
+        df["vol"],
+        width=0.75,
+        color=body_colors,
+        edgecolor="none",
+        linewidth=0,
+        alpha=1.0,
+        zorder=2,
+    )
+    ax_vol.plot(
+        x,
+        df["vol_ma5"],
+        linewidth=0.6,
+        color="#FFFF00",
+        label="Vol MA5",
+        alpha=0.95,
+        zorder=3,
+    )
+    ax_vol.plot(
+        x,
+        df["vol_ma20"],
+        linewidth=0.6,
+        color="#FF9900",
+        label="Vol MA20",
+        alpha=0.95,
+        zorder=3,
+    )
+
+
   if is_wave_mode:
     ax_sub1.set_facecolor(PANEL_BG)
     ax_sub1.bar(
@@ -2472,35 +2580,38 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub3.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
+  elif is_combo_mode:
+    _plot_kdj_axis(ax_sub1)
+    ax_sub1.yaxis.tick_right()
+    ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    plt.setp(ax_sub1.get_xticklabels(), visible=False)
+    ax_sub1.grid(
+        True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+    )
+
+    _plot_macd_axis(ax_sub2)
+    ax_sub2.yaxis.tick_right()
+    ax_sub2.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    plt.setp(ax_sub2.get_xticklabels(), visible=False)
+    ax_sub2.grid(
+        True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+    )
+
+    _plot_vol_axis(ax_sub3)
+    ax_sub3.yaxis.tick_right()
+    ax_sub3.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    ax_sub3.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
+    plt.setp(ax_sub3.get_xticklabels(), visible=True)
+    for label in ax_sub3.get_xticklabels():
+      label.set_color("#FFFFFF")
+      label.set_fontsize(7.5)
+    ax_sub3.grid(
+        True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+    )
   else:
     ax_sub1.set_facecolor(PANEL_BG)
     if selected_indicator == "MACD":
-      ax_sub1.bar(
-          x,
-          df["macd_osc"],
-          width=0.75,
-          color=macd_bar_colors,
-          edgecolor="none",
-          linewidth=0,
-          alpha=1.0,
-          zorder=2,
-      )
-      ax_sub1.plot(
-          x,
-          df["macd_dif"],
-          linewidth=0.6,
-          color="#FF00FF",
-          label="DIF",
-          zorder=3,
-      )
-      ax_sub1.plot(
-          x,
-          df["macd_dem"],
-          linewidth=0.6,
-          color="#00FFFF",
-          label="DEA",
-          zorder=3,
-      )
+      _plot_macd_axis(ax_sub1)
     elif selected_indicator == "BIAS":
       ax_sub1.plot(
           x,
@@ -2511,15 +2622,7 @@ if app_mode == "📈 個股籌碼圖表":
           zorder=3,
       )
     elif selected_indicator == "KDJ":
-      ax_sub1.plot(
-          x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K", zorder=3
-      )
-      ax_sub1.plot(
-          x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D", zorder=3
-      )
-      ax_sub1.plot(
-          x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J", zorder=3
-      )
+      _plot_kdj_axis(ax_sub1)
     elif selected_indicator == "RSI":
       ax_sub1.plot(
           x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6", zorder=3
@@ -2547,7 +2650,7 @@ if app_mode == "📈 個股籌碼圖表":
           alpha=1.0,
           zorder=2,
       )
-    elif selected_indicator == "大戶羊群":
+    elif selected_indicator == "集保":
       if len(big_holder) > 0 and len(sheep_holder) > 0:
         b_plot = np.asarray(big_holder[-len(df) :], dtype=float)
         s_plot = np.asarray(sheep_holder[-len(df) :], dtype=float)
@@ -2584,7 +2687,7 @@ if app_mode == "📈 個股籌碼圖表":
               mid_ref, color="#666666", linestyle=":", linewidth=0.9, zorder=2
           )
 
-    if selected_indicator != "大戶羊群":
+    if selected_indicator not in ("集保", "KDJ"):
       ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
     ax_sub1.yaxis.tick_right()
     ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
@@ -2593,35 +2696,7 @@ if app_mode == "📈 個股籌碼圖表":
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
 
-    ax_sub2.set_facecolor(PANEL_BG)
-    ax_sub2.bar(
-        x,
-        df["vol"],
-        width=0.75,
-        color=body_colors,
-        edgecolor="none",
-        linewidth=0,
-        alpha=1.0,
-        zorder=2,
-    )
-    ax_sub2.plot(
-        x,
-        df["vol_ma5"],
-        linewidth=0.6,
-        color="#FFFF00",
-        label="Vol MA5",
-        alpha=0.95,
-        zorder=3,
-    )
-    ax_sub2.plot(
-        x,
-        df["vol_ma20"],
-        linewidth=0.6,
-        color="#FF9900",
-        label="Vol MA20",
-        alpha=0.95,
-        zorder=3,
-    )
+    _plot_vol_axis(ax_sub2)
     ax_sub2.yaxis.tick_right()
     ax_sub2.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
     ax_sub2.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
@@ -2856,7 +2931,7 @@ if app_mode == "📈 個股籌碼圖表":
 
     const stockCode = {json.dumps(stock_id)};
     const stockName = {json.dumps(stock_name)};
-    const isWaveMode = {str(is_wave_mode).lower()};
+    const isFourPane = {str(is_four_pane).lower()};
     const rulerBtnActive = {str(ruler_mode_active).lower()};
     const totalBars = rows.length;
     const xMinBar = {x_min_bar};
@@ -3042,7 +3117,7 @@ if app_mode == "📈 個股籌碼圖表":
       const plotRight = b.left + b.width * axX1;
       const plotW = Math.max(10, plotRight - plotLeft);
       const topY = b.top + b.height * ax1TopFrac;
-      const botY = b.top + b.height * (isWaveMode ? 0.92 : 0.90);
+      const botY = b.top + b.height * (isFourPane ? 0.92 : 0.90);
 
       const xA = barIdxToX(st.i1, plotLeft, plotW);
       const xB = barIdxToX(st.i2, plotLeft, plotW);
@@ -3186,7 +3261,7 @@ if app_mode == "📈 個股籌碼圖表":
       }}
 
       const fontSub = "bold 13px Arial, 'Microsoft JhengHei', sans-serif";
-      if (isWaveMode) {{
+      if (isFourPane) {{
         const s1Y = b.top + b.height * (sub1TopFrac + 0.014);
         drawTokensRow(s.ind_tokens, headerX, s1Y, fontSub, 14.0);
 
@@ -3679,7 +3754,7 @@ elif app_mode == "📋 大戶總表":
       if matched_idx != -1:
         st.session_state.selected_index = matched_idx
         st.session_state.stock_select_version += 1
-        st.session_state.default_indicator_override = "大戶羊群"
+        st.session_state.default_indicator_override = "集保"
         st.session_state.app_mode_state = "📈 個股籌碼圖表"
         st.rerun()
 
