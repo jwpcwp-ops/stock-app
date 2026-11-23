@@ -3785,7 +3785,7 @@ elif app_mode == "⚡ 9大策略選股":
 # =========================================================
 elif app_mode == "📋 大戶總表":
   st.markdown(
-      '<p class="sub-header-14">⚡ 大戶與羊群秒速籌碼選股（依「近1週大戶變動 >= 基準」取前 10 檔）</p>',
+      '<p class="sub-header-14">⚡ 大戶與羊群秒速籌碼選股（CSV 無資料時自動改抓快取/總表，取前 10 檔）</p>',
       unsafe_allow_html=True,
   )
 
@@ -3822,24 +3822,34 @@ elif app_mode == "📋 大戶總表":
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
     st.rerun()
 
-  def _load_best_table():
-    if os.path.exists(signal_csv_path):
-      for enc in ["utf-8-sig", "utf-8", "cp950", "big5"]:
-        try:
-          df_tmp = pd.read_csv(signal_csv_path, dtype=str, encoding=enc)
-          if df_tmp is not None and not df_tmp.empty:
-            return df_tmp, f"{signal_csv_path} ({enc})"
-        except Exception:
+  def _try_read_csv_with_data():
+    if not os.path.exists(signal_csv_path):
+      return None
+    for enc in ["utf-8-sig", "utf-8", "cp950", "big5"]:
+      try:
+        df_tmp = pd.read_csv(signal_csv_path, dtype=str, encoding=enc)
+        if df_tmp is None or df_tmp.empty:
           continue
-    if os.path.exists(excel_filename):
-      for sh in ["總覽彙整", "抽取符合"]:
-        try:
-          df_tmp = pd.read_excel(excel_filename, sheet_name=sh, dtype=str)
-          if df_tmp is not None and not df_tmp.empty:
-            return df_tmp, f"{excel_filename} [{sh}]"
-        except Exception:
+        norm_m = {_norm_col(c): c for c in df_tmp.columns}
+        c1w_k = next(
+            (norm_m[k] for k in norm_m if "近1週大戶變動" in k or "近1週大戶變化" in k),
+            None,
+        )
+        if not c1w_k:
           continue
-    return None, "無可用來源檔"
+        valid_nums = pd.to_numeric(
+            df_tmp[c1w_k]
+            .astype(str)
+            .str.replace("%", "")
+            .str.replace("+", "")
+            .str.strip(),
+            errors="coerce",
+        ).dropna()
+        if not valid_nums.empty:
+          return df_tmp
+      except Exception:
+        continue
+    return None
 
   if "chip_1w_threshold_val" not in st.session_state:
     st.session_state.chip_1w_threshold_val = 0.00
@@ -3881,120 +3891,48 @@ elif app_mode == "📋 大戶總表":
       st.rerun()
 
   st.caption(
-      f"📌 條件：`近1週大戶變動 >= {st.session_state.chip_1w_threshold_val:.2f}`（最多取前 10 檔；點列跳回圖表，點右側連結開神秘金字塔）"
+      f"📌 基準 `>= {st.session_state.chip_1w_threshold_val:.2f}`（最多取前 10 檔；若 `{signal_csv_path}` 為「無資料」，會自動改抓快取或 Excel 總表計算）"
   )
 
   if run_btn:
-    priority_list = []
-    general_list = []
+    results_list = []
     is_golden = "黃金交叉" in cross_type
     th_val = float(st.session_state.chip_1w_threshold_val)
 
-    df_src, src_label = _load_best_table()
-    if df_src is not None and not df_src.empty:
-      norm_map = {_norm_col(c): c for c in df_src.columns}
+    df_valid_csv = _try_read_csv_with_data()
 
-      code_c = next(
-          (
-              norm_map[k]
-              for k in norm_map
-              if "代號" in k or "代碼" in k
-          ),
-          None,
-      )
+    if df_valid_csv is not None:
+      norm_map = {_norm_col(c): c for c in df_valid_csv.columns}
+      code_c = next((norm_map[k] for k in norm_map if "代號" in k or "代碼" in k), None)
       name_c = next((norm_map[k] for k in norm_map if "名稱" in k), None)
       sig_c = next((norm_map[k] for k in norm_map if "訊號" in k), None)
-      c1w_big_c = next(
-          (
-              norm_map[k]
-              for k in norm_map
-              if "近1週大戶變動" in k or "近1週大戶變化" in k
-          ),
-          None,
-      )
-      c1w_shp_c = next(
-          (
-              norm_map[k]
-              for k in norm_map
-              if "近1週散戶變動" in k or "近1週散戶變化" in k
-          ),
-          None,
-      )
-      c4w_big_c = next(
-          (
-              norm_map[k]
-              for k in norm_map
-              if "近4週大戶變動" in k or "近4週大戶變化" in k
-          ),
-          None,
-      )
+      c1w_big_c = next((norm_map[k] for k in norm_map if "近1週大戶變動" in k or "近1週大戶變化" in k), None)
+      c1w_shp_c = next((norm_map[k] for k in norm_map if "近1週散戶變動" in k or "近1週散戶變化" in k), None)
+      c4w_big_c = next((norm_map[k] for k in norm_map if "近4週大戶變動" in k or "近4週大戶變化" in k), None)
       big_c = next((norm_map[k] for k in norm_map if "最新大戶" in k), None)
       shp_c = next((norm_map[k] for k in norm_map if "最新散戶" in k), None)
-      dt_c = next(
-          (norm_map[k] for k in norm_map if "最新日期" in k or "更新日期" in k),
-          None,
-      )
+      dt_c = next((norm_map[k] for k in norm_map if "最新日期" in k or "更新日期" in k), None)
 
-      if code_c and c1w_big_c:
-        for _, r in df_src.iterrows():
-          s_id = _clean_code(r.get(code_c, ""))
-          if not s_id or s_id == "99991" or s_id.lower() == "nan":
-            continue
-          s_name = str(r.get(name_c, "")).strip() if name_c else ""
-          s_sig = str(r.get(sig_c, "")).strip() if sig_c else ""
+      for _, r in df_valid_csv.iterrows():
+        s_id = _clean_code(r.get(code_c, ""))
+        if not s_id or s_id == "99991" or s_id.lower() == "nan":
+          continue
+        s_name = str(r.get(name_c, "")).strip() if name_c else ""
+        s_sig = str(r.get(sig_c, "")).strip() if sig_c else ""
+        if "無資料" in s_sig:
+          continue
+        try:
+          v_1w_big = float(str(r.get(c1w_big_c, "")).replace("%", "").replace("+", "").strip())
+        except Exception:
+          continue
+        v_1w_shp = float(str(r.get(c1w_shp_c, "0")).replace("%", "").replace("+", "").strip()) if c1w_shp_c else 0.0
+        v_4w_big = float(str(r.get(c4w_big_c, "0")).replace("%", "").replace("+", "").strip()) if c4w_big_c else 0.0
+        v_big = float(str(r.get(big_c, "0")).replace("%", "").strip()) if big_c else 0.0
+        v_shp = float(str(r.get(shp_c, "0")).replace("%", "").strip()) if shp_c else 0.0
 
-          raw_1w_big = (
-              str(r.get(c1w_big_c, "")).replace("%", "").replace("+", "").strip()
-          )
-          try:
-            v_1w_big = float(raw_1w_big)
-          except Exception:
-            continue
-
-          try:
-            v_1w_shp = (
-                float(
-                    str(r.get(c1w_shp_c, "0"))
-                    .replace("%", "")
-                    .replace("+", "")
-                    .strip()
-                )
-                if c1w_shp_c
-                else 0.0
-            )
-          except Exception:
-            v_1w_shp = 0.0
-          try:
-            v_4w_big = (
-                float(
-                    str(r.get(c4w_big_c, "0"))
-                    .replace("%", "")
-                    .replace("+", "")
-                    .strip()
-                )
-                if c4w_big_c
-                else 0.0
-            )
-          except Exception:
-            v_4w_big = 0.0
-          try:
-            v_big = (
-                float(str(r.get(big_c, "0")).replace("%", "").strip())
-                if big_c
-                else 0.0
-            )
-          except Exception:
-            v_big = 0.0
-          try:
-            v_shp = (
-                float(str(r.get(shp_c, "0")).replace("%", "").strip())
-                if shp_c
-                else 0.0
-            )
-          except Exception:
-            v_shp = 0.0
-
-          item_row = {
+        cond = (v_1w_big >= th_val) if is_golden else (v_1w_big <= -abs(th_val))
+        if cond:
+          results_list.append({
               "代碼": s_id,
               "名稱": s_name,
               "訊號": s_sig if s_sig else ("大戶增" if v_1w_big > 0 else "大戶減"),
@@ -4005,38 +3943,50 @@ elif app_mode == "📋 大戶總表":
               "最新散戶%": round(v_shp, 2),
               "日期": str(r.get(dt_c, "")).strip() if dt_c else "",
               "神秘金字塔": _pyramid_link(s_id),
-          }
-
-          if is_golden:
-            if v_1w_big >= th_val:
-              if "符合" in s_sig or "黃金" in s_sig or (v_1w_shp < 0 and v_4w_big > 0):
-                priority_list.append(item_row)
-              else:
-                general_list.append(item_row)
-          else:
-            if v_1w_big <= -abs(th_val):
-              general_list.append(item_row)
-
-    if is_golden:
-      priority_list.sort(key=lambda x: x["近1週大戶變動"], reverse=True)
-      general_list.sort(key=lambda x: x["近1週大戶變動"], reverse=True)
-      merged = priority_list[:10]
-      if len(merged) < 10:
-        seen = {x["代碼"] for x in merged}
-        for g in general_list:
-          if g["代碼"] not in seen:
-            merged.append(g)
-            seen.add(g["代碼"])
-          if len(merged) >= 10:
-            break
-      st.session_state.screened_results = merged
+          })
     else:
-      general_list.sort(key=lambda x: x["近1週大戶變動"])
-      st.session_state.screened_results = general_list[:10]
+      # CSV 目前全為「無資料」→ 自動改抓快取或 Excel 總表計算
+      cache_dict = load_local_cache_cached()
+      for _, row in stock_df.iterrows():
+        s_id = _clean_code(row["代碼"])
+        s_name = str(row["名稱"]).strip()
+        if s_id == "99991":
+          continue
+        big_h, sheep_h, w_dates, is_real = get_holder_series_for_stock(
+            s_id, 10, cache_dict=cache_dict
+        )
+        if len(big_h) < 2:
+          continue
+        v_big = float(big_h[-1])
+        v_shp = float(sheep_h[-1]) if len(sheep_h) > 0 else 0.0
+        v_1w_big = float(big_h[-1]) - float(big_h[-2])
+        v_1w_shp = (float(sheep_h[-1]) - float(sheep_h[-2])) if len(sheep_h) >= 2 else 0.0
+        v_4w_big = (float(big_h[-1]) - float(big_h[-5])) if len(big_h) >= 5 else v_1w_big
+        dt_str = w_dates[-1] if w_dates else ""
+
+        cond = (v_1w_big >= th_val) if is_golden else (v_1w_big <= -abs(th_val))
+        if cond:
+          results_list.append({
+              "代碼": s_id,
+              "名稱": s_name,
+              "訊號": "大戶增(快取)" if v_1w_big > 0 else "大戶減(快取)",
+              "近1週大戶變動": round(v_1w_big, 2),
+              "近1週散戶變動": round(v_1w_shp, 2),
+              "近4週大戶變動": round(v_4w_big, 2),
+              "最新大戶%": round(v_big, 2),
+              "最新散戶%": round(v_shp, 2),
+              "日期": dt_str,
+              "神秘金字塔": _pyramid_link(s_id),
+          })
+
+    results_list.sort(
+        key=lambda x: x["近1週大戶變動"], reverse=is_golden
+    )
+    st.session_state.screened_results = results_list[:10]
 
     if not st.session_state.screened_results:
       st.warning(
-          f"來源 `{src_label}` 中符合 `近1週大戶變動 >= {th_val:.2f}` 的股票目前為 0 檔，請調整門檻後再按一次。"
+          f"目前 `近1週大戶變動 >= {th_val:.2f}` 無符合標的（若 `{signal_csv_path}` 顯示「無資料」，請先執行集保抓取腳本更新 CSV 或快取）。"
       )
 
   if st.session_state.screened_results:
