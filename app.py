@@ -3785,7 +3785,7 @@ elif app_mode == "⚡ 9大策略選股":
 # =========================================================
 elif app_mode == "📋 大戶總表":
   st.markdown(
-      '<p class="sub-header-14">⚡ 大戶與羊群秒速籌碼選股（依「近1週大戶變化% >= 基準」與「3項皆符合」取前 10 檔）</p>',
+      '<p class="sub-header-14">⚡ 大戶與羊群秒速籌碼選股（依「近1週大戶變化% >= 基準」取前 10 檔）</p>',
       unsafe_allow_html=True,
   )
 
@@ -3848,7 +3848,7 @@ elif app_mode == "📋 大戶總表":
   with col_s1:
     cross_type = st.radio(
         "選擇型態",
-        ["🚀 黃金交叉 (3項皆符合)", "⚠️ 死亡交叉 (大戶減/散戶增)"],
+        ["🚀 黃金交叉 (大戶增/散戶減)", "⚠️ 死亡交叉 (大戶減/散戶增)"],
         horizontal=True,
         label_visibility="collapsed",
         key="chip_cross_type",
@@ -3873,55 +3873,71 @@ elif app_mode == "📋 大戶總表":
     )
   with col_s4:
     if st.button(
-        "📌 帶入符合最低值",
+        "📌 重設基準 0.00",
         use_container_width=True,
         key="btn_sync_csv_thresh",
     ):
-      df_ref, _ = _load_best_table()
-      if df_ref is not None and not df_ref.empty:
-        norm_map = {_norm_col(c): c for c in df_ref.columns}
-        c1w_k = next((norm_map[k] for k in norm_map if "近1週大戶變化" in k), None)
-        f1w_k = next((norm_map[k] for k in norm_map if "近1週羊群篩選" in k), None)
-        if c1w_k:
-          sub = df_ref
-          if f1w_k:
-            s_f = df_ref[f1w_k].astype(str).str.strip()
-            sub = df_ref[s_f.str.contains("符合") & ~s_f.str.contains("未符合")]
-          nums = pd.to_numeric(
-              sub[c1w_k].astype(str).str.replace("%", "").str.strip(),
-              errors="coerce",
-          ).dropna()
-          if not nums.empty:
-            st.session_state.chip_1w_threshold_val = round(float(nums.min()), 2)
+      st.session_state.chip_1w_threshold_val = 0.00
       st.rerun()
 
   st.caption(
-      f"📌 條件：`近1週大戶變化% >= {st.session_state.chip_1w_threshold_val:.2f}%` 且符合篩選（預設 `0.00` 才不會把 `0.13`、`0.18` 濾掉；最多取前 10 檔）"
+      f"📌 條件：`近1週大戶變化% >= {st.session_state.chip_1w_threshold_val:.2f}%`（最多取前 10 檔；若 CSV 內「符合標記」為 0 筆，會自動改依大戶增／散戶減排序抓前 10 檔）"
   )
 
   if run_btn:
-    matched_list = []
+    strict_3_list = []
+    relaxed_list = []
     is_golden = "黃金交叉" in cross_type
     th_val = float(st.session_state.chip_1w_threshold_val)
 
     df_src, src_label = _load_best_table()
     total_rows = 0
-    ok_3_count = 0
+    ok_mark_count = 0
+    detected_cols_str = ""
 
     if df_src is not None and not df_src.empty:
       total_rows = len(df_src)
       norm_map = {_norm_col(c): c for c in df_src.columns}
+      detected_cols_str = "、".join(list(norm_map.keys())[:12])
 
-      code_c = next((norm_map[k] for k in norm_map if "股票代號" in k or "代碼" in k or "代號" in k), None)
-      name_c = next((norm_map[k] for k in norm_map if "股票名稱" in k or "名稱" in k), None)
-      c1w_big_c = next((norm_map[k] for k in norm_map if "近1週大戶變化" in k), None)
-      c1w_shp_c = next((norm_map[k] for k in norm_map if "近1週散戶變化" in k), None)
-      c4w_big_c = next((norm_map[k] for k in norm_map if "近4週大戶變化" in k), None)
+      code_c = next(
+          (
+              norm_map[k]
+              for k in norm_map
+              if "股票代號" in k or "代碼" in k or "代號" in k
+          ),
+          None,
+      )
+      name_c = next(
+          (norm_map[k] for k in norm_map if "股票名稱" in k or "名稱" in k),
+          None,
+      )
+      c1w_big_c = next(
+          (norm_map[k] for k in norm_map if "近1週大戶變化" in k), None
+      )
+      c1w_shp_c = next(
+          (norm_map[k] for k in norm_map if "近1週散戶變化" in k), None
+      )
+      c4w_big_c = next(
+          (norm_map[k] for k in norm_map if "近4週大戶變化" in k), None
+      )
       big_c = next((norm_map[k] for k in norm_map if "最新大戶" in k), None)
       shp_c = next((norm_map[k] for k in norm_map if "最新散戶" in k), None)
-      all3_c = next((norm_map[k] for k in norm_map if "3項皆符合" in k or "三項皆符合" in k), None)
-      f1w_c = next((norm_map[k] for k in norm_map if "近1週羊群篩選" in k), None)
-      dt_c = next((norm_map[k] for k in norm_map if "最新日期" in k or "更新日期" in k), None)
+      all3_c = next(
+          (
+              norm_map[k]
+              for k in norm_map
+              if "3項皆符合" in k or "三項皆符合" in k
+          ),
+          None,
+      )
+      f1w_c = next(
+          (norm_map[k] for k in norm_map if "近1週羊群篩選" in k), None
+      )
+      dt_c = next(
+          (norm_map[k] for k in norm_map if "最新日期" in k or "更新日期" in k),
+          None,
+      )
 
       if code_c and c1w_big_c:
         for _, r in df_src.iterrows():
@@ -3930,80 +3946,105 @@ elif app_mode == "📋 大戶總表":
             continue
           s_name = str(r.get(name_c, "")).strip() if name_c else ""
 
-          raw_1w_big = str(r.get(c1w_big_c, "")).replace("%", "").strip()
+          raw_1w_big = (
+              str(r.get(c1w_big_c, "")).replace("%", "").replace("+", "").strip()
+          )
           try:
             v_1w_big = float(raw_1w_big)
           except Exception:
             continue
 
           try:
-            v_1w_shp = float(str(r.get(c1w_shp_c, "0")).replace("%", "").strip()) if c1w_shp_c else 0.0
+            v_1w_shp = (
+                float(
+                    str(r.get(c1w_shp_c, "0"))
+                    .replace("%", "")
+                    .replace("+", "")
+                    .strip()
+                )
+                if c1w_shp_c
+                else 0.0
+            )
           except Exception:
             v_1w_shp = 0.0
           try:
-            v_4w_big = float(str(r.get(c4w_big_c, "0")).replace("%", "").strip()) if c4w_big_c else 0.0
+            v_4w_big = (
+                float(
+                    str(r.get(c4w_big_c, "0"))
+                    .replace("%", "")
+                    .replace("+", "")
+                    .strip()
+                )
+                if c4w_big_c
+                else 0.0
+            )
           except Exception:
             v_4w_big = 0.0
           try:
-            v_big = float(str(r.get(big_c, "0")).replace("%", "").strip()) if big_c else 0.0
+            v_big = (
+                float(str(r.get(big_c, "0")).replace("%", "").strip())
+                if big_c
+                else 0.0
+            )
           except Exception:
             v_big = 0.0
           try:
-            v_shp = float(str(r.get(shp_c, "0")).replace("%", "").strip()) if shp_c else 0.0
+            v_shp = (
+                float(str(r.get(shp_c, "0")).replace("%", "").strip())
+                if shp_c
+                else 0.0
+            )
           except Exception:
             v_shp = 0.0
 
           s_all3 = str(r.get(all3_c, "")).strip() if all3_c else ""
           s_f1w = str(r.get(f1w_c, "")).strip() if f1w_c else ""
-          is_ok_mark = (
+
+          has_explicit_ok = (
               ("符合" in s_all3 and "未符合" not in s_all3)
-              or (s_f1w == "符合")
-              or (v_1w_big > 0 and v_1w_shp < 0)
+              or ("符合" in s_f1w and "未符合" not in s_f1w)
+              or (s_all3 in ["V", "v", "Y", "y", "是", "1"])
           )
-          if is_ok_mark:
-            ok_3_count += 1
+          if has_explicit_ok:
+            ok_mark_count += 1
+
+          item_row = {
+              "代碼": s_id,
+              "名稱": s_name,
+              "近1週羊群篩選": s_f1w if s_f1w else ("符合" if v_1w_big > 0 and v_1w_shp <= 0 else "觀察"),
+              "3項皆符合": s_all3 if s_all3 else ("符合" if has_explicit_ok else "觀察"),
+              "近1週大戶變化%": round(v_1w_big, 2),
+              "近1週散戶變化%": round(v_1w_shp, 2),
+              "近4週大戶變化%": round(v_4w_big, 2),
+              "最新大戶(%)": round(v_big, 2),
+              "最新散戶(%)": round(v_shp, 2),
+              "日期": str(r.get(dt_c, "")).strip() if dt_c else "",
+              "神秘金字塔": _pyramid_link(s_id),
+          }
 
           if is_golden:
-            if is_ok_mark and v_1w_big >= th_val:
-              matched_list.append({
-                  "代碼": s_id,
-                  "名稱": s_name,
-                  "近1週羊群篩選": s_f1w if s_f1w else "符合",
-                  "3項皆符合": s_all3 if s_all3 else "符合",
-                  "近1週大戶變化%": round(v_1w_big, 2),
-                  "近1週散戶變化%": round(v_1w_shp, 2),
-                  "近4週大戶變化%": round(v_4w_big, 2),
-                  "最新大戶(%)": round(v_big, 2),
-                  "最新散戶(%)": round(v_shp, 2),
-                  "日期": str(r.get(dt_c, "")).strip() if dt_c else "",
-                  "神秘金字塔": _pyramid_link(s_id),
-              })
+            if has_explicit_ok and v_1w_big >= th_val:
+              strict_3_list.append(item_row)
+            if v_1w_big >= th_val and v_1w_shp <= 0:
+              relaxed_list.append(item_row)
           else:
-            if v_1w_big <= -abs(th_val) and v_1w_shp > 0:
-              matched_list.append({
-                  "代碼": s_id,
-                  "名稱": s_name,
-                  "近1週羊群篩選": "未符合",
-                  "3項皆符合": s_all3 if s_all3 else "未符合",
-                  "近1週大戶變化%": round(v_1w_big, 2),
-                  "近1週散戶變化%": round(v_1w_shp, 2),
-                  "近4週大戶變化%": round(v_4w_big, 2),
-                  "最新大戶(%)": round(v_big, 2),
-                  "最新散戶(%)": round(v_shp, 2),
-                  "日期": str(r.get(dt_c, "")).strip() if dt_c else "",
-                  "神秘金字塔": _pyramid_link(s_id),
-              })
+            if v_1w_big <= -abs(th_val) and v_1w_shp >= 0:
+              relaxed_list.append(item_row)
 
     if is_golden:
-      matched_list.sort(key=lambda x: x["近1週大戶變化%"], reverse=True)
+      strict_3_list.sort(key=lambda x: x["近1週大戶變化%"], reverse=True)
+      relaxed_list.sort(key=lambda x: x["近1週大戶變化%"], reverse=True)
     else:
-      matched_list.sort(key=lambda x: x["近1週大戶變化%"])
+      relaxed_list.sort(key=lambda x: x["近1週大戶變化%"])
 
-    st.session_state.screened_results = matched_list[:10]
+    if strict_3_list:
+      st.session_state.screened_results = strict_3_list[:10]
+    else:
+      st.session_state.screened_results = relaxed_list[:10]
 
     if not st.session_state.screened_results:
       st.warning(
-          f"來源 `{src_label}` 共 {total_rows} 筆（符合標記 {ok_3_count} 筆），但 `近1週大戶變化% >= {th_val:.2f}%` 篩出 0 檔；請把基準調小（例如 `0.00` 或 `0.10`）再按一次。"
+          f"來源 `{src_label}` 共 {total_rows} 筆（符合標記 {ok_mark_count} 筆），`近1週大戶變化% >= {th_val:.2f}%` 篩出 0 檔；偵測欄位：{detected_cols_str}"
       )
 
   if st.session_state.screened_results:
