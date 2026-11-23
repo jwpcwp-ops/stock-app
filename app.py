@@ -24,9 +24,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# 均線粗細設定（數值越小越細，0.4 不易遮擋 K 線）
 MA_LINE_WIDTH = 0.4
-# KDJ / RSI / W% 指標線條粗細設定（0.6 與 MACD 細線一致）
 IND_LINE_WIDTH = 0.6
 
 MA_COLOR_MAP = {
@@ -40,7 +38,6 @@ MA_COLOR_MAP = {
     "分割": "#00FFFF",
 }
 
-# 飛狐上下方向鍵 K 線根數跳動序列：6, 11, 18, 29, 45, 69, 105, 159, 240...
 FEIHU_BAR_STEPS = [6, 11, 18, 29, 45, 69, 105, 159, 240, 361, 543, 816]
 
 MINUTE_PERIOD_LABELS = {
@@ -59,7 +56,7 @@ MINUTE_PERIOD_LABELS = {
 INDICATOR_BUTTONS = ["波段", "組合", "組合1", "BIAS", "QT", "集保"]
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS (調整文字、排版、按鈕高亮與 Fullscreen 圖示顯色)
+# 2. 注入自訂 CSS
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -101,7 +98,6 @@ st.markdown(
             height: 22px !important;
         }
         
-        /* 第一行快捷導航列按鈕美化 */
         div[data-testid="stHorizontalBlock"] > div > div > .stButton > button {
             background-color: #1a1a1a !important;
             color: #00ffff !important;
@@ -117,7 +113,6 @@ st.markdown(
             border: 1px solid #ffffff !important;
         }
 
-        /* 確保圖表右上角 Fullscreen 放大符號清楚顯示 */
         button[title="Fullscreen"],
         [data-testid="stElementToolbar"] button,
         div[data-testid="stFullScreenFrame"] button {
@@ -183,7 +178,6 @@ st.markdown(
             font-weight: bold !important;
         }
 
-        /* 鎖定包含 gold-row-anchor 的控制列，強制整排所有元件高度統一為 30px 並完全水平置中對齊 */
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) {
             width: auto !important;
             max-width: none !important;
@@ -442,26 +436,26 @@ def find_stock_index_by_code(code_str):
 # ---------------------------------------------------------
 # 5. 本地快取支援、資料抓取與基本面查詢
 # ---------------------------------------------------------
-CACHE_FILES = ["羊群籌碼_219檔.jsonl", "羊群籌碼_fetch_cache.jsonl"]
+CACHE_FILE = "羊群籌碼_fetch_cache.jsonl"
 
 
 @st.cache_data
 def load_local_cache_cached():
   cache_dict = {}
-  for c_file in CACHE_FILES:
-    if os.path.exists(c_file):
-      try:
-        with open(c_file, "r", encoding="utf-8") as f:
-          for line in f:
-            if line.strip():
-              data = json.loads(line)
-              s_id = str(
-                  data.get("stock_id") or data.get("代號") or data.get("id") or ""
-              ).strip()
-              if s_id and s_id not in cache_dict:
-                cache_dict[s_id] = data
-      except Exception:
-        pass
+  if os.path.exists(CACHE_FILE):
+    try:
+      with open(CACHE_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+          if line.strip():
+            data = json.loads(line)
+            s_id = str(data.get("stock_id", "")).strip()
+            if s_id:
+              cache_dict[s_id] = data
+              if s_id.isdigit():
+                cache_dict.setdefault(s_id.zfill(4), data)
+                cache_dict.setdefault(str(int(s_id)), data)
+    except Exception:
+      pass
   return cache_dict
 
 
@@ -478,6 +472,41 @@ def extract_tdcc_arrays(cache_item):
   sheep_h = [float(x) for x in cache_item.get("sheep_holder", [])]
   w_dates = [str(x) for x in cache_item.get("w_dates", [])]
   return big_h, sheep_h, w_dates
+
+
+def get_holder_series_for_stock(stock_id, n_periods, cache_dict=None):
+  if cache_dict is None:
+    cache_dict = load_local_cache_cached()
+  clean_id = str(stock_id).strip().replace(".0", "")
+  candidates = [clean_id]
+  if clean_id.isdigit():
+    candidates.extend([clean_id.zfill(4), str(int(clean_id))])
+
+  matched_key = next((k for k in candidates if k in cache_dict), None)
+  if matched_key is not None:
+    b_arr, s_arr, w_dates = extract_tdcc_arrays(cache_dict[matched_key])
+    if len(b_arr) > 0 and len(s_arr) > 0:
+      b_list = [float(v) for v in b_arr]
+      s_list = [float(v) for v in s_arr]
+      if len(b_list) >= n_periods:
+        return (
+            np.array(b_list[-n_periods:], dtype=float),
+            np.array(s_list[-n_periods:], dtype=float),
+            w_dates[-n_periods:] if w_dates else [],
+            True,
+        )
+      pad_len = n_periods - len(b_list)
+      b_out = np.concatenate([np.full(pad_len, b_list[0], dtype=float), np.array(b_list, dtype=float)])
+      s_out = np.concatenate([np.full(pad_len, s_list[0], dtype=float), np.array(s_list, dtype=float)])
+      return b_out, s_out, w_dates, True
+
+  seed_val = int(clean_id) if clean_id.isdigit() else 42
+  rng = np.random.default_rng(seed_val)
+  steps = rng.normal(0.0, 0.5, size=max(1, n_periods))
+  big_h = np.clip(48.0 + np.cumsum(steps), 20.0, 85.0)
+  sheep_h = np.clip(95.0 - big_h + rng.normal(0.0, 0.8, size=max(1, n_periods)), 15.0, 145.0)
+  w_dates = pd.date_range(end=datetime.today(), periods=max(1, n_periods), freq="W").strftime("%Y-%m-%d").tolist()
+  return big_h, sheep_h, w_dates, False
 
 
 def _aggregate_minute_bars(df_src, group_size=2):
@@ -1451,29 +1480,9 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
   v_ratio = cur_vol / cur_20ma
 
   cache_dict = load_local_cache_cached()
-  if stock_id in cache_dict:
-    b_arr, s_arr, _ = extract_tdcc_arrays(cache_dict[stock_id])
-    if len(b_arr) > 0 and len(s_arr) > 0:
-      n_p = len(df_show)
-      if len(b_arr) >= n_p:
-        big_holder = np.array(b_arr[-n_p:])
-        sheep_holder = np.array(s_arr[-n_p:])
-      else:
-        pad_len = n_p - len(b_arr)
-        big_holder = np.concatenate([np.full(pad_len, b_arr[0]), b_arr])
-        sheep_holder = np.concatenate([np.full(pad_len, s_arr[0]), s_arr])
-    else:
-      big_holder = np.full(len(df_show), 40.0)
-      sheep_holder = np.full(len(df_show), 42.0)
-  else:
-    seed_val = int(stock_id) if stock_id.isdigit() else 42
-    np.random.seed(seed_val)
-    n_p = len(df_show)
-    base_big = 50.0 + np.cumsum(np.random.randn(n_p) * 0.6)
-    big_holder = np.clip(base_big, 20.0, 85.0)
-    sheep_holder = np.clip(
-        100.0 - big_holder + np.random.randn(n_p) * 0.3, 15.0, 80.0
-    )
+  big_holder, sheep_holder, _, _ = get_holder_series_for_stock(
+      stock_id, len(df_show), cache_dict=cache_dict
+  )
 
   return df_show, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio
 
@@ -2771,41 +2780,52 @@ if app_mode == "📈 個股籌碼圖表":
           zorder=2,
       )
     elif selected_indicator == "集保":
-      if len(big_holder) > 0 and len(sheep_holder) > 0:
-        b_plot = np.asarray(big_holder[-len(df) :], dtype=float)
-        s_plot = np.asarray(sheep_holder[-len(df) :], dtype=float)
-        ax_sub1.plot(
-            x,
-            b_plot,
-            color="#FF3333",
-            linewidth=1.15,
-            linestyle="-",
-            label="大戶(%)",
-            zorder=4,
-        )
-        ax_sub1.plot(
-            x,
-            s_plot,
-            color="#00E64D",
-            linewidth=1.15,
-            linestyle="-",
-            label="羊群(%)",
-            zorder=4,
-        )
+      n_bars_now = len(x)
+      b_raw = np.asarray(big_holder, dtype=float)
+      s_raw = np.asarray(sheep_holder, dtype=float)
+      if len(b_raw) >= n_bars_now:
+        b_plot = b_raw[-n_bars_now:]
+      else:
+        fill_b = float(b_raw[-1]) if len(b_raw) > 0 else 45.0
+        b_plot = np.concatenate([b_raw, np.full(n_bars_now - len(b_raw), fill_b)])
+      if len(s_raw) >= n_bars_now:
+        s_plot = s_raw[-n_bars_now:]
+      else:
+        fill_s = float(s_raw[-1]) if len(s_raw) > 0 else 45.0
+        s_plot = np.concatenate([s_raw, np.full(n_bars_now - len(s_raw), fill_s)])
 
-        comb = np.concatenate([b_plot, s_plot])
-        comb = comb[np.isfinite(comb)]
-        if len(comb) > 0:
-          y_lo = float(np.min(comb))
-          y_hi = float(np.max(comb))
-          span = max(y_hi - y_lo, 4.0)
-          pad = span * 0.18
-          ax_sub1.set_ylim(max(0.0, y_lo - pad), min(100.0, y_hi + pad))
+      ax_sub1.plot(
+          x,
+          b_plot,
+          color="#FF3333",
+          linewidth=1.25,
+          linestyle="-",
+          label="大戶(%)",
+          zorder=4,
+      )
+      ax_sub1.plot(
+          x,
+          s_plot,
+          color="#00E64D",
+          linewidth=1.25,
+          linestyle="-",
+          label="羊群(%)",
+          zorder=5,
+      )
 
-          mid_ref = float(np.mean(comb))
-          ax_sub1.axhline(
-              mid_ref, color="#666666", linestyle=":", linewidth=0.9, zorder=2
-          )
+      comb = np.concatenate([b_plot, s_plot])
+      comb = comb[np.isfinite(comb)]
+      if len(comb) > 0:
+        y_lo = float(np.min(comb))
+        y_hi = float(np.max(comb))
+        span = max(y_hi - y_lo, 5.0)
+        pad = span * 0.18
+        ax_sub1.set_ylim(max(0.0, y_lo - pad), y_hi + pad)
+
+        mid_ref = float(np.mean(comb))
+        ax_sub1.axhline(
+            mid_ref, color="#666666", linestyle=":", linewidth=0.9, zorder=2
+        )
 
     if selected_indicator != "集保":
       ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
@@ -3795,8 +3815,9 @@ elif app_mode == "📋 大戶總表":
     )
 
   if run_btn:
-    with st.spinner("正在掃描 219 檔大戶與羊群集保籌碼..."):
+    with st.spinner("正在掃描大戶與羊群集保籌碼..."):
       matched_results = []
+      fallback_candidates = []
       is_golden_search = "黃金交叉" in cross_type
       cache_dict = load_local_cache_cached()
 
@@ -3806,20 +3827,11 @@ elif app_mode == "📋 大戶總表":
         if s_id == "99991":
           continue
 
-        if s_id in cache_dict:
-          big_h, sheep_h, w_dates = extract_tdcc_arrays(cache_dict[s_id])
-        else:
-          np.random.seed(int(s_id) if s_id.isdigit() else 42)
-          big_h = (38.0 + np.cumsum(np.random.randn(60) * 0.4)).tolist()
-          sheep_h = (42.0 + np.cumsum(np.random.randn(60) * 0.3)).tolist()
-          w_dates = (
-              pd.date_range(end=datetime.today(), periods=60, freq="W")
-              .strftime("%Y-%m-%d")
-              .tolist()
-          )
-
+        big_h, sheep_h, w_dates, _ = get_holder_series_for_stock(
+            s_id, 60, cache_dict=cache_dict
+        )
         n_periods = len(big_h)
-        if n_periods < 2 or float(big_h[-1]) < min_big_holder:
+        if n_periods < 2:
           continue
 
         g_crs, d_crs = [], []
@@ -3834,25 +3846,47 @@ elif app_mode == "📋 大戶總表":
             idx for idx in target_crosses if (n_periods - 1 - idx) < recent_weeks
         ]
 
-        if recent_hit:
+        last_big = float(big_h[-1])
+        last_sheep = float(sheep_h[-1])
+        last_dt = w_dates[-1] if w_dates else datetime.today().strftime("%Y-%m-%d")
+
+        if recent_hit and last_big >= min_big_holder:
           last_hit_idx = recent_hit[-1]
           hit_date = (
-              w_dates[last_hit_idx] if last_hit_idx < len(w_dates) else ""
+              w_dates[last_hit_idx] if last_hit_idx < len(w_dates) else last_dt
           )
           matched_results.append({
               "代碼": s_id,
               "名稱": s_name,
               "訊號": "★ 黃金交叉" if is_golden_search else "✖ 死亡交叉",
               "訊號日期": hit_date,
-              "最新大戶(%)": round(float(big_h[-1]), 1),
-              "最新散戶(%)": round(float(sheep_h[-1]), 1),
+              "最新大戶(%)": round(last_big, 1),
+              "最新散戶(%)": round(last_sheep, 1),
           })
+        else:
+          gap_val = abs(last_big - last_sheep)
+          fallback_candidates.append((
+              gap_val,
+              {
+                  "代碼": s_id,
+                  "名稱": s_name,
+                  "訊號": "觀察靠近交叉" if is_golden_search else "觀察反轉差值",
+                  "訊號日期": last_dt,
+                  "最新大戶(%)": round(last_big, 1),
+                  "最新散戶(%)": round(last_sheep, 1),
+              },
+          ))
+
+      if not matched_results and fallback_candidates:
+        fallback_candidates.sort(key=lambda x: x[0])
+        matched_results = [item[1] for item in fallback_candidates[:20]]
+
       st.session_state.screened_results = matched_results
 
   if st.session_state.screened_results:
     df_chip_res = pd.DataFrame(st.session_state.screened_results)
     st.success(
-        f"籌碼篩選完成！共找到 {len(df_chip_res)} 檔符合條件個股（直接點擊下方任一股票列，立即開啟該股籌碼圖表）："
+        f"籌碼清單已備妥（共 {len(df_chip_res)} 檔，點擊任一股票列即可開啟雙線籌碼圖表）："
     )
 
     chip_event = st.dataframe(
@@ -3968,7 +4002,6 @@ elif app_mode == "📋 大戶總表":
 elif app_mode == "📊 基本面與圖表":
   _tab4_fund = fetch_stock_fundamentals(stock_id)
 
-  # 1. 基本面分析表排在最上方
   st.markdown(
       f'<p class="sub-header-14">📋 基本面分析表 ｜ [{stock_id}] {stock_name}</p>',
       unsafe_allow_html=True,
@@ -3998,7 +4031,6 @@ elif app_mode == "📊 基本面與圖表":
   ])
   st.dataframe(_fund_table_df, use_container_width=True, hide_index=True)
 
-  # 2. 其餘基本面圖表往下移
   st.markdown(
       f'<p class="sub-header-14">📊 基本面趨勢圖表 ｜ [{stock_id}] {stock_name}</p>',
       unsafe_allow_html=True,
