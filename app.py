@@ -3785,79 +3785,26 @@ elif app_mode == "⚡ 9大策略選股":
 # =========================================================
 elif app_mode == "📋 大戶總表":
   st.markdown(
-      '<p class="sub-header-14">⚡ 大戶與羊群秒速籌碼選股（必須「3項皆符合」且「近1週大戶變化% >= 基準」，取前 10 檔）</p>',
+      '<p class="sub-header-14">⚡ 大戶與羊群秒速籌碼選股（依「近1週大戶變化% >= 基準」與「3項皆符合」取前 10 檔）</p>',
       unsafe_allow_html=True,
   )
 
+  if "screened_results" not in st.session_state:
+    st.session_state.screened_results = []
+
   signal_csv_path = "自選股_羊群籌碼_最新訊號.csv"
   excel_filename = "大戶持股最新分析總表.xlsx"
-  fallback_threshold = 0.00
 
-  def _read_signal_table():
-    for enc in ["utf-8-sig", "utf-8", "cp950", "big5"]:
-      if os.path.exists(signal_csv_path):
-        try:
-          df_tmp = pd.read_csv(signal_csv_path, dtype=str, encoding=enc)
-          if not df_tmp.empty:
-            return df_tmp
-        except Exception:
-          continue
-    if os.path.exists(excel_filename):
-      for sh_name in ["抽取符合", "總覽彙整"]:
-        try:
-          df_tmp = pd.read_excel(excel_filename, sheet_name=sh_name, dtype=str)
-          if not df_tmp.empty:
-            return df_tmp
-        except Exception:
-          continue
-    return None
-
-  def _detect_csv_threshold(default_val=0.00):
-    df_ref = _read_signal_table()
-    if df_ref is None or df_ref.empty:
-      return default_val
-    try:
-      df_ref.columns = [str(c).strip() for c in df_ref.columns]
-      target_cols = [
-          c for c in df_ref.columns
-          if ("近1週大戶變化" in c) or ("1週大戶變化" in c)
-      ]
-      if not target_cols:
-        return default_val
-      all3_c = next(
-          (c for c in df_ref.columns if "3項皆符合" in c or "三項皆符合" in c),
-          None,
-      )
-      if all3_c:
-        sub_df = df_ref[
-            df_ref[all3_c].astype(str).str.contains("符合", na=False)
-            & ~df_ref[all3_c].astype(str).str.contains("未符合", na=False)
-        ]
-        if not sub_df.empty:
-          s_num = pd.to_numeric(
-              sub_df[target_cols[0]].astype(str).str.replace("%", ""),
-              errors="coerce",
-          ).dropna()
-          if not s_num.empty:
-            return round(float(s_num.min()), 2)
-      return default_val
-    except Exception:
-      return default_val
-
-  if "chip_1w_threshold_val" not in st.session_state:
-    st.session_state.chip_1w_threshold_val = _detect_csv_threshold(
-        fallback_threshold
-    )
-
-  def _pyramid_link(code_str):
-    clean_c = str(code_str).strip().replace(".0", "")
-    if clean_c.isdigit():
-      clean_c = clean_c.zfill(4)
-    return f"https://norway.twsthr.info/StockHolders.aspx?stock={clean_c}"
+  def _norm_col(c):
+    return "".join(str(c).replace("\r", "").replace("\n", "").split())
 
   def _clean_code(val):
     s = str(val).strip().replace(".0", "")
     return s.zfill(4) if s.isdigit() else s
+
+  def _pyramid_link(code_str):
+    c = _clean_code(code_str)
+    return f"https://norway.twsthr.info/StockHolders.aspx?stock={c}"
 
   def _jump_to_chart_with_code(picked_code, picked_name=""):
     clean_c = _clean_code(picked_code)
@@ -3874,6 +3821,28 @@ elif app_mode == "📋 大戶總表":
     st.session_state.default_indicator_override = "集保"
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
     st.rerun()
+
+  def _load_best_table():
+    if os.path.exists(signal_csv_path):
+      for enc in ["utf-8-sig", "utf-8", "cp950", "big5"]:
+        try:
+          df_tmp = pd.read_csv(signal_csv_path, dtype=str, encoding=enc)
+          if df_tmp is not None and not df_tmp.empty:
+            return df_tmp, f"{signal_csv_path} ({enc})"
+        except Exception:
+          continue
+    if os.path.exists(excel_filename):
+      for sh in ["總覽彙整", "抽取符合"]:
+        try:
+          df_tmp = pd.read_excel(excel_filename, sheet_name=sh, dtype=str)
+          if df_tmp is not None and not df_tmp.empty:
+            return df_tmp, f"{excel_filename} [{sh}]"
+        except Exception:
+          continue
+    return None, "無可用來源檔"
+
+  if "chip_1w_threshold_val" not in st.session_state:
+    st.session_state.chip_1w_threshold_val = 0.00
 
   col_s1, col_s2, col_s3, col_s4 = st.columns([1.4, 1.3, 1.3, 1.1])
   with col_s1:
@@ -3897,162 +3866,150 @@ elif app_mode == "📋 大戶總表":
     st.session_state.chip_1w_threshold_val = float(thresh_input)
   with col_s3:
     run_btn = st.button(
-        "🚀 執行3項皆符合過濾（前10檔）",
+        "🚀 執行籌碼過濾（前10檔）",
         type="primary",
         use_container_width=True,
         key="btn_run_chip_screen",
     )
   with col_s4:
     if st.button(
-        "🔄 同步 CSV 基準",
+        "📌 帶入符合最低值",
         use_container_width=True,
         key="btn_sync_csv_thresh",
     ):
-      st.session_state.chip_1w_threshold_val = _detect_csv_threshold(
-          fallback_threshold
-      )
+      df_ref, _ = _load_best_table()
+      if df_ref is not None and not df_ref.empty:
+        norm_map = {_norm_col(c): c for c in df_ref.columns}
+        c1w_k = next((norm_map[k] for k in norm_map if "近1週大戶變化" in k), None)
+        f1w_k = next((norm_map[k] for k in norm_map if "近1週羊群篩選" in k), None)
+        if c1w_k:
+          sub = df_ref
+          if f1w_k:
+            s_f = df_ref[f1w_k].astype(str).str.strip()
+            sub = df_ref[s_f.str.contains("符合") & ~s_f.str.contains("未符合")]
+          nums = pd.to_numeric(
+              sub[c1w_k].astype(str).str.replace("%", "").str.strip(),
+              errors="coerce",
+          ).dropna()
+          if not nums.empty:
+            st.session_state.chip_1w_threshold_val = round(float(nums.min()), 2)
       st.rerun()
 
   st.caption(
-      f"📌 篩選規則：**最新持股篩選 + 近4週羊群篩選 + 近1週羊群篩選「3項皆符合」**，且 `近1週大戶變化% >= {st.session_state.chip_1w_threshold_val:.2f}%`（來源：`{signal_csv_path}`，最多取前 10 檔；免改 `StockIDs.xlsx`）"
+      f"📌 條件：`近1週大戶變化% >= {st.session_state.chip_1w_threshold_val:.2f}%` 且符合篩選（預設 `0.00` 才不會把 `0.13`、`0.18` 濾掉；最多取前 10 檔）"
   )
 
   if run_btn:
-    with st.spinner("正在篩選「3項皆符合」前 10 檔..."):
-      matched_list = []
-      is_golden = "黃金交叉" in cross_type
-      th_val = float(st.session_state.chip_1w_threshold_val)
+    matched_list = []
+    is_golden = "黃金交叉" in cross_type
+    th_val = float(st.session_state.chip_1w_threshold_val)
 
-      source_df = _read_signal_table()
-      if source_df is not None and not source_df.empty:
-        cols = [str(c).strip() for c in source_df.columns]
-        source_df.columns = cols
-        code_col = next(
-            (c for c in cols if "股票代號" in c or "代碼" in c or "代號" in c),
-            None,
-        )
-        name_col = next(
-            (c for c in cols if "股票名稱" in c or "名稱" in c), None
-        )
-        c1w_big_col = next((c for c in cols if "近1週大戶變化" in c), None)
-        c1w_shp_col = next((c for c in cols if "近1週散戶變化" in c), None)
-        c4w_big_col = next((c for c in cols if "近4週大戶變化" in c), None)
-        big_col = next((c for c in cols if "最新大戶" in c), None)
-        shp_col = next((c for c in cols if "最新散戶" in c), None)
-        all3_col = next(
-            (c for c in cols if "3項皆符合" in c or "三項皆符合" in c), None
-        )
-        f_hold_col = next((c for c in cols if "最新持股篩選" in c), None)
-        f_4w_col = next((c for c in cols if "近4週羊群篩選" in c), None)
-        f_1w_col = next((c for c in cols if "近1週羊群篩選" in c), None)
-        dt_col = next(
-            (c for c in cols if "最新日期" in c or "更新日期" in c), None
-        )
+    df_src, src_label = _load_best_table()
+    total_rows = 0
+    ok_3_count = 0
 
-        if code_col and c1w_big_col:
-          for _, r in source_df.iterrows():
-            s_id = _clean_code(r.get(code_col, ""))
-            if not s_id or s_id == "99991" or s_id.lower() == "nan":
-              continue
-            s_name = str(r.get(name_col, "")).strip() if name_col else ""
-            try:
-              v_1w_big = float(
-                  str(r.get(c1w_big_col, "0")).replace("%", "").strip()
-              )
-            except Exception:
-              continue
-            try:
-              v_1w_shp = (
-                  float(str(r.get(c1w_shp_col, "0")).replace("%", "").strip())
-                  if c1w_shp_col
-                  else 0.0
-              )
-            except Exception:
-              v_1w_shp = 0.0
-            try:
-              v_4w_big = (
-                  float(str(r.get(c4w_big_col, "0")).replace("%", "").strip())
-                  if c4w_big_col
-                  else 0.0
-              )
-            except Exception:
-              v_4w_big = 0.0
-            try:
-              v_big = (
-                  float(str(r.get(big_col, "0")).replace("%", "").strip())
-                  if big_col
-                  else 0.0
-              )
-            except Exception:
-              v_big = 0.0
-            try:
-              v_shp = (
-                  float(str(r.get(shp_col, "0")).replace("%", "").strip())
-                  if shp_col
-                  else 0.0
-              )
-            except Exception:
-              v_shp = 0.0
+    if df_src is not None and not df_src.empty:
+      total_rows = len(df_src)
+      norm_map = {_norm_col(c): c for c in df_src.columns}
 
-            if is_golden:
-              is_3_ok = False
-              if all3_col and pd.notna(r.get(all3_col)):
-                val_3 = str(r.get(all3_col)).strip()
-                if "符合" in val_3 and "未符合" not in val_3:
-                  is_3_ok = True
-              if not is_3_ok and f_hold_col and f_4w_col and f_1w_col:
-                ok1 = str(r.get(f_hold_col, "")).strip() == "符合"
-                ok2 = str(r.get(f_4w_col, "")).strip() == "符合"
-                ok3 = str(r.get(f_1w_col, "")).strip() == "符合"
-                is_3_ok = ok1 and ok2 and ok3
+      code_c = next((norm_map[k] for k in norm_map if "股票代號" in k or "代碼" in k or "代號" in k), None)
+      name_c = next((norm_map[k] for k in norm_map if "股票名稱" in k or "名稱" in k), None)
+      c1w_big_c = next((norm_map[k] for k in norm_map if "近1週大戶變化" in k), None)
+      c1w_shp_c = next((norm_map[k] for k in norm_map if "近1週散戶變化" in k), None)
+      c4w_big_c = next((norm_map[k] for k in norm_map if "近4週大戶變化" in k), None)
+      big_c = next((norm_map[k] for k in norm_map if "最新大戶" in k), None)
+      shp_c = next((norm_map[k] for k in norm_map if "最新散戶" in k), None)
+      all3_c = next((norm_map[k] for k in norm_map if "3項皆符合" in k or "三項皆符合" in k), None)
+      f1w_c = next((norm_map[k] for k in norm_map if "近1週羊群篩選" in k), None)
+      dt_c = next((norm_map[k] for k in norm_map if "最新日期" in k or "更新日期" in k), None)
 
-              if is_3_ok and v_1w_big >= th_val:
-                matched_list.append({
-                    "代碼": s_id,
-                    "名稱": s_name,
-                    "狀態": "★ 符合(3/3)",
-                    "近1週大戶變化%": round(v_1w_big, 2),
-                    "近1週散戶變化%": round(v_1w_shp, 2),
-                    "近4週大戶變化%": round(v_4w_big, 2),
-                    "最新大戶(%)": round(v_big, 2),
-                    "最新散戶(%)": round(v_shp, 2),
-                    "最新日期": (
-                        str(r.get(dt_col, "")).strip() if dt_col else ""
-                    ),
-                    "神秘金字塔": _pyramid_link(s_id),
-                })
-            else:
-              if v_1w_big <= -abs(th_val) and v_1w_shp > 0 and v_4w_big < 0:
-                matched_list.append({
-                    "代碼": s_id,
-                    "名稱": s_name,
-                    "狀態": "✖ 轉弱(3項皆弱)",
-                    "近1週大戶變化%": round(v_1w_big, 2),
-                    "近1週散戶變化%": round(v_1w_shp, 2),
-                    "近4週大戶變化%": round(v_4w_big, 2),
-                    "最新大戶(%)": round(v_big, 2),
-                    "最新散戶(%)": round(v_shp, 2),
-                    "最新日期": (
-                        str(r.get(dt_col, "")).strip() if dt_col else ""
-                    ),
-                    "神秘金字塔": _pyramid_link(s_id),
-                })
+      if code_c and c1w_big_c:
+        for _, r in df_src.iterrows():
+          s_id = _clean_code(r.get(code_c, ""))
+          if not s_id or s_id == "99991" or s_id.lower() == "nan":
+            continue
+          s_name = str(r.get(name_c, "")).strip() if name_c else ""
 
-      if is_golden:
-        matched_list.sort(key=lambda x: x["近1週大戶變化%"], reverse=True)
-      else:
-        matched_list.sort(key=lambda x: x["近1週大戶變化%"])
+          raw_1w_big = str(r.get(c1w_big_c, "")).replace("%", "").strip()
+          try:
+            v_1w_big = float(raw_1w_big)
+          except Exception:
+            continue
 
-      st.session_state.screened_results = matched_list[:10]
-      if not st.session_state.screened_results:
-        st.warning(
-            f"目前沒有同時滿足「3項皆符合」且「近1週大戶變化% >= {th_val:.2f}%」的股票（可把門檻調小再按過濾）。"
-        )
+          try:
+            v_1w_shp = float(str(r.get(c1w_shp_c, "0")).replace("%", "").strip()) if c1w_shp_c else 0.0
+          except Exception:
+            v_1w_shp = 0.0
+          try:
+            v_4w_big = float(str(r.get(c4w_big_c, "0")).replace("%", "").strip()) if c4w_big_c else 0.0
+          except Exception:
+            v_4w_big = 0.0
+          try:
+            v_big = float(str(r.get(big_c, "0")).replace("%", "").strip()) if big_c else 0.0
+          except Exception:
+            v_big = 0.0
+          try:
+            v_shp = float(str(r.get(shp_c, "0")).replace("%", "").strip()) if shp_c else 0.0
+          except Exception:
+            v_shp = 0.0
+
+          s_all3 = str(r.get(all3_c, "")).strip() if all3_c else ""
+          s_f1w = str(r.get(f1w_c, "")).strip() if f1w_c else ""
+          is_ok_mark = (
+              ("符合" in s_all3 and "未符合" not in s_all3)
+              or (s_f1w == "符合")
+              or (v_1w_big > 0 and v_1w_shp < 0)
+          )
+          if is_ok_mark:
+            ok_3_count += 1
+
+          if is_golden:
+            if is_ok_mark and v_1w_big >= th_val:
+              matched_list.append({
+                  "代碼": s_id,
+                  "名稱": s_name,
+                  "近1週羊群篩選": s_f1w if s_f1w else "符合",
+                  "3項皆符合": s_all3 if s_all3 else "符合",
+                  "近1週大戶變化%": round(v_1w_big, 2),
+                  "近1週散戶變化%": round(v_1w_shp, 2),
+                  "近4週大戶變化%": round(v_4w_big, 2),
+                  "最新大戶(%)": round(v_big, 2),
+                  "最新散戶(%)": round(v_shp, 2),
+                  "日期": str(r.get(dt_c, "")).strip() if dt_c else "",
+                  "神秘金字塔": _pyramid_link(s_id),
+              })
+          else:
+            if v_1w_big <= -abs(th_val) and v_1w_shp > 0:
+              matched_list.append({
+                  "代碼": s_id,
+                  "名稱": s_name,
+                  "近1週羊群篩選": "未符合",
+                  "3項皆符合": s_all3 if s_all3 else "未符合",
+                  "近1週大戶變化%": round(v_1w_big, 2),
+                  "近1週散戶變化%": round(v_1w_shp, 2),
+                  "近4週大戶變化%": round(v_4w_big, 2),
+                  "最新大戶(%)": round(v_big, 2),
+                  "最新散戶(%)": round(v_shp, 2),
+                  "日期": str(r.get(dt_c, "")).strip() if dt_c else "",
+                  "神秘金字塔": _pyramid_link(s_id),
+              })
+
+    if is_golden:
+      matched_list.sort(key=lambda x: x["近1週大戶變化%"], reverse=True)
+    else:
+      matched_list.sort(key=lambda x: x["近1週大戶變化%"])
+
+    st.session_state.screened_results = matched_list[:10]
+
+    if not st.session_state.screened_results:
+      st.warning(
+          f"來源 `{src_label}` 共 {total_rows} 筆（符合標記 {ok_3_count} 筆），但 `近1週大戶變化% >= {th_val:.2f}%` 篩出 0 檔；請把基準調小（例如 `0.00` 或 `0.10`）再按一次。"
+      )
 
   if st.session_state.screened_results:
     df_chip_res = pd.DataFrame(st.session_state.screened_results)
     st.success(
-        f"共篩出 {len(df_chip_res)} 檔「3項皆符合」標的（點股票列看「個股籌碼圖表」，或點右側「神秘金字塔」看趨勢圖）："
+        f"共篩出 {len(df_chip_res)} 檔（點股票列看「個股籌碼圖表」，或點右側「神秘金字塔」看趨勢圖）："
     )
 
     chip_event = st.dataframe(
