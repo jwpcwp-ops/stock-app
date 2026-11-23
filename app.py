@@ -54,6 +54,8 @@ MINUTE_PERIOD_LABELS = {
     "60分鐘",
 }
 
+INDICATOR_BUTTONS = ["波段", "組合", "組合1", "BIAS", "QT", "集保"]
+
 # ---------------------------------------------------------
 # 2. 注入自訂 CSS (調整文字、排版、按鈕高亮與 Fullscreen 圖示顯色)
 # ---------------------------------------------------------
@@ -90,8 +92,8 @@ st.markdown(
             margin-bottom: 4px !important;
         }
         .stButton button {
-            font-size: 9.0px !important;
-            padding: 2px 4px !important;
+            font-size: 9.5px !important;
+            padding: 2px 5px !important;
             min-height: 22px !important;
             height: 22px !important;
         }
@@ -143,18 +145,20 @@ st.markdown(
         }
 
         div[data-testid="stPills"] button {
-            font-size: 9.0px !important;
-            padding: 2px 5px !important;
+            font-size: 10.0px !important;
+            padding: 2px 7px !important;
             margin: 0px 1px !important;
             min-height: 22px !important;
             height: 22px !important;
             border-radius: 4px !important;
             line-height: 1.1 !important;
             font-weight: bold !important;
+            white-space: nowrap !important;
         }
         div[data-testid="stPills"] {
-            gap: 2px !important;
+            gap: 3px !important;
             flex-wrap: nowrap !important;
+            overflow-x: auto !important;
         }
         [data-testid="stVerticalBlock"] {
             gap: 4px !important;
@@ -1063,7 +1067,9 @@ def fetch_stock_fundamentals(stock_id):
       if not div_s.empty:
         div_s.index = pd.to_datetime(div_s.index)
         if hasattr(div_s.index, "tz") and div_s.index.tz is not None:
-          div_s.index = div_s.index.tz_convert("Asia/Taipei").tz_localize(None)
+          div_s.index = (
+              div_s.index.tz_convert("Asia/Taipei").tz_localize(None)
+          )
         div_s = div_s.sort_index()
         for d_idx in div_s.index:
           d_norm = pd.to_datetime(d_idx).normalize()
@@ -1658,6 +1664,31 @@ def build_bar_analysis_snapshot(
       },
   ]
 
+  r6_v = float(r["rsi_6"])
+  r12_v = float(r["rsi_12"])
+  rdiff_v = float(r["rsi_diff"])
+  rd_arr = "▲" if rdiff_v >= 0 else "▼"
+  rsi_tokens = [
+      {"text": "RSI(6,12)", "color": "#FFFFFF"},
+      {"text": "RSI6::", "color": "#FF00FF"},
+      {"text": f"{r6_v:.2f}", "color": "#FF00FF"},
+      {"text": "RSI12::", "color": "#00FFFF"},
+      {"text": f"{r12_v:.2f}", "color": "#00FF00"},
+      {"text": "差值::", "color": "#FFFF00"},
+      {"text": f"{rdiff_v:.2f}{rd_arr}", "color": "#FFFF00"},
+  ]
+
+  wr_v = float(r["w_r"])
+  prev_wr = float(df["w_r"].iloc[idx_r - 1]) if idx_r > 0 else wr_v
+  w_arr = "▲" if wr_v >= prev_wr else "▼"
+  wr_tokens = [
+      {"text": "W%::", "color": "#FFFFFF"},
+      {
+          "text": f"{wr_v:.2f}%{w_arr}",
+          "color": "#FF3333" if wr_v >= prev_wr else "#00E64D",
+      },
+  ]
+
   dif_v = float(r["macd_dif"])
   dem_v = float(r["macd_dem"])
   osc_v = float(r["macd_osc"])
@@ -1686,8 +1717,10 @@ def build_bar_analysis_snapshot(
     ind_tokens = kdj_tokens
     sub2_tokens = macd_tokens
     sub3_tokens = vol_tokens
-  elif selected_indicator == "MACD":
-    ind_tokens = macd_tokens
+  elif selected_indicator == "組合1":
+    ind_tokens = kdj_tokens
+    sub2_tokens = rsi_tokens
+    sub3_tokens = wr_tokens
   elif selected_indicator == "BIAS":
     bias_v = float(r["bias_val"])
     prev_bias = float(df["bias_val"].iloc[idx_r - 1]) if idx_r > 0 else bias_v
@@ -1697,33 +1730,6 @@ def build_bar_analysis_snapshot(
         {
             "text": f"{bias_v:.2f}%{b_arr}",
             "color": "#FF3333" if bias_v >= 0 else "#00E64D",
-        },
-    ]
-  elif selected_indicator == "KDJ":
-    ind_tokens = kdj_tokens
-  elif selected_indicator == "RSI":
-    r6_v = float(r["rsi_6"])
-    r12_v = float(r["rsi_12"])
-    rdiff_v = float(r["rsi_diff"])
-    rd_arr = "▲" if rdiff_v >= 0 else "▼"
-    ind_tokens = [
-        {"text": "RSI(6,12)", "color": "#FFFFFF"},
-        {"text": "RSI6::", "color": "#FF00FF"},
-        {"text": f"{r6_v:.2f}", "color": "#FF00FF"},
-        {"text": "RSI12::", "color": "#00FFFF"},
-        {"text": f"{r12_v:.2f}", "color": "#00FF00"},
-        {"text": "差值::", "color": "#FFFF00"},
-        {"text": f"{rdiff_v:.2f}{rd_arr}", "color": "#FFFF00"},
-    ]
-  elif selected_indicator == "W%":
-    wr_v = float(r["w_r"])
-    prev_wr = float(df["w_r"].iloc[idx_r - 1]) if idx_r > 0 else wr_v
-    w_arr = "▲" if wr_v >= prev_wr else "▼"
-    ind_tokens = [
-        {"text": "W%::", "color": "#FFFFFF"},
-        {
-            "text": f"{wr_v:.2f}%{w_arr}",
-            "color": "#FF3333" if wr_v >= prev_wr else "#00E64D",
         },
     ]
   elif selected_indicator == "QT":
@@ -1992,7 +1998,7 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  third_row_cols = st.columns([1.18, 0.96, 1.06])
+  third_row_cols = st.columns([1.22, 0.92, 1.06])
 
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
@@ -2046,22 +2052,28 @@ if app_mode == "📈 個股籌碼圖表":
     default_ind_val = (
         st.session_state.default_indicator_override
         if st.session_state.default_indicator_override
-        else "MACD"
+        in INDICATOR_BUTTONS
+        else "組合"
     )
     if st.session_state.default_indicator_override:
-      st.session_state["pills_ind"] = st.session_state.default_indicator_override
+      st.session_state["pills_ind"] = (
+          st.session_state.default_indicator_override
+          if st.session_state.default_indicator_override
+          in INDICATOR_BUTTONS
+          else "組合"
+      )
       st.session_state.default_indicator_override = None
 
     selected_indicator = st.pills(
         "指標",
-        ["波段", "組合", "MACD", "BIAS", "KDJ", "RSI", "W%", "QT", "集保"],
+        INDICATOR_BUTTONS,
         default=default_ind_val,
         selection_mode="single",
         label_visibility="collapsed",
         key="pills_ind",
     )
     if not selected_indicator:
-      selected_indicator = "MACD"
+      selected_indicator = "組合"
 
   with third_row_cols[2]:
     row_bar_cols = st.columns([0.52, 0.52, 0.52, 0.50, 0.50, 0.85, 0.55])
@@ -2181,7 +2193,8 @@ if app_mode == "📈 個股籌碼圖表":
 
   is_wave_mode = selected_indicator == "波段"
   is_combo_mode = selected_indicator == "組合"
-  is_four_pane = is_wave_mode or is_combo_mode
+  is_combo1_mode = selected_indicator == "組合1"
+  is_four_pane = is_wave_mode or is_combo_mode or is_combo1_mode
   fig = plt.figure(figsize=(10.0, 4.65))
 
   if is_four_pane:
@@ -2376,7 +2389,6 @@ if app_mode == "📈 個股籌碼圖表":
       zorder=2,
   )
 
-  # 在底圖最下方橫條區自動標示月份數字（例如 11 10 9 8 7 6 5 4 3 2 1）
   if not df.empty:
     month_marks = []
     prev_ym = None
@@ -2444,6 +2456,42 @@ if app_mode == "📈 個股籌碼圖表":
       y_hi = max(100.0, float(np.max(kdj_comb)))
       pad_y = max(4.0, (y_hi - y_lo) * 0.08)
       ax_kdj.set_ylim(y_lo - pad_y, y_hi + pad_y)
+
+
+  def _plot_rsi_axis(ax_rsi):
+    ax_rsi.set_facecolor(PANEL_BG)
+    ax_rsi.plot(
+        x, df["rsi_6"], linewidth=0.65, color="#FF00FF", label="RSI6", zorder=3
+    )
+    ax_rsi.plot(
+        x,
+        df["rsi_12"],
+        linewidth=0.65,
+        color="#00FFFF",
+        label="RSI12",
+        zorder=3,
+    )
+    ax_rsi.axhline(
+        80, color="#FF6666", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
+    )
+    ax_rsi.axhline(
+        20, color="#00E64D", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
+    )
+    ax_rsi.axhline(50, color="#777777", linestyle=":", linewidth=0.85, zorder=1)
+
+
+  def _plot_wr_axis(ax_wr):
+    ax_wr.set_facecolor(PANEL_BG)
+    ax_wr.plot(
+        x, df["w_r"], linewidth=0.65, color="#FFFF00", label="W%", zorder=3
+    )
+    ax_wr.axhline(
+        -20, color="#FF6666", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
+    )
+    ax_wr.axhline(
+        -80, color="#00E64D", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
+    )
+    ax_wr.axhline(-50, color="#777777", linestyle=":", linewidth=0.85, zorder=1)
 
 
   def _plot_macd_axis(ax_macd):
@@ -2608,11 +2656,37 @@ if app_mode == "📈 個股籌碼圖表":
     ax_sub3.grid(
         True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
     )
+  elif is_combo1_mode:
+    _plot_kdj_axis(ax_sub1)
+    ax_sub1.yaxis.tick_right()
+    ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    plt.setp(ax_sub1.get_xticklabels(), visible=False)
+    ax_sub1.grid(
+        True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+    )
+
+    _plot_rsi_axis(ax_sub2)
+    ax_sub2.yaxis.tick_right()
+    ax_sub2.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    plt.setp(ax_sub2.get_xticklabels(), visible=False)
+    ax_sub2.grid(
+        True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+    )
+
+    _plot_wr_axis(ax_sub3)
+    ax_sub3.yaxis.tick_right()
+    ax_sub3.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+    ax_sub3.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
+    plt.setp(ax_sub3.get_xticklabels(), visible=True)
+    for label in ax_sub3.get_xticklabels():
+      label.set_color("#FFFFFF")
+      label.set_fontsize(7.5)
+    ax_sub3.grid(
+        True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
+    )
   else:
     ax_sub1.set_facecolor(PANEL_BG)
-    if selected_indicator == "MACD":
-      _plot_macd_axis(ax_sub1)
-    elif selected_indicator == "BIAS":
+    if selected_indicator == "BIAS":
       ax_sub1.plot(
           x,
           df["bias_val"],
@@ -2620,24 +2694,6 @@ if app_mode == "📈 個股籌碼圖表":
           color="#FFFF00",
           label="BIAS(60)",
           zorder=3,
-      )
-    elif selected_indicator == "KDJ":
-      _plot_kdj_axis(ax_sub1)
-    elif selected_indicator == "RSI":
-      ax_sub1.plot(
-          x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6", zorder=3
-      )
-      ax_sub1.plot(
-          x,
-          df["rsi_12"],
-          linewidth=0.6,
-          color="#00FFFF",
-          label="RSI12",
-          zorder=3,
-      )
-    elif selected_indicator == "W%":
-      ax_sub1.plot(
-          x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%", zorder=3
       )
     elif selected_indicator == "QT":
       ax_sub1.bar(
@@ -2687,7 +2743,7 @@ if app_mode == "📈 個股籌碼圖表":
               mid_ref, color="#666666", linestyle=":", linewidth=0.9, zorder=2
           )
 
-    if selected_indicator not in ("集保", "KDJ"):
+    if selected_indicator != "集保":
       ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
     ax_sub1.yaxis.tick_right()
     ax_sub1.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
