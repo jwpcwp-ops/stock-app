@@ -2435,13 +2435,13 @@ if app_mode == "📈 個股籌碼圖表":
   def _plot_kdj_axis(ax_kdj):
     ax_kdj.set_facecolor(PANEL_BG)
     ax_kdj.plot(
-        x, df["kdj_k"], linewidth=IND_LINE_WIDTH, color="#FF00FF", label="K", zorder=3
+        x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K", zorder=3
     )
     ax_kdj.plot(
-        x, df["kdj_d"], linewidth=IND_LINE_WIDTH, color="#00FFFF", label="D", zorder=3
+        x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D", zorder=3
     )
     ax_kdj.plot(
-        x, df["kdj_j"], linewidth=IND_LINE_WIDTH, color="#FFFFFF", label="J", zorder=3
+        x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J", zorder=3
     )
     ax_kdj.axhline(
         80, color="#FF6666", linestyle="--", linewidth=0.85, alpha=0.75, zorder=2
@@ -2465,15 +2465,15 @@ if app_mode == "📈 個股籌碼圖表":
       ax_kdj.set_ylim(y_lo - pad_y, y_hi + pad_y)
 
 
-  def _plot_rsi_axis(ax_rsi):
+ def _plot_rsi_axis(ax_rsi):
     ax_rsi.set_facecolor(PANEL_BG)
     ax_rsi.plot(
-        x, df["rsi_6"], linewidth=IND_LINE_WIDTH, color="#FF00FF", label="RSI6", zorder=3
+        x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6", zorder=3
     )
     ax_rsi.plot(
         x,
         df["rsi_12"],
-        linewidth=IND_LINE_WIDTH,
+        linewidth=0.6,
         color="#00FFFF",
         label="RSI12",
         zorder=3,
@@ -2488,18 +2488,15 @@ if app_mode == "📈 個股籌碼圖表":
 
 
   def _plot_wr_axis(ax_wr):
-    ax_wr.set_facecolor(PANEL_BG)
-    ax_wr.plot(
-        x, df["w_r"], linewidth=IND_LINE_WIDTH, color="#FFFF00", label="W%", zorder=3
-    )
-    ax_wr.axhline(
-        -20, color="#FF6666", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
-    )
-    ax_wr.axhline(
-        -80, color="#00E64D", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
-    )
-    ax_wr.axhline(-50, color="#777777", linestyle=":", linewidth=0.85, zorder=1)
-
+  ax_wr.set_facecolor(PANEL_BG)
+  ax_wr.plot(x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%", zorder=3)
+  ax_wr.axhline(
+      -20, color="#FF6666", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
+  )
+  ax_wr.axhline(
+      -80, color="#00E64D", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
+  )
+  ax_wr.axhline(-50, color="#777777", linestyle=":", linewidth=0.85, zorder=1)
 
   def _plot_macd_axis(ax_macd):
     ax_macd.set_facecolor(PANEL_BG)
