@@ -41,6 +41,19 @@ MA_COLOR_MAP = {
 # 飛狐上下方向鍵 K 線根數跳動序列：6, 11, 18, 29, 45, 69, 105, 159, 240...
 FEIHU_BAR_STEPS = [6, 11, 18, 29, 45, 69, 105, 159, 240, 361, 543, 816]
 
+MINUTE_PERIOD_LABELS = {
+    "5分",
+    "5分鐘",
+    "10分",
+    "10分鐘",
+    "15分",
+    "15分鐘",
+    "30分",
+    "30分鐘",
+    "60分",
+    "60分鐘",
+}
+
 # ---------------------------------------------------------
 # 2. 注入自訂 CSS (調整文字、排版、按鈕高亮與 Fullscreen 圖示顯色)
 # ---------------------------------------------------------
@@ -457,6 +470,29 @@ def extract_tdcc_arrays(cache_item):
   return big_h, sheep_h, w_dates
 
 
+def _aggregate_minute_bars(df_src, group_size=2):
+  if df_src is None or df_src.empty or group_size <= 1:
+    return df_src
+  rows = []
+  n_total = len(df_src)
+  for start_i in range(0, n_total, group_size):
+    chunk = df_src.iloc[start_i : start_i + group_size]
+    if chunk.empty:
+      continue
+    rows.append({
+        "idx": chunk.index[0],
+        "Open": float(chunk["Open"].iloc[0]),
+        "High": float(chunk["High"].max()),
+        "Low": float(chunk["Low"].min()),
+        "Close": float(chunk["Close"].iloc[-1]),
+        "Volume": float(chunk["Volume"].fillna(0).sum()),
+    })
+  if not rows:
+    return pd.DataFrame()
+  out_df = pd.DataFrame(rows).set_index("idx")
+  return out_df
+
+
 @st.cache_data(ttl=300)
 def fetch_raw_history(stock_id, period_type, fetch_len):
   df_yf = pd.DataFrame()
@@ -469,7 +505,21 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
 
   yf_interval = "1d"
   yf_period = "5y"
-  if period_type in ["30分", "30分鐘"]:
+  agg_factor = 1
+  raw_fetch_len = fetch_len
+
+  if period_type in ["5分", "5分鐘"]:
+    yf_interval = "5m"
+    yf_period = "60d"
+  elif period_type in ["10分", "10分鐘"]:
+    yf_interval = "5m"
+    yf_period = "60d"
+    agg_factor = 2
+    raw_fetch_len = fetch_len * 2 + 4
+  elif period_type in ["15分", "15分鐘"]:
+    yf_interval = "15m"
+    yf_period = "60d"
+  elif period_type in ["30分", "30分鐘"]:
     yf_interval = "30m"
     yf_period = "60d"
   elif period_type in ["60分", "60分鐘"]:
@@ -534,7 +584,11 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
 
   if not df_yf.empty:
     df_yf = df_yf.dropna(subset=["Close"])
-    df_k = df_yf.tail(fetch_len).copy()
+    df_src = df_yf.tail(raw_fetch_len).copy()
+    if agg_factor > 1:
+      df_k = _aggregate_minute_bars(df_src, group_size=agg_factor).tail(fetch_len)
+    else:
+      df_k = df_src.tail(fetch_len).copy()
 
     if "Volume" not in df_k.columns or df_k["Volume"].fillna(0).sum() == 0:
       if stock_id == "99991":
@@ -558,7 +612,7 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
     for idx, row in df_k.iterrows():
       date_str = (
           idx.strftime("%Y/%m/%d %H:%M")
-          if period_type in ["30分", "30分鐘", "60分", "60分鐘"]
+          if period_type in MINUTE_PERIOD_LABELS
           else idx.strftime("%Y/%m/%d")
       )
       o_val = float(row["Open"])
@@ -1896,7 +1950,7 @@ with top_cols[0]:
 with top_cols[1]:
   chart_period = st.selectbox(
       "週期",
-      ["日線", "30分", "60分", "週線", "月線"],
+      ["日線", "5分", "10分", "15分", "30分", "60分", "週線", "月線"],
       index=0,
       label_visibility="collapsed",
       key="select_period_dropdown_top",
@@ -2817,7 +2871,6 @@ if app_mode == "📈 個股籌碼圖表":
     let crosshairEnabled = true;
     let lastHoverPos = null;
 
-    // 飛狐尺規狀態：支援「📏 尺規測距」按鈕 或「Shift + 點擊」
     let rulerArmed = rulerBtnActive;
     let rulerStartIdx = null;
     let rulerEndIdx = null;
