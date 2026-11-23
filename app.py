@@ -469,7 +469,10 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
 
   yf_interval = "1d"
   yf_period = "5y"
-  if period_type in ["60分", "60分鐘"]:
+  if period_type in ["30分", "30分鐘"]:
+    yf_interval = "30m"
+    yf_period = "60d"
+  elif period_type in ["60分", "60分鐘"]:
     yf_interval = "60m"
     yf_period = "120d"
   elif period_type in ["週線", "周"]:
@@ -555,7 +558,7 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
     for idx, row in df_k.iterrows():
       date_str = (
           idx.strftime("%Y/%m/%d %H:%M")
-          if period_type in ["60分", "60分鐘"]
+          if period_type in ["30分", "30分鐘", "60分", "60分鐘"]
           else idx.strftime("%Y/%m/%d")
       )
       o_val = float(row["Open"])
@@ -1893,7 +1896,7 @@ with top_cols[0]:
 with top_cols[1]:
   chart_period = st.selectbox(
       "週期",
-      ["日線", "60分", "週線", "月線"],
+      ["日線", "30分", "60分", "週線", "月線"],
       index=0,
       label_visibility="collapsed",
       key="select_period_dropdown_top",
