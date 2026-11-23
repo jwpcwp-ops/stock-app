@@ -26,8 +26,8 @@ st.set_page_config(
 
 # 均線粗細設定（數值越小越細，0.4 不易遮擋 K 線）
 MA_LINE_WIDTH = 0.4
-# KDJ / RSI 指標線條粗細設定（原本為 0.65，現調整為 1.15 更清晰）
-IND_LINE_WIDTH = 1.15
+# KDJ / RSI / W% 指標線條粗細設定（0.6 與 MACD 細線一致）
+IND_LINE_WIDTH = 0.6
 
 MA_COLOR_MAP = {
     "5": "#00FFFF",
@@ -95,7 +95,7 @@ st.markdown(
         }
         .stButton button {
             font-size: 9.5px !important;
-            padding: 1px 3px !important;
+            padding: 1px 2px !important;
             min-width: 0px !important;
             min-height: 22px !important;
             height: 22px !important;
@@ -2001,7 +2001,7 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-  third_row_cols = st.columns([1.06, 1.00, 1.14])
+  third_row_cols = st.columns([1.02, 1.02, 1.16])
 
   with third_row_cols[0]:
     ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
@@ -2032,8 +2032,8 @@ if app_mode == "📈 個股籌碼圖表":
                         border: 1px solid #ffffff !important;
                         font-weight: bold !important;
                         box-shadow: 0 0 4px {line_col} !important;
-                        padding: 1px 2px !important;
-                        font-size: 9px !important;
+                        padding: 1px 1px !important;
+                        font-size: 8.5px !important;
                     }}
                 """
         )
@@ -2046,8 +2046,8 @@ if app_mode == "📈 個股籌碼圖表":
                         border: 1px solid #3d4a5a !important;
                         font-weight: bold !important;
                         box-shadow: none !important;
-                        padding: 1px 2px !important;
-                        font-size: 9px !important;
+                        padding: 1px 1px !important;
+                        font-size: 8.5px !important;
                     }}
                 """
         )
@@ -2431,26 +2431,55 @@ if app_mode == "📈 個股籌碼圖表":
   plt.setp(ax1.get_xticklabels(), visible=False)
   ax1.grid(True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5)
 
-
   def _plot_kdj_axis(ax_kdj):
     ax_kdj.set_facecolor(PANEL_BG)
     ax_kdj.plot(
-        x, df["kdj_k"], linewidth=0.6, color="#FF00FF", label="K", zorder=3
+        x,
+        df["kdj_k"],
+        linewidth=IND_LINE_WIDTH,
+        color="#FF00FF",
+        label="K",
+        zorder=3,
     )
     ax_kdj.plot(
-        x, df["kdj_d"], linewidth=0.6, color="#00FFFF", label="D", zorder=3
+        x,
+        df["kdj_d"],
+        linewidth=IND_LINE_WIDTH,
+        color="#00FFFF",
+        label="D",
+        zorder=3,
     )
     ax_kdj.plot(
-        x, df["kdj_j"], linewidth=0.6, color="#FFFFFF", label="J", zorder=3
+        x,
+        df["kdj_j"],
+        linewidth=IND_LINE_WIDTH,
+        color="#FFFFFF",
+        label="J",
+        zorder=3,
     )
     ax_kdj.axhline(
-        80, color="#FF6666", linestyle="--", linewidth=0.85, alpha=0.75, zorder=2
+        80,
+        color="#FF6666",
+        linestyle="--",
+        linewidth=0.85,
+        alpha=0.75,
+        zorder=2,
     )
     ax_kdj.axhline(
-        20, color="#00E64D", linestyle="--", linewidth=0.85, alpha=0.75, zorder=2
+        20,
+        color="#00E64D",
+        linestyle="--",
+        linewidth=0.85,
+        alpha=0.75,
+        zorder=2,
     )
     ax_kdj.axhline(
-        50, color="#666666", linestyle=":", linewidth=0.75, alpha=0.55, zorder=1
+        50,
+        color="#666666",
+        linestyle=":",
+        linewidth=0.75,
+        alpha=0.55,
+        zorder=1,
     )
     kdj_comb = np.concatenate([
         df["kdj_k"].fillna(50).values,
@@ -2464,39 +2493,69 @@ if app_mode == "📈 個股籌碼圖表":
       pad_y = max(4.0, (y_hi - y_lo) * 0.08)
       ax_kdj.set_ylim(y_lo - pad_y, y_hi + pad_y)
 
-
- def _plot_rsi_axis(ax_rsi):
+  def _plot_rsi_axis(ax_rsi):
     ax_rsi.set_facecolor(PANEL_BG)
     ax_rsi.plot(
-        x, df["rsi_6"], linewidth=0.6, color="#FF00FF", label="RSI6", zorder=3
+        x,
+        df["rsi_6"],
+        linewidth=IND_LINE_WIDTH,
+        color="#FF00FF",
+        label="RSI6",
+        zorder=3,
     )
     ax_rsi.plot(
         x,
         df["rsi_12"],
-        linewidth=0.6,
+        linewidth=IND_LINE_WIDTH,
         color="#00FFFF",
         label="RSI12",
         zorder=3,
     )
     ax_rsi.axhline(
-        80, color="#FF6666", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
+        80,
+        color="#FF6666",
+        linestyle="--",
+        linewidth=0.75,
+        alpha=0.55,
+        zorder=2,
     )
     ax_rsi.axhline(
-        20, color="#00E64D", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
+        20,
+        color="#00E64D",
+        linestyle="--",
+        linewidth=0.75,
+        alpha=0.55,
+        zorder=2,
     )
     ax_rsi.axhline(50, color="#777777", linestyle=":", linewidth=0.85, zorder=1)
 
-
   def _plot_wr_axis(ax_wr):
-  ax_wr.set_facecolor(PANEL_BG)
-  ax_wr.plot(x, df["w_r"], linewidth=0.6, color="#FFFF00", label="W%", zorder=3)
-  ax_wr.axhline(
-      -20, color="#FF6666", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
-  )
-  ax_wr.axhline(
-      -80, color="#00E64D", linestyle="--", linewidth=0.75, alpha=0.55, zorder=2
-  )
-  ax_wr.axhline(-50, color="#777777", linestyle=":", linewidth=0.85, zorder=1)
+    ax_wr.set_facecolor(PANEL_BG)
+    ax_wr.plot(
+        x,
+        df["w_r"],
+        linewidth=IND_LINE_WIDTH,
+        color="#FFFF00",
+        label="W%",
+        zorder=3,
+    )
+    ax_wr.axhline(
+        -20,
+        color="#FF6666",
+        linestyle="--",
+        linewidth=0.75,
+        alpha=0.55,
+        zorder=2,
+    )
+    ax_wr.axhline(
+        -80,
+        color="#00E64D",
+        linestyle="--",
+        linewidth=0.75,
+        alpha=0.55,
+        zorder=2,
+    )
+    ax_wr.axhline(-50, color="#777777", linestyle=":", linewidth=0.85, zorder=1)
 
   def _plot_macd_axis(ax_macd):
     ax_macd.set_facecolor(PANEL_BG)
@@ -2528,7 +2587,6 @@ if app_mode == "📈 個股籌碼圖表":
     )
     ax_macd.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
 
-
   def _plot_vol_axis(ax_vol):
     ax_vol.set_facecolor(PANEL_BG)
     ax_vol.bar(
@@ -2559,7 +2617,6 @@ if app_mode == "📈 個股籌碼圖表":
         alpha=0.95,
         zorder=3,
     )
-
 
   if is_wave_mode:
     ax_sub1.set_facecolor(PANEL_BG)
