@@ -32,12 +32,12 @@ def 正規化代號(數值) -> str:
     文字 = str(數值 or "").strip()
     if 文字.endswith(".0"):
         文字 = 文字[:-2]
-    文字 = 文字.split()[0].replace(".TW", "").replace(".TWO", "").strip()
+    文字 = 文字.replace("．", ".").split()[0].replace(".TW", "").replace(".TWO", "").strip()
     return 文字.zfill(4) if 文字.isdigit() else 文字
 
 
 def 載入股票名稱對照表() -> dict[str, str]:
-    """精準從 StockIDs.xlsx 的「StockIDs」分頁讀取「代碼 -> 名稱」對照表"""
+    """讀取 StockIDs.xlsx 的 StockIDs 分頁（代碼、名稱）與工作表1（代號、名稱）"""
     名稱表: dict[str, str] = {}
     清單檔 = next((p for p in 候選股票清單檔 if p.exists()), None)
     if 清單檔 is None:
@@ -46,19 +46,22 @@ def 載入股票名稱對照表() -> dict[str, str]:
 
     try:
         excel檔案 = pd.ExcelFile(清單檔, engine="openpyxl")
-        分頁清單 = ["StockIDs"] + [s for s in excel檔案.sheet_names if s != "StockIDs"]
+        分頁清單 = [s for s in ["StockIDs", "工作表1"] if s in excel檔案.sheet_names] + [
+            s for s in excel檔案.sheet_names if s not in ("StockIDs", "工作表1")
+        ]
 
         for 分頁名稱 in 分頁清單:
             df = pd.read_excel(清單檔, sheet_name=分頁名稱, dtype=str, engine="openpyxl")
             if df.empty:
                 continue
+            df.columns = [str(c).strip() for c in df.columns]
 
-            代號欄 = "代碼" if "代碼" in df.columns else next(
-                (c for c in df.columns if any(k in str(c) for k in ["代碼", "代號", "股票", "Stock", "ID"])),
+            代號欄 = next(
+                (c for c in ["代碼", "代號", "股票代號", "StockID", "stock_id"] if c in df.columns),
                 None,
             )
-            名稱欄 = "名稱" if "名稱" in df.columns else next(
-                (c for c in df.columns if any(k in str(c) for k in ["名稱", "簡稱", "股名", "Name"])),
+            名稱欄 = next(
+                (c for c in ["名稱", "股名", "股票名稱", "簡稱", "Name", "name"] if c in df.columns),
                 None,
             )
             if 代號欄 is None or 名稱欄 is None:
@@ -70,16 +73,28 @@ def 載入股票名稱對照表() -> dict[str, str]:
                     原始代號 = 原始代號[:-2]
                 標準代號 = 正規化代號(原始代號)
                 股名 = str(列.get(名稱欄) or "").strip()
-                if 股名.lower() in ("nan", "none", "null", ""):
+                if not 股名 or 股名.lower() in ("nan", "none", "null"):
                     continue
+
                 if 原始代號 and 原始代號 not in 名稱表:
                     名稱表[原始代號] = 股名
                 if 標準代號 and 標準代號 not in 名稱表:
                     名稱表[標準代號] = 股名
+
+        print(f"[{現在時間()}] 已從 {清單檔.name} 載入名稱對照 {len(名稱表)} 筆。")
     except Exception as 錯誤:
         print(f"[{現在時間()}] 讀取 StockIDs.xlsx 發生錯誤：{錯誤}")
 
     return 名稱表
+
+
+def 取得紀錄名稱(紀錄: dict, 股票名稱表: dict[str, str]) -> str:
+    代號 = str(紀錄.get("stock_id") or 紀錄.get("代號") or "").strip()
+    正規代號 = 正規化代號(代號)
+    既有股名 = str(紀錄.get("name") or 紀錄.get("名稱") or "").strip()
+    if 既有股名 and 既有股名.lower() not in ("nan", "none", "null"):
+        return 既有股名
+    return 股票名稱表.get(代號) or 股票名稱表.get(正規代號) or ""
 
 
 def 是否有效比例(大戶值, 散戶值) -> bool:
@@ -265,7 +280,6 @@ def 執行雲端更新():
         )
 
     股票名稱表 = 載入股票名稱對照表()
-    print(f"[{現在時間()}] 已載入股票名稱對照 {len(股票名稱表)} 筆。")
 
     所有股票紀錄: list[dict] = []
     with 來源快取檔.open("r", encoding="utf-8") as f:
@@ -344,19 +358,16 @@ def 執行雲端更新():
             f"[{現在時間()}] 雲端連線集保略過／發生狀況（將以現有快取產出 CSV）：{錯誤}"
         )
 
-    # 補齊股票名稱並清理異常週次（保留合法歷史趨勢線）
+    # 補齊名稱並清理異常週次（保留合法歷史趨勢線）
+    已補名檔數 = 0
     暫存快取檔 = 輸出快取檔.with_suffix(".jsonl.tmp")
     with 暫存快取檔.open("w", encoding="utf-8") as 寫出檔:
         for 紀錄 in 所有股票紀錄:
-            代號 = str(紀錄.get("stock_id") or 紀錄.get("代號") or "").strip()
-            正規代號 = 正規化代號(代號)
-            既有股名 = str(紀錄.get("name") or 紀錄.get("名稱") or "").strip()
-            if 既有股名.lower() in ("nan", "none", "null"):
-                既有股名 = ""
-            if not 既有股名:
-                既有股名 = 股票名稱表.get(正規代號) or 股票名稱表.get(代號) or ""
-            if 既有股名:
-                紀錄["name"] = 既有股名
+            股名 = 取得紀錄名稱(紀錄, 股票名稱表)
+            if 股名:
+                紀錄["name"] = 股名
+                紀錄["名稱"] = 股名
+                已補名檔數 += 1
 
             既有週次 = 取得週資料清單(紀錄)
             乾淨週次 = []
@@ -380,12 +391,13 @@ def 執行雲端更新():
 
             寫出檔.write(json.dumps(紀錄, ensure_ascii=False) + "\n")
     os.replace(暫存快取檔, 輸出快取檔)
+    print(f"[{現在時間()}] 已補齊／保留名稱 {已補名檔數} 檔。")
 
     彙整列清單 = []
     已剔除異常檔數 = 0
     for 紀錄 in 所有股票紀錄:
         代號 = str(紀錄.get("stock_id") or 紀錄.get("代號") or "").strip()
-        名稱 = str(紀錄.get("name") or 紀錄.get("名稱") or "").strip()
+        名稱 = 取得紀錄名稱(紀錄, 股票名稱表)
         週資料 = 取得週資料清單(紀錄)
         訊號, 最新大戶, 最新散戶, 近1週變動, 近4週變動, 最新日期 = (
             計算交叉與變動(週資料)
