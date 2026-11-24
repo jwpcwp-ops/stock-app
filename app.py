@@ -53,7 +53,7 @@ MINUTE_PERIOD_LABELS = {
     "60分鐘",
 }
 
-# 將 BIAS、QT、集保 從選單移除，改由 組合2 / 組合3 呈現
+# 將 BIAS、QT、集保 從選單移除，保留 組合2（K線+KDJ+RSI+W%）與 組合3（K線+QT+集保+成交量）
 INDICATOR_BUTTONS = ["波段", "組合", "組合1", "組合2", "組合3"]
 
 ALL_STRATEGIES = [
@@ -1759,13 +1759,13 @@ def build_bar_analysis_snapshot(
         # 組合：KDJ + MACD + 成交量
         ind_tokens, sub2_tokens, sub3_tokens = kdj_tokens, macd_tokens, vol_tokens
     elif selected_indicator == "組合1":
-        # 組合1：加入原本組合2的整理 (KDJ + RSI + W% + MACD + 成交量整合)
+        # 組合1：KDJ + RSI + W% 並整合 MACD + 成交量整理
         ind_tokens = kdj_tokens + [{"text": "|", "color": "#666666"}] + rsi_tokens
         sub2_tokens = wr_tokens + [{"text": "|", "color": "#666666"}] + macd_tokens
         sub3_tokens = vol_tokens
     elif selected_indicator == "組合2":
-        # 組合2：K線 + QT + BIAS + 成交量
-        ind_tokens, sub2_tokens, sub3_tokens = qt_tokens, bias_tokens, vol_tokens
+        # 組合2（還原）：K線 + KDJ + RSI + W%
+        ind_tokens, sub2_tokens, sub3_tokens = kdj_tokens, rsi_tokens, wr_tokens
     elif selected_indicator == "組合3":
         # 組合3：K線 + QT + 集保 + 成交量
         ind_tokens, sub2_tokens, sub3_tokens = qt_tokens, chip_tokens, vol_tokens
@@ -2714,7 +2714,7 @@ if app_mode == "📈 個股籌碼圖表":
         _plot_vol_axis(ax_sub3)
         _style_axis(ax_sub3, show_x=True)
     elif is_combo1_mode:
-        # 組合1：加入原本組合2的整理 (KDJ + RSI/W% + MACD + 成交量整合)
+        # 組合1：KDJ + RSI + W% 並整合 MACD + 成交量整理
         _plot_kdj_axis(ax_sub1)
         _plot_rsi_axis(ax_sub1)
         _style_axis(ax_sub1, show_x=False)
@@ -2724,12 +2724,12 @@ if app_mode == "📈 個股籌碼圖表":
         _plot_vol_axis(ax_sub3)
         _style_axis(ax_sub3, show_x=True)
     elif is_combo2_mode:
-        # 組合2：K線 + QT + BIAS + 成交量
-        _plot_qt_axis(ax_sub1)
+        # 組合2（還原）：K線 + KDJ + RSI + W%
+        _plot_kdj_axis(ax_sub1)
         _style_axis(ax_sub1, show_x=False)
-        _plot_bias_axis(ax_sub2)
+        _plot_rsi_axis(ax_sub2)
         _style_axis(ax_sub2, show_x=False)
-        _plot_vol_axis(ax_sub3)
+        _plot_wr_axis(ax_sub3)
         _style_axis(ax_sub3, show_x=True)
     elif is_combo3_mode:
         # 組合3：K線 + QT + 集保 + 成交量
