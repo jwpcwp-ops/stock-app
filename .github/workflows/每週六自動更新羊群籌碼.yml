@@ -1,0 +1,29 @@
+name: 每週六自動更新羊群籌碼
+on:
+  schedule:
+    - cron: "0 1 * * 6"   # 台灣時間每週六早上 09:00（UTC 週六 01:00）
+  workflow_dispatch:       # 也可隨時按按鈕手動測試執行
+permissions:
+  contents: write
+jobs:
+  每週六更新任務:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下載專案程式碼
+        uses: actions/checkout@v4
+      - name: 安裝 Python 環境
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安裝套件與瀏覽器
+        run: |
+          pip install pandas playwright
+          playwright install chromium
+      - name: 執行雲端抓取與產生最新訊號表
+        run: python 雲端每週六自動更新_羊群籌碼.py
+      - name: 存回更新後的資料檔
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || (git commit -m "每週六自動更新羊群籌碼與最新訊號表" && git push)
