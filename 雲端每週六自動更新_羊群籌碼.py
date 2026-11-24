@@ -128,12 +128,12 @@ def 判斷持股級距張數(級距文字: str):
 
 
 def 抓取單一期別(網頁, 股票代號: str, 期別代碼: str):
-    網頁.locator("select").first.select_option(期別代碼, timeout=15000)
-    網頁.locator("input[type='text']").first.fill(股票代號, timeout=15000)
+    網頁.locator("select").first.select_option(期別代碼, timeout=20000)
+    網頁.locator("input[type='text']").first.fill(股票代號, timeout=20000)
     網頁.locator(
         "button:has-text('查詢'), input[type='submit'][value*='查詢']"
-    ).first.click(no_wait_after=True, timeout=15000)
-    網頁.wait_for_timeout(800)
+    ).first.click(no_wait_after=True, timeout=20000)
+    網頁.wait_for_timeout(1200)
 
     大戶比例合計 = 0.0
     散戶比例合計 = 0.0
@@ -358,7 +358,6 @@ def 執行雲端更新():
             f"[{現在時間()}] 雲端連線集保略過／發生狀況（將以現有快取產出 CSV）：{錯誤}"
         )
 
-    # 補齊名稱並清理異常週次（保留合法歷史趨勢線）
     已補名檔數 = 0
     暫存快取檔 = 輸出快取檔.with_suffix(".jsonl.tmp")
     with 暫存快取檔.open("w", encoding="utf-8") as 寫出檔:
