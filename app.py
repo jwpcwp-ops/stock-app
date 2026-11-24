@@ -282,6 +282,31 @@ st.markdown(
             min-width: 76px !important;
             max-width: 76px !important;
         }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-qt_n1_sel {
+            width: 64px !important;
+            min-width: 64px !important;
+            max-width: 64px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-qt_drop_sel {
+            width: 72px !important;
+            min-width: 72px !important;
+            max-width: 72px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-qt_disc_sel {
+            width: 74px !important;
+            min-width: 74px !important;
+            max-width: 74px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-qt_reb_sel {
+            width: 72px !important;
+            min-width: 72px !important;
+            max-width: 72px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) .st-key-qt_mode_sel {
+            width: 96px !important;
+            min-width: 96px !important;
+            max-width: 96px !important;
+        }
 
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) div[data-baseweb="select"] {
             min-height: 30px !important;
@@ -1940,6 +1965,7 @@ all_strategies = [
     "多空轉折信號",
     "5均線匯集",
     "底部量大強漲",
+    "抄底絕招",
 ]
 
 
@@ -3551,7 +3577,7 @@ if app_mode == "📈 個股籌碼圖表":
   components.html(unified_interactive_html, height=plot_height, scrolling=False)
 
 # =========================================================
-# 分頁二：⚡ 9大策略選股 (偏重技術分析)
+# 分頁二：⚡ 9大策略選股 (含獨立 抄底絕招 參數選單)
 # =========================================================
 elif app_mode == "⚡ 9大策略選股":
   strat_cols = st.columns(len(all_strategies))
@@ -3566,6 +3592,7 @@ elif app_mode == "⚡ 9大策略選股":
         st.rerun()
 
   selected_strat = st.session_state.selected_synth_strat
+  is_qt_strat = selected_strat == "抄底絕招"
 
   vol_mult_options = [500 * (2**i) for i in range(6)]
   val_up_options = [1.4, 1.8]
@@ -3574,10 +3601,83 @@ elif app_mode == "⚡ 9大策略選股":
   min_dw_vol_cur = st.session_state.get("dw_vol_mult", 500)
   min_dw_val_cur = st.session_state.get("dw_val_up_sel", 1.4)
 
+  # 抄底絕招 專屬參數狀態
+  qt_n1_cur = int(st.session_state.get("qt_n1_sel", 29))
+  qt_drop_cur = float(st.session_state.get("qt_drop_sel", 30.0))
+  qt_disc_cur = float(st.session_state.get("qt_disc_sel", 1.25))
+  qt_reb_cur = float(st.session_state.get("qt_reb_sel", 6.0))
+  qt_mode_cur = str(st.session_state.get("qt_mode_sel", "完整強化"))
+
   is_dw_active = (min_dw_vol_cur != 500) or (
       abs(float(min_dw_val_cur) - 1.4) > 1e-6
   )
   tag_cls = "gold-tag-active" if is_dw_active else "gold-tag-idle"
+
+  def _eval_qt_crash_signal(
+      code_str, period_arg, n1_bars, drop_th, disc_th, reb_th, mode_str
+  ):
+    need_bars = max(n1_bars + 10, 75)
+    recs = fetch_raw_history(code_str, period_arg, need_bars)
+    if not recs or len(recs) < max(35, n1_bars):
+      return None
+    df_q = pd.DataFrame(recs)
+    c = df_q["close"].astype(float)
+    o = df_q["open"].astype(float)
+    h = df_q["high"].astype(float)
+    l = df_q["low"].astype(float)
+    v = df_q["vol"].astype(float)
+
+    prev_c = float(c.iloc[-2])
+    cur_c = float(c.iloc[-1])
+    cur_o = float(o.iloc[-1])
+    cur_h = float(h.iloc[-1])
+    cur_l = float(l.iloc[-1])
+    cur_v = float(v.iloc[-1])
+    if prev_c <= 0 or cur_l <= 0:
+      return None
+
+    # 1. 單日反彈漲幅 (%)
+    reb_pct = (cur_c - prev_c) / prev_c * 100.0
+    if reb_pct <= reb_th:
+      return None
+
+    # 2. 當日跳空低開
+    if not (cur_o < prev_c):
+      return None
+
+    # 3. 波段最高點回檔幅度 (%)
+    peak_h = float(h.tail(n1_bars).max())
+    if peak_h <= 0:
+      return None
+    drop_pct = (cur_c - peak_h) / peak_h * 100.0
+    if drop_pct >= -abs(drop_th):
+      return None
+
+    # 4. 60日均線(季線)折價比 3日平滑
+    ma60 = c.rolling(window=min(60, len(c)), min_periods=1).mean()
+    disc_ratio_series = ma60 / (l + 1e-8)
+    disc_3d = float(disc_ratio_series.tail(3).mean())
+    if disc_3d <= disc_th:
+      return None
+
+    # 5. 強化濾網（實體收盤站上70%位置 + 突破5日均量）
+    if mode_str == "完整強化":
+      bar_span = cur_h - cur_l
+      if bar_span > 0 and cur_c < (cur_l + bar_span * 0.7):
+        return None
+      vol_ma5 = float(v.tail(5).mean())
+      if cur_v <= vol_ma5:
+        return None
+
+    vol_ma20 = float(v.tail(20).mean())
+    v_rat = cur_v / vol_ma20 if vol_ma20 > 0 else 0.0
+    return {
+        "latest_vol": int(round(cur_v)),
+        "vol_ratio": round(v_rat, 2),
+        "drop_pct": round(drop_pct, 2),
+        "disc_3d": round(disc_3d, 2),
+        "reb_pct": round(reb_pct, 2),
+    }
 
   output_csv = "smart_selected_output.csv"
   if os.path.exists(output_csv):
@@ -3601,66 +3701,126 @@ elif app_mode == "⚡ 9大策略選股":
       )
   )
 
-  if not has_raw_candidates:
-    filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
-    status_msg = f"【{selected_strat}】尚無符合"
-  else:
-    id_to_name = dict(
-        zip(
-            stock_df["代碼"].astype(str).str.zfill(4),
-            stock_df["名稱"].astype(str),
-        )
-    )
-    filtered_df = raw_strat_df.copy()
-    if "代碼" in filtered_df.columns:
-      filtered_df["名稱"] = filtered_df["代碼"].map(id_to_name).fillna("")
+  period_arg = "週線" if dw_choice_cur == "周" else "日線"
+  col_v_name = f"最新{dw_choice_cur}量(張)"
+  col_val_name = f"{dw_choice_cur}量比"
 
-    period_arg = "週線" if dw_choice_cur == "周" else "日線"
-    col_v_name = f"最新{dw_choice_cur}量(張)"
-    col_val_name = f"{dw_choice_cur}量比"
-
-    metrics_rows = []
-    if "代碼" in filtered_df.columns:
-      for _, r_item in filtered_df.iterrows():
-        raw_c = str(r_item["代碼"]).strip()
-        if raw_c in ["", "無", "無符合股票"]:
-          metrics_rows.append({col_v_name: None, col_val_name: None})
-          continue
-        c_code = raw_c.zfill(4) if raw_c.isdigit() else raw_c
-        try:
-          _, _, _, c_v, _, v_rat = get_continuous_stock_df(
-              c_code, target_days=20, period_type=period_arg
-          )
-          metrics_rows.append({
-              col_v_name: int(round(float(c_v))),
-              col_val_name: round(float(v_rat), 2),
-          })
-        except Exception:
-          metrics_rows.append({col_v_name: None, col_val_name: None})
-
-    if metrics_rows:
-      df_m = pd.DataFrame(metrics_rows)
-      filtered_df = pd.concat(
-          [filtered_df.reset_index(drop=True), df_m.reset_index(drop=True)],
-          axis=1,
+  id_to_name = dict(
+      zip(
+          stock_df["代碼"].astype(str).str.strip().str.zfill(4),
+          stock_df["名稱"].astype(str).str.strip(),
       )
-      keep_mask = pd.Series([True] * len(filtered_df))
-      if col_v_name in filtered_df.columns:
-        keep_mask = keep_mask & (
-            filtered_df[col_v_name].fillna(0) > min_dw_vol_cur
-        )
-      if col_val_name in filtered_df.columns:
-        keep_mask = keep_mask & (
-            filtered_df[col_val_name].fillna(0.0) > float(min_dw_val_cur)
-        )
-      filtered_df = filtered_df[keep_mask].reset_index(drop=True)
+  )
 
-    if filtered_df.empty:
-      status_msg = f"【{selected_strat}｜{dw_choice_cur}】0檔"
+  # --- 抄底絕招：獨立公式篩選運算 ---
+  if is_qt_strat:
+    if has_raw_candidates:
+      cand_codes = [
+          str(c).strip().zfill(4)
+          for c in raw_strat_df["代碼"].tolist()
+          if str(c).strip() not in ["", "無", "無符合股票"]
+      ]
     else:
-      status_msg = f"【{selected_strat}｜{dw_choice_cur}】{len(filtered_df)}檔"
+      cand_codes = [
+          str(c).strip().zfill(4)
+          for c in stock_df["代碼"].tolist()
+          if str(c).strip() not in ["", "99991"]
+      ]
 
-  f_cols = st.columns(8, gap="small")
+    qt_rows = []
+    for c_code in cand_codes:
+      res_q = _eval_qt_crash_signal(
+          c_code,
+          period_arg,
+          qt_n1_cur,
+          qt_drop_cur,
+          qt_disc_cur,
+          qt_reb_cur,
+          qt_mode_cur,
+      )
+      if res_q is None:
+        continue
+      if res_q["latest_vol"] <= min_dw_vol_cur:
+        continue
+      if res_q["vol_ratio"] <= float(min_dw_val_cur):
+        continue
+      qt_rows.append({
+          "策略名稱": "抄底絕招",
+          "代碼": c_code,
+          "名稱": id_to_name.get(c_code, ""),
+          col_v_name: res_q["latest_vol"],
+          col_val_name: res_q["vol_ratio"],
+          "波段跌幅%": res_q["drop_pct"],
+          "季線折價比": res_q["disc_3d"],
+          "當日反彈%": res_q["reb_pct"],
+      })
+
+    filtered_df = pd.DataFrame(qt_rows)
+    if not filtered_df.empty:
+      filtered_df = filtered_df.sort_values(
+          by="波段跌幅%", ascending=True
+      ).reset_index(drop=True)
+    has_raw_candidates = not filtered_df.empty
+    status_msg = f"【抄底絕招｜{dw_choice_cur}】{len(filtered_df)}檔"
+
+  # --- 原有 9 大策略篩選流程 ---
+  else:
+    if not has_raw_candidates:
+      filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
+      status_msg = f"【{selected_strat}】尚無符合"
+    else:
+      filtered_df = raw_strat_df.copy()
+      if "代碼" in filtered_df.columns:
+        filtered_df["名稱"] = (
+            filtered_df["代碼"].astype(str).str.zfill(4).map(id_to_name).fillna("")
+        )
+
+      metrics_rows = []
+      if "代碼" in filtered_df.columns:
+        for _, r_item in filtered_df.iterrows():
+          raw_c = str(r_item["代碼"]).strip()
+          if raw_c in ["", "無", "無符合股票"]:
+            metrics_rows.append({col_v_name: None, col_val_name: None})
+            continue
+          c_code = raw_c.zfill(4) if raw_c.isdigit() else raw_c
+          try:
+            _, _, _, c_v, _, v_rat = get_continuous_stock_df(
+                c_code, target_days=20, period_type=period_arg
+            )
+            metrics_rows.append({
+                col_v_name: int(round(float(c_v))),
+                col_val_name: round(float(v_rat), 2),
+            })
+          except Exception:
+            metrics_rows.append({col_v_name: None, col_val_name: None})
+
+      if metrics_rows:
+        df_m = pd.DataFrame(metrics_rows)
+        filtered_df = pd.concat(
+            [filtered_df.reset_index(drop=True), df_m.reset_index(drop=True)],
+            axis=1,
+        )
+        keep_mask = pd.Series([True] * len(filtered_df))
+        if col_v_name in filtered_df.columns:
+          keep_mask = keep_mask & (
+              filtered_df[col_v_name].fillna(0) > min_dw_vol_cur
+          )
+        if col_val_name in filtered_df.columns:
+          keep_mask = keep_mask & (
+              filtered_df[col_val_name].fillna(0.0) > float(min_dw_val_cur)
+          )
+        filtered_df = filtered_df[keep_mask].reset_index(drop=True)
+
+      if filtered_df.empty:
+        status_msg = f"【{selected_strat}｜{dw_choice_cur}】0檔"
+      else:
+        status_msg = (
+            f"【{selected_strat}｜{dw_choice_cur}】{len(filtered_df)}檔"
+        )
+
+  # --- 同一行控制列（綠色框區域內單行安置 QT 參數選單） ---
+  num_cols = 18 if is_qt_strat else 8
+  f_cols = st.columns(num_cols, gap="small")
 
   with f_cols[0]:
     st.markdown(
@@ -3717,6 +3877,74 @@ elif app_mode == "⚡ 9大策略選股":
     if st.button("🔄 重整", key="btn_refresh_dw_vol"):
       fetch_raw_history.clear()
       st.rerun()
+
+  # 綠色框區域：抄底絕招 獨立參數選單（單行橫向排列）
+  if is_qt_strat:
+    with f_cols[8]:
+      st.markdown(
+          '<div class="gold-tag-box gold-tag-active">N日</div>',
+          unsafe_allow_html=True,
+      )
+    with f_cols[9]:
+      st.selectbox(
+          "N日",
+          [29, 20, 45, 60],
+          index=0,
+          key="qt_n1_sel",
+          label_visibility="collapsed",
+      )
+    with f_cols[10]:
+      st.markdown(
+          '<div class="gold-tag-box gold-tag-active">跌%&gt;</div>',
+          unsafe_allow_html=True,
+      )
+    with f_cols[11]:
+      st.selectbox(
+          "波段跌幅%",
+          [30, 20, 40, 50],
+          index=0,
+          key="qt_drop_sel",
+          label_visibility="collapsed",
+      )
+    with f_cols[12]:
+      st.markdown(
+          '<div class="gold-tag-box gold-tag-active">折價&gt;</div>',
+          unsafe_allow_html=True,
+      )
+    with f_cols[13]:
+      st.selectbox(
+          "季線折價比",
+          [1.25, 1.15, 1.20, 1.30],
+          index=0,
+          key="qt_disc_sel",
+          label_visibility="collapsed",
+      )
+    with f_cols[14]:
+      st.markdown(
+          '<div class="gold-tag-box gold-tag-active">彈%&gt;</div>',
+          unsafe_allow_html=True,
+      )
+    with f_cols[15]:
+      st.selectbox(
+          "反彈漲幅%",
+          [6.0, 3.0, 4.5, 7.5],
+          index=0,
+          key="qt_reb_sel",
+          label_visibility="collapsed",
+      )
+    with f_cols[16]:
+      st.markdown(
+          '<div class="gold-tag-box gold-tag-active">濾網</div>',
+          unsafe_allow_html=True,
+      )
+    with f_cols[17]:
+      st.selectbox(
+          "QT濾網模式",
+          ["完整強化", "寬鬆低開"],
+          index=0,
+          key="qt_mode_sel",
+          label_visibility="collapsed",
+      )
 
   if has_raw_candidates and not filtered_df.empty:
     event = st.dataframe(
