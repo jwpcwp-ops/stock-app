@@ -22,7 +22,7 @@ jobs:
 
       - name: 安裝套件與瀏覽器
         run: |
-          pip install pandas playwright
+          pip install pandas playwright openpyxl
           playwright install chromium
 
       - name: 執行雲端抓取與產生最新訊號表
