@@ -3819,7 +3819,7 @@ elif app_mode == "⚡ 9大策略選股":
         )
 
   # --- 同一行控制列（綠色框區域內單行安置 QT 參數選單） ---
-  num_cols = 18 if is_qt_strat else 8
+  num_cols = 19 if is_qt_strat else 8
   f_cols = st.columns(num_cols, gap="small")
 
   with f_cols[0]:
@@ -3945,6 +3945,14 @@ elif app_mode == "⚡ 9大策略選股":
           key="qt_mode_sel",
           label_visibility="collapsed",
       )
+    with f_cols[18]:
+      if st.button("▶ 篩選", key="btn_run_qt_filter"):
+        st.rerun()
+
+  if is_qt_strat and filtered_df.empty:
+    st.info(
+        f"目前條件（N={qt_n1_cur}日、波段跌幅>={qt_drop_cur}%、季線折價比>{qt_disc_cur}、反彈>{qt_reb_cur}%、量>{min_dw_vol_cur}張、量比>{min_dw_val_cur}、{qt_mode_cur}）共掃描 {len(cand_codes)} 檔，符合 **0 檔**。可放寬參數（例如改用 `寬鬆低開`、調低 `跌%>` 或 `彈%>`）或按 `🔄 重整` / `▶ 篩選` 重新計算。"
+    )
 
   if has_raw_candidates and not filtered_df.empty:
     event = st.dataframe(
