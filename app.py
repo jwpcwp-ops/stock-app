@@ -27,6 +27,10 @@ st.set_page_config(
 MA_LINE_WIDTH = 0.4
 IND_LINE_WIDTH = 0.6
 
+# QT（每筆均量）預設參數規劃
+QT_SMOOTH_WINDOW = 5
+QT_SPIKE_RATIO = 1.45  # 超過近5根均量 1.45 倍視為「異常放大」
+
 MA_COLOR_MAP = {
     "5": "#00FFFF",
     "10": "#FFFF00",
@@ -199,6 +203,31 @@ st.markdown(
             color: #F0B84B !important;
             font-size: 14px !important;
             font-weight: bold !important;
+        }
+
+        .qt-guide-box {
+            background-color: #0c1017;
+            border: 1px solid #00ffff;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin: 4px 0 6px 0;
+            color: #f8fafc;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+        .qt-guide-title {
+            color: #ffff00;
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .qt-bull-tag {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        .qt-bear-tag {
+            color: #00e64d;
+            font-weight: bold;
         }
 
         div[data-testid="stHorizontalBlock"]:has(.gold-row-anchor) {
@@ -745,6 +774,8 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
         c_val = float(row["Close"])
         if o_val == c_val and h_val != l_val:
             o_val = l_val if c_val > l_val else h_val
+        tx_raw = row.get("tx_count", row.get("trades", None))
+        tx_val = float(tx_raw) if tx_raw is not None and pd.notna(tx_raw) and float(tx_raw) > 0 else np.nan
         records.append({
             "date": idx.strftime(date_fmt),
             "open": o_val,
@@ -752,6 +783,7 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
             "low": l_val,
             "close": c_val,
             "vol": float(row["Volume"]) / 1000,
+            "tx_count": tx_val,
         })
     return records
 
@@ -1381,6 +1413,73 @@ def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
     }
 
 
+def _compute_qt_series(df_full):
+    """
+    規劃計算 Q/T（每筆均量）：
+    - 若有真實成交筆數欄位 tx_count (>0)，直接計算每筆均量 = 成交量 / 成交筆數
+    - 若無成交筆數，則以「成交量 × (1 + 單根價格波幅權重)」推估每筆均量強度
+    - 同時算出均線 qt_ma 與放大倍數 qt_ratio，並判斷高低檔異常放大
+    """
+    s_close = df_full["close"].astype(float)
+    s_high = df_full["high"].astype(float)
+    s_low = df_full["low"].astype(float)
+    s_vol = df_full["vol"].astype(float).clip(lower=0.0)
+
+    has_tx = (
+        "tx_count" in df_full.columns
+        and pd.to_numeric(df_full["tx_count"], errors="coerce").dropna().gt(0).any()
+    )
+    if has_tx:
+        tx_s = pd.to_numeric(df_full["tx_count"], errors="coerce").replace(0, np.nan)
+        tx_avg = tx_s.ffill().bfill().clip(lower=1.0)
+        qt_raw = s_vol / tx_avg
+    else:
+        prev_c = s_close.shift(1).fillna(s_close)
+        bar_amp = ((s_high - s_low) / prev_c.replace(0, np.nan)).abs().fillna(0.0)
+        body_chg = ((s_close - prev_c) / prev_c.replace(0, np.nan)).abs().fillna(0.0)
+        intensity_factor = 1.0 + np.clip(bar_amp * 4.0 + body_chg * 3.0, 0.0, 3.0)
+        qt_raw = s_vol * intensity_factor
+
+    qt_curve = qt_raw.rolling(window=3, min_periods=1).mean().fillna(0.0)
+    qt_ma = (
+        qt_curve.rolling(window=QT_SMOOTH_WINDOW, min_periods=1)
+        .mean()
+        .bfill()
+        .fillna(0.0)
+    )
+    qt_ratio = qt_curve / qt_ma.replace(0.0, np.nan)
+    qt_ratio = qt_ratio.replace([np.inf, -np.inf], np.nan).fillna(1.0)
+
+    # 位階判斷：以近60根高低區間或季線(MA60)判斷高檔 / 低檔
+    ma60_ref = df_full.get("ma_60", s_close.rolling(60, min_periods=1).mean().bfill())
+    hi60 = s_high.rolling(60, min_periods=1).max().bfill()
+    lo60 = s_low.rolling(60, min_periods=1).min().bfill()
+    rng60 = (hi60 - lo60).replace(0.0, np.nan)
+    pos_ratio = ((s_close - lo60) / rng60).fillna(0.5)
+
+    is_high_zone = (s_close >= ma60_ref) & (pos_ratio >= 0.65)
+    is_low_zone = (s_close < ma60_ref) | (pos_ratio <= 0.35)
+    is_spike = qt_ratio >= QT_SPIKE_RATIO
+
+    qt_labels = []
+    qt_colors = []
+    for spike_f, hi_f, lo_f, r_val in zip(is_spike, is_high_zone, is_low_zone, qt_ratio):
+        if spike_f and hi_f:
+            qt_labels.append(f"高檔Q/T放大({r_val:.2f}x)→財團大戶可能已溜走")
+            qt_colors.append("#00E64D")
+        elif spike_f and lo_f:
+            qt_labels.append(f"低檔Q/T放大({r_val:.2f}x)→財團大戶可能已進場")
+            qt_colors.append("#FF3333")
+        elif spike_f:
+            qt_labels.append(f"Q/T異常放大({r_val:.2f}x)→留意大單動向")
+            qt_colors.append("#FFFF00")
+        else:
+            qt_labels.append(f"Q/T常態({r_val:.2f}x)")
+            qt_colors.append("#00FFFF")
+
+    return qt_curve, qt_ma, qt_ratio, is_spike, qt_labels, qt_colors
+
+
 def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
     warmup_bars = 260
     fetch_len = target_days + warmup_bars
@@ -1398,6 +1497,7 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
             "low": prices - 1.0,
             "close": prices,
             "vol": np.random.randint(1000, 5000, size=fetch_len).astype(float),
+            "tx_count": np.full(fetch_len, np.nan),
         })
 
     s_close = df_full["close"]
@@ -1515,7 +1615,16 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
         (high_max9 - s_close) / (high_max9 - low_min9 + 1e-8) * -100
     )
 
-    df_full["qt"] = s_close.diff().abs().rolling(5, min_periods=1).mean().fillna(0)
+    qt_curve, qt_ma, qt_ratio, qt_spike, qt_labels, qt_colors = _compute_qt_series(
+        df_full
+    )
+    df_full["qt"] = qt_curve
+    df_full["qt_ma"] = qt_ma
+    df_full["qt_ratio"] = qt_ratio
+    df_full["qt_spike"] = qt_spike
+    df_full["qt_label"] = qt_labels
+    df_full["qt_color"] = qt_colors
+
     df_full["vol_ma5"] = (
         df_full["vol"].rolling(window=5, min_periods=1).mean().bfill()
     )
@@ -1738,13 +1847,22 @@ def build_bar_analysis_snapshot(
     ]
 
     qt_v = float(r["qt"])
+    qt_ma_v = float(r["qt_ma"]) if "qt_ma" in df.columns else qt_v
+    qt_rat_v = float(r["qt_ratio"]) if "qt_ratio" in df.columns else 1.0
+    qt_lbl_s = str(r["qt_label"]) if "qt_label" in df.columns else ""
+    qt_col_s = str(r["qt_color"]) if "qt_color" in df.columns else "#FFFF00"
     prev_qt = float(df["qt"].iloc[idx_r - 1]) if idx_r > 0 else qt_v
     qt_tokens = [
-        {"text": "QT::", "color": "#FFFFFF"},
+        {"text": "Q/T(每筆均量)::", "color": "#FFFFFF"},
         {
-            "text": f"{qt_v:.2f}{'▲' if qt_v >= prev_qt else '▼'}",
-            "color": "#FF3333" if qt_v >= prev_qt else "#00E64D",
+            "text": f"{qt_v:.1f}{'▲' if qt_v >= prev_qt else '▼'}",
+            "color": "#FFFF00",
         },
+        {"text": "均5::", "color": "#00FFFF"},
+        {"text": f"{qt_ma_v:.1f}", "color": "#00FFFF"},
+        {"text": "倍數::", "color": "#FFFFFF"},
+        {"text": f"{qt_rat_v:.2f}x", "color": qt_col_s},
+        {"text": qt_lbl_s, "color": qt_col_s},
     ]
 
     chip_tokens = [
@@ -1762,7 +1880,7 @@ def build_bar_analysis_snapshot(
         # 組合1：K線 + KDJ + RSI + W%
         ind_tokens, sub2_tokens, sub3_tokens = kdj_tokens, rsi_tokens, wr_tokens
     elif selected_indicator == "組合2":
-        # 組合2：K線 + QT + 集保 + 成交量
+        # 組合2：K線 + QT(曲線) + 集保 + 成交量
         ind_tokens, sub2_tokens, sub3_tokens = qt_tokens, chip_tokens, vol_tokens
     elif selected_indicator == "組合3":
         # 組合3：K線 + MACD + BIAS + 成交量
@@ -2084,6 +2202,7 @@ DEFAULTS = {
     "screened_results": [],
     "default_indicator_override": None,
     "ruler_mode_active": False,
+    "show_qt_guide": False,
     "chip_1w_threshold_val": 0.00,
     "ma_active_map": {
         "5": False,
@@ -2159,7 +2278,7 @@ app_mode = st.session_state.app_mode_state
 # 分頁一：📈 個股籌碼圖表
 # =========================================================
 if app_mode == "📈 個股籌碼圖表":
-    third_row_cols = st.columns([1.02, 1.02, 1.16])
+    third_row_cols = st.columns([1.00, 1.00, 1.20])
 
     with third_row_cols[0]:
         ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
@@ -2238,7 +2357,7 @@ if app_mode == "📈 個股籌碼圖表":
         )
 
     with third_row_cols[2]:
-        row_bar_cols = st.columns([0.52, 0.52, 0.52, 0.50, 0.50, 0.85, 0.55])
+        row_bar_cols = st.columns([0.48, 0.48, 0.48, 0.46, 0.46, 0.78, 0.72, 0.50])
         for p_idx, p_val in enumerate([120, 250, 500]):
             with row_bar_cols[p_idx]:
                 is_cur = st.session_state.k_bars_count == p_val
@@ -2286,11 +2405,39 @@ if app_mode == "📈 個股籌碼圖表":
                 )
 
         with row_bar_cols[6]:
+            qt_guide_on = bool(st.session_state.show_qt_guide)
+            qt_btn_lbl = "💡 關閉說明" if qt_guide_on else "💡 Q/T 說明"
+            if st.button(qt_btn_lbl, key="btn_toggle_qt_guide", use_container_width=True):
+                st.session_state.show_qt_guide = not qt_guide_on
+                st.rerun()
+            if qt_guide_on:
+                st.markdown(
+                    "<style>div.st-key-btn_toggle_qt_guide button {"
+                    " background-color:#00FFFF !important; color:#000000"
+                    " !important; border:1px solid #FFFFFF !important;"
+                    " font-weight:bold !important; }}</style>",
+                    unsafe_allow_html=True,
+                )
+
+        with row_bar_cols[7]:
             st.markdown(
                 f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
                 f" text-align:right; line-height:22px; white-space:nowrap;'>K:{st.session_state.k_bars_count}</div>",
                 unsafe_allow_html=True,
             )
+
+    if st.session_state.show_qt_guide:
+        st.markdown(
+            f"""
+            <div class="qt-guide-box">
+                <div class="qt-guide-title">📌 Q/T（每筆均量）運作與研判說明（組合 2 曲線版）</div>
+                <div>• <b>Q/T 是什麼</b>：代表「每筆均量」（單筆成交規模）。若資料含成交筆數則以 <code>量 ÷ 筆數</code> 計算；若無成交筆數，則以 <code>成交量 × 量價波幅權重</code> 推估單筆規模，並搭配 <code>QT_MA5</code> 均線與 <code>{QT_SPIKE_RATIO:.2f}x</code> 放大門檻。</div>
+                <div>• <span class="qt-bull-tag">低檔突然 Q/T 異常放大</span>：股價處於相對低檔或季線下，若 Q/T 突然放大（≥ {QT_SPIKE_RATIO:.2f} 倍均線），<b>可能財團大戶已進場</b>。</div>
+                <div>• <span class="qt-bear-tag">高檔突然 Q/T 異常放大</span>：股價處於相對高檔或季線上高區，若 Q/T 突然放大（≥ {QT_SPIKE_RATIO:.2f} 倍均線），<b>可能財團大戶已溜走</b>。</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     k_days_choice = int(st.session_state.k_bars_count)
     ruler_mode_active = bool(st.session_state.ruler_mode_active)
@@ -2314,7 +2461,6 @@ if app_mode == "📈 個股籌碼圖表":
         for p in [5, 35, 65, 120, 200]
     }
 
-    prev_closes = df["close"].shift(1).fillna(df["open"])
     body_colors = [
         BAR_UP_COLOR if c >= o else BAR_DOWN_COLOR
         for o, c in zip(df["open"], df["close"])
@@ -2325,10 +2471,6 @@ if app_mode == "📈 個股籌碼圖表":
     band_macd_bar_colors = [
         BAR_UP_COLOR if osc >= 0 else BAR_DOWN_COLOR
         for osc in df["band_macd_osc"]
-    ]
-    qt_bar_colors = [
-        BAR_UP_COLOR if c >= pc else BAR_DOWN_COLOR
-        for c, pc in zip(df["close"], prev_closes)
     ]
 
     plt.style.use("dark_background")
@@ -2632,8 +2774,35 @@ if app_mode == "📈 個股籌碼圖表":
 
     def _plot_qt_axis(ax_qt):
         ax_qt.set_facecolor(PANEL_BG)
-        ax_qt.bar(x, df["qt"], width=0.75, color=qt_bar_colors, edgecolor="none", linewidth=0, alpha=1.0, zorder=2)
-        ax_qt.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+        qt_vals = df["qt"].ffill().bfill().values
+        qt_ma_vals = df["qt_ma"].ffill().bfill().values
+        ax_qt.plot(
+            x,
+            qt_vals,
+            linewidth=0.95,
+            color="#FFFF00",
+            linestyle="-",
+            label="Q/T",
+            zorder=4,
+        )
+        ax_qt.plot(
+            x,
+            qt_ma_vals,
+            linewidth=0.70,
+            color="#00FFFF",
+            linestyle="--",
+            label="QT_MA5",
+            zorder=3,
+        )
+        if "qt_spike" in df.columns:
+            spike_mask = df["qt_spike"].astype(bool).values
+            if np.any(spike_mask):
+                sx = x[spike_mask]
+                sy = qt_vals[spike_mask]
+                sc = df.loc[spike_mask, "qt_color"].tolist()
+                ax_qt.scatter(
+                    sx, sy, s=16, c=sc, edgecolors="#FFFFFF", linewidths=0.4, zorder=5
+                )
 
     def _plot_chip_axis(ax_chip):
         ax_chip.set_facecolor(PANEL_BG)
@@ -2715,7 +2884,7 @@ if app_mode == "📈 個股籌碼圖表":
         _plot_wr_axis(ax_sub3)
         _style_axis(ax_sub3, show_x=True)
     elif is_combo2_mode:
-        # 組合2：K線 + QT + 集保 + 成交量
+        # 組合2：K線 + QT(曲線) + 集保 + 成交量
         _plot_qt_axis(ax_sub1)
         _style_axis(ax_sub1, show_x=False)
         _plot_chip_axis(ax_sub2)
