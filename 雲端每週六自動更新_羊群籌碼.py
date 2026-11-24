@@ -6,11 +6,9 @@ import re
 import pandas as pd
 from playwright.sync_api import sync_playwright
 
-# 專案所在資料夾
 目前資料夾 = Path(__file__).resolve().parent
 集保查詢網址 = "https://www.tdcc.com.tw/portal/zh/smWeb/qryStock"
 
-# 雲端檔案路徑（優先找目前資料夾，找不到再找「資料」子資料夾）
 候選快取清單 = [
     目前資料夾 / "羊群籌碼_219檔.jsonl",
     目前資料夾 / "資料" / "羊群籌碼_219檔.jsonl",
@@ -23,6 +21,17 @@ from playwright.sync_api import sync_playwright
 
 def 現在時間() -> str:
     return datetime.now().strftime("%H:%M:%S")
+
+
+def 是否有效比例(大戶值, 散戶值) -> bool:
+    """持股比例必須在 0~100% 之間，且兩者合計不超過 100.5%；超過即視為異常/改過數值"""
+    if 大戶值 is None or 散戶值 is None:
+        return False
+    if not (0.0 <= 大戶值 <= 100.0) or not (0.0 <= 散戶值 <= 100.0):
+        return False
+    if (大戶值 + 散戶值) > 100.5:
+        return False
+    return True
 
 
 def 判斷持股級距張數(級距文字: str):
@@ -83,13 +92,12 @@ def 抓取單一期別(網頁, 股票代號: str, 期別代碼: str):
             比對 = re.search(r"(-?\d+(?:\.\d+)?)\s*%?", 欄.replace(",", ""))
             if 比對:
                 候選值 = float(比對.group(1))
-                if -5.0 <= 候選值 <= 100.0:
+                if 0.0 <= 候選值 <= 100.0:
                     比例數值 = 候選值
                     break
         if 比例數值 is None:
             continue
 
-        # 400 張以上算大戶；100 張以下算散戶（羊群）
         if 最小張 >= 400.0:
             大戶比例合計 += 比例數值
             有抓到資料 = True
@@ -107,9 +115,7 @@ def 抓取單一期別(網頁, 股票代號: str, 期別代碼: str):
         有抓到資料
         and pd.notna(日期解析)
         and (大戶四捨五入 > 0.0 or 散戶四捨五入 > 0.0)
-        and 0.0 <= 大戶四捨五入 <= 100.0
-        and 0.0 <= 散戶四捨五入 <= 100.0
-        and (大戶四捨五入 + 散戶四捨五入) <= 100.5
+        and 是否有效比例(大戶四捨五入, 散戶四捨五入)
     ):
         return {
             "date": 日期解析.strftime("%Y/%m/%d"),
@@ -144,7 +150,6 @@ def 計算交叉與變動(週資料清單: list[dict]):
         if 日期欄位
         else list(週資料清單)
     )
-    最新日期 = str(已排序週資料[-1].get(日期欄位, "")) if 日期欄位 else ""
 
     def 取數值(單週資料: dict, 候選鍵: list[str]):
         for 鍵 in 候選鍵:
@@ -159,40 +164,30 @@ def 計算交叉與變動(週資料清單: list[dict]):
                     pass
         return None
 
-    大戶序列 = [
-        取數值(r, ["big", "大戶%", "major_pct", "big_pct"])
-        for r in 已排序週資料
-        if isinstance(r, dict)
-    ]
-    散戶序列 = [
-        取數值(r, ["retail", "散戶%", "retail_pct", "small_pct", "羊群%"])
-        for r in 已排序週資料
-        if isinstance(r, dict)
-    ]
+    合法紀錄 = []
+    for 單週 in 已排序週資料:
+        if not isinstance(單週, dict):
+            continue
+        m_val = 取數值(單週, ["big", "大戶%", "major_pct", "big_pct"])
+        r_val = 取數值(單週, ["retail", "散戶%", "retail_pct", "small_pct", "羊群%"])
+        if 是否有效比例(m_val, r_val):
+            dt_str = str(單週.get(日期欄位, "")) if 日期欄位 else ""
+            合法紀錄.append((dt_str, round(float(m_val), 2), round(float(r_val), 2)))
 
-    if not 大戶序列 or not 散戶序列 or 大戶序列[-1] is None or 散戶序列[-1] is None:
-        return "無資料", None, None, None, None, 最新日期
+    if not 合法紀錄:
+        return "無資料", None, None, None, None, ""
+
+    最新日期 = 合法紀錄[-1][0]
+    大戶序列 = [x[1] for x in 合法紀錄]
+    散戶序列 = [x[2] for x in 合法紀錄]
 
     最新大戶 = 大戶序列[-1]
     最新散戶 = 散戶序列[-1]
-    近1週變動 = (
-        round(最新大戶 - 大戶序列[-2], 2)
-        if len(大戶序列) >= 2 and 大戶序列[-2] is not None
-        else None
-    )
-    近4週變動 = (
-        round(最新大戶 - 大戶序列[-5], 2)
-        if len(大戶序列) >= 5 and 大戶序列[-5] is not None
-        else None
-    )
+    近1週變動 = round(最新大戶 - 大戶序列[-2], 2) if len(大戶序列) >= 2 else None
+    近4週變動 = round(最新大戶 - 大戶序列[-5], 2) if len(大戶序列) >= 5 else None
 
     訊號 = "大戶領先" if 最新大戶 > 最新散戶 else "散戶領先"
-    if (
-        len(大戶序列) >= 2
-        and len(散戶序列) >= 2
-        and 大戶序列[-2] is not None
-        and 散戶序列[-2] is not None
-    ):
+    if len(大戶序列) >= 2 and len(散戶序列) >= 2:
         前週大戶 = 大戶序列[-2]
         前週散戶 = 散戶序列[-2]
         if 前週大戶 <= 前週散戶 and 最新大戶 > 最新散戶:
@@ -200,14 +195,7 @@ def 計算交叉與變動(週資料清單: list[dict]):
         elif 前週大戶 >= 前週散戶 and 最新大戶 < 最新散戶:
             訊號 = "死亡交叉"
 
-    return (
-        訊號,
-        round(最新大戶, 2),
-        round(最新散戶, 2),
-        近1週變動,
-        近4週變動,
-        最新日期,
-    )
+    return 訊號, 最新大戶, 最新散戶, 近1週變動, 近4週變動, 最新日期
 
 
 def 執行雲端更新():
@@ -228,7 +216,6 @@ def 執行雲端更新():
         f"[{現在時間()}] 已載入 {len(所有股票紀錄)} 檔紀錄（來源：{來源快取檔.name}）"
     )
 
-    # 嘗試從集保網站補抓最新期別；若雲端網路被擋或逾時，仍會用現有資料產出 CSV
     try:
         with sync_playwright() as p:
             瀏覽器 = p.chromium.launch(headless=True)
@@ -295,15 +282,35 @@ def 執行雲端更新():
             f"[{現在時間()}] 雲端連線集保略過／發生狀況（將以現有快取產出 CSV）：{錯誤}"
         )
 
-    # 回寫更新後的 219 檔快取（保留歷史資料）
+    # 回寫更新後的 219 檔快取：只剔除超過 100% 或小於 0% 的異常週次，保留正常歷史趨勢線
     暫存快取檔 = 輸出快取檔.with_suffix(".jsonl.tmp")
     with 暫存快取檔.open("w", encoding="utf-8") as 寫出檔:
         for 紀錄 in 所有股票紀錄:
+            既有週次 = 取得週資料清單(紀錄)
+            乾淨週次 = []
+            for 單週 in 既有週次:
+                if not isinstance(單週, dict):
+                    continue
+                try:
+                    大戶值 = float(單週.get("big"))
+                    散戶值 = float(單週.get("retail"))
+                except (TypeError, ValueError):
+                    continue
+                if 是否有效比例(大戶值, 散戶值):
+                    新單週 = dict(單週)
+                    新單週["big"] = round(大戶值, 2)
+                    新單週["retail"] = round(散戶值, 2)
+                    乾淨週次.append(新單週)
+
+            if 乾淨週次:
+                乾淨週次 = sorted(乾淨週次, key=lambda x: str(x.get("date", "")))[-最多保留週數:]
+                紀錄["tdcc_series"] = 乾淨週次
+
             寫出檔.write(json.dumps(紀錄, ensure_ascii=False) + "\n")
     os.replace(暫存快取檔, 輸出快取檔)
 
-    # 產生「自選股_羊群籌碼_最新訊號.csv」
     彙整列清單 = []
+    已剔除異常檔數 = 0
     for 紀錄 in 所有股票紀錄:
         代號 = str(紀錄.get("stock_id") or 紀錄.get("代號") or "").strip()
         名稱 = str(紀錄.get("name") or 紀錄.get("名稱") or "").strip()
@@ -311,6 +318,8 @@ def 執行雲端更新():
         訊號, 最新大戶, 最新散戶, 近1週變動, 近4週變動, 最新日期 = (
             計算交叉與變動(週資料)
         )
+        if 訊號 == "無資料" and 週資料:
+            已剔除異常檔數 += 1
         彙整列清單.append({
             "代號": 代號,
             "名稱": 名稱,
@@ -325,7 +334,7 @@ def 執行雲端更新():
     訊號表格 = pd.DataFrame(彙整列清單)
     訊號表格.to_csv(輸出訊號檔, index=False, encoding="utf-8-sig")
     print(
-        f"[{現在時間()}] 已產生「{輸出訊號檔.name}」，共 {len(訊號表格)} 檔資料。"
+        f"[{現在時間()}] 已產生「{輸出訊號檔.name}」，共 {len(訊號表格)} 檔資料（含異常數值剔除 {已剔除異常檔數} 檔）。"
     )
 
 
