@@ -53,7 +53,8 @@ MINUTE_PERIOD_LABELS = {
     "60分鐘",
 }
 
-INDICATOR_BUTTONS = ["波段", "組合", "組合1", "BIAS", "QT", "集保"]
+# 將 BIAS、QT、集保 從選單移除，改由 組合2 / 組合3 呈現
+INDICATOR_BUTTONS = ["波段", "組合", "組合1", "組合2", "組合3"]
 
 ALL_STRATEGIES = [
     "主力底部吃貨",
@@ -537,7 +538,7 @@ def _jump_to_chart_with_code(picked_code, picked_name=""):
             stock_options.insert(0, custom_opt)
         st.session_state.selected_index = 0
     st.session_state.stock_select_version += 1
-    st.session_state.default_indicator_override = "集保"
+    st.session_state.default_indicator_override = "組合3"
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
     st.rerun()
 
@@ -855,7 +856,14 @@ def _fetch_tpex_pe_yield(stock_id):
     pe_found, yld_found = None, None
     for url in urls:
         try:
-            data = _fetch_json_url(url, {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Accept": "application/json, text/plain, */*", "Referer": "https://www.tpex.org.tw/"})
+            data = _fetch_json_url(
+                url,
+                {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "Accept": "application/json, text/plain, */*",
+                    "Referer": "https://www.tpex.org.tw/",
+                },
+            )
             if isinstance(data, list):
                 for item in data:
                     item_code = str(
@@ -908,9 +916,7 @@ def _fetch_tpex_pe_yield(stock_id):
                     if not isinstance(r_item, list) or len(r_item) < 5:
                         continue
                     if str(r_item[0]).strip() in (clean_id, code_4):
-                        pe_v = (
-                            _parse_pos_float(r_item[2]) if len(r_item) > 2 else None
-                        )
+                        pe_v = _parse_pos_float(r_item[2]) if len(r_item) > 2 else None
                         if pe_v is not None and pe_v <= 0:
                             pe_v = None
                         yld_v = None
@@ -1721,38 +1727,54 @@ def build_bar_analysis_snapshot(
         {"text": f"{osc_v:.2f}{'▲' if osc_v >= prev_osc else '▼'}", "color": osc_col},
     ]
 
+    bias_v = float(r["bias_val"])
+    prev_bias = float(df["bias_val"].iloc[idx_r - 1]) if idx_r > 0 else bias_v
+    bias_tokens = [
+        {"text": "BIAS(60)::", "color": "#FFFFFF"},
+        {
+            "text": f"{bias_v:.2f}%{'▲' if bias_v >= prev_bias else '▼'}",
+            "color": "#FF3333" if bias_v >= 0 else "#00E64D",
+        },
+    ]
+
+    qt_v = float(r["qt"])
+    prev_qt = float(df["qt"].iloc[idx_r - 1]) if idx_r > 0 else qt_v
+    qt_tokens = [
+        {"text": "QT::", "color": "#FFFFFF"},
+        {
+            "text": f"{qt_v:.2f}{'▲' if qt_v >= prev_qt else '▼'}",
+            "color": "#FF3333" if qt_v >= prev_qt else "#00E64D",
+        },
+    ]
+
+    chip_tokens = [
+        {"text": "大戶::", "color": "#FFFFFF"},
+        {"text": f"{b_val:.1f}%", "color": "#FF3333"},
+        {"text": "羊群::", "color": "#FFFFFF"},
+        {"text": f"{s_val:.1f}%", "color": "#00E64D"},
+    ]
+
     ind_tokens, sub2_tokens, sub3_tokens = [], [], []
     if selected_indicator == "組合":
+        # 組合：KDJ + MACD + 成交量
         ind_tokens, sub2_tokens, sub3_tokens = kdj_tokens, macd_tokens, vol_tokens
     elif selected_indicator == "組合1":
-        ind_tokens, sub2_tokens, sub3_tokens = kdj_tokens, rsi_tokens, wr_tokens
+        # 組合1：加入原本組合2的整理 (KDJ + RSI + W% + MACD + 成交量整合)
+        ind_tokens = kdj_tokens + [{"text": "|", "color": "#666666"}] + rsi_tokens
+        sub2_tokens = wr_tokens + [{"text": "|", "color": "#666666"}] + macd_tokens
+        sub3_tokens = vol_tokens
+    elif selected_indicator == "組合2":
+        # 組合2：K線 + QT + BIAS + 成交量
+        ind_tokens, sub2_tokens, sub3_tokens = qt_tokens, bias_tokens, vol_tokens
+    elif selected_indicator == "組合3":
+        # 組合3：K線 + QT + 集保 + 成交量
+        ind_tokens, sub2_tokens, sub3_tokens = qt_tokens, chip_tokens, vol_tokens
     elif selected_indicator == "BIAS":
-        bias_v = float(r["bias_val"])
-        prev_bias = float(df["bias_val"].iloc[idx_r - 1]) if idx_r > 0 else bias_v
-        ind_tokens = [
-            {"text": "BIAS(60)::", "color": "#FFFFFF"},
-            {
-                "text": f"{bias_v:.2f}%{'▲' if bias_v >= prev_bias else '▼'}",
-                "color": "#FF3333" if bias_v >= 0 else "#00E64D",
-            },
-        ]
+        ind_tokens = bias_tokens
     elif selected_indicator == "QT":
-        qt_v = float(r["qt"])
-        prev_qt = float(df["qt"].iloc[idx_r - 1]) if idx_r > 0 else qt_v
-        ind_tokens = [
-            {"text": "QT::", "color": "#FFFFFF"},
-            {
-                "text": f"{qt_v:.2f}{'▲' if qt_v >= prev_qt else '▼'}",
-                "color": "#FF3333" if qt_v >= prev_qt else "#00E64D",
-            },
-        ]
+        ind_tokens = qt_tokens
     elif selected_indicator == "集保":
-        ind_tokens = [
-            {"text": "大戶::", "color": "#FFFFFF"},
-            {"text": f"{b_val:.1f}%", "color": "#FF3333"},
-            {"text": "羊群::", "color": "#FFFFFF"},
-            {"text": f"{s_val:.1f}%", "color": "#00E64D"},
-        ]
+        ind_tokens = chip_tokens
     elif selected_indicator == "波段":
         bdif_v = float(r["band_macd_dif"])
         bdem_v = float(r["band_macd_dem"])
@@ -2322,7 +2344,15 @@ if app_mode == "📈 個股籌碼圖表":
     is_wave_mode = selected_indicator == "波段"
     is_combo_mode = selected_indicator == "組合"
     is_combo1_mode = selected_indicator == "組合1"
-    is_four_pane = is_wave_mode or is_combo_mode or is_combo1_mode
+    is_combo2_mode = selected_indicator == "組合2"
+    is_combo3_mode = selected_indicator == "組合3"
+    is_four_pane = (
+        is_wave_mode
+        or is_combo_mode
+        or is_combo1_mode
+        or is_combo2_mode
+        or is_combo3_mode
+    )
     fig = plt.figure(figsize=(10.0, 4.65))
 
     if is_four_pane:
@@ -2603,6 +2633,53 @@ if app_mode == "📈 個股籌碼圖表":
         ax_macd.plot(x, df["macd_dem"], linewidth=0.6, color="#00FFFF", label="DEA", zorder=3)
         ax_macd.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
 
+    def _plot_bias_axis(ax_bias):
+        ax_bias.set_facecolor(PANEL_BG)
+        ax_bias.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)", zorder=3)
+        ax_bias.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+
+    def _plot_qt_axis(ax_qt):
+        ax_qt.set_facecolor(PANEL_BG)
+        ax_qt.bar(x, df["qt"], width=0.75, color=qt_bar_colors, edgecolor="none", linewidth=0, alpha=1.0, zorder=2)
+        ax_qt.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
+
+    def _plot_chip_axis(ax_chip):
+        ax_chip.set_facecolor(PANEL_BG)
+        n_bars_now = len(x)
+        b_raw = np.asarray(big_holder, dtype=float)
+        s_raw = np.asarray(sheep_holder, dtype=float)
+        b_plot = (
+            b_raw[-n_bars_now:]
+            if len(b_raw) >= n_bars_now
+            else np.concatenate([
+                b_raw,
+                np.full(
+                    n_bars_now - len(b_raw),
+                    float(b_raw[-1]) if len(b_raw) > 0 else 45.0,
+                ),
+            ])
+        )
+        s_plot = (
+            s_raw[-n_bars_now:]
+            if len(s_raw) >= n_bars_now
+            else np.concatenate([
+                s_raw,
+                np.full(
+                    n_bars_now - len(s_raw),
+                    float(s_raw[-1]) if len(s_raw) > 0 else 45.0,
+                ),
+            ])
+        )
+        ax_chip.plot(x, b_plot, color="#FF3333", linewidth=1.25, linestyle="-", label="大戶(%)", zorder=4)
+        ax_chip.plot(x, s_plot, color="#00E64D", linewidth=1.25, linestyle="-", label="羊群(%)", zorder=5)
+        comb = np.concatenate([b_plot, s_plot])
+        comb = comb[np.isfinite(comb)]
+        if len(comb) > 0:
+            y_lo, y_hi = float(np.min(comb)), float(np.max(comb))
+            pad = max(y_hi - y_lo, 5.0) * 0.18
+            ax_chip.set_ylim(max(0.0, y_lo - pad), y_hi + pad)
+            ax_chip.axhline(float(np.mean(comb)), color="#666666", linestyle=":", linewidth=0.9, zorder=2)
+
     def _plot_vol_axis(ax_vol):
         ax_vol.set_facecolor(PANEL_BG)
         ax_vol.bar(x, df["vol"], width=0.75, color=body_colors, edgecolor="none", linewidth=0, alpha=1.0, zorder=2)
@@ -2637,53 +2714,39 @@ if app_mode == "📈 個股籌碼圖表":
         _plot_vol_axis(ax_sub3)
         _style_axis(ax_sub3, show_x=True)
     elif is_combo1_mode:
+        # 組合1：加入原本組合2的整理 (KDJ + RSI/W% + MACD + 成交量整合)
         _plot_kdj_axis(ax_sub1)
+        _plot_rsi_axis(ax_sub1)
         _style_axis(ax_sub1, show_x=False)
-        _plot_rsi_axis(ax_sub2)
+        _plot_wr_axis(ax_sub2)
+        _plot_macd_axis(ax_sub2)
         _style_axis(ax_sub2, show_x=False)
-        _plot_wr_axis(ax_sub3)
+        _plot_vol_axis(ax_sub3)
+        _style_axis(ax_sub3, show_x=True)
+    elif is_combo2_mode:
+        # 組合2：K線 + QT + BIAS + 成交量
+        _plot_qt_axis(ax_sub1)
+        _style_axis(ax_sub1, show_x=False)
+        _plot_bias_axis(ax_sub2)
+        _style_axis(ax_sub2, show_x=False)
+        _plot_vol_axis(ax_sub3)
+        _style_axis(ax_sub3, show_x=True)
+    elif is_combo3_mode:
+        # 組合3：K線 + QT + 集保 + 成交量
+        _plot_qt_axis(ax_sub1)
+        _style_axis(ax_sub1, show_x=False)
+        _plot_chip_axis(ax_sub2)
+        _style_axis(ax_sub2, show_x=False)
+        _plot_vol_axis(ax_sub3)
         _style_axis(ax_sub3, show_x=True)
     else:
         ax_sub1.set_facecolor(PANEL_BG)
         if selected_indicator == "BIAS":
-            ax_sub1.plot(x, df["bias_val"], linewidth=0.6, color="#FFFF00", label="BIAS(60)", zorder=3)
+            _plot_bias_axis(ax_sub1)
         elif selected_indicator == "QT":
-            ax_sub1.bar(x, df["qt"], width=0.75, color=qt_bar_colors, edgecolor="none", linewidth=0, alpha=1.0, zorder=2)
+            _plot_qt_axis(ax_sub1)
         elif selected_indicator == "集保":
-            n_bars_now = len(x)
-            b_raw = np.asarray(big_holder, dtype=float)
-            s_raw = np.asarray(sheep_holder, dtype=float)
-            b_plot = (
-                b_raw[-n_bars_now:]
-                if len(b_raw) >= n_bars_now
-                else np.concatenate([
-                    b_raw,
-                    np.full(
-                        n_bars_now - len(b_raw),
-                        float(b_raw[-1]) if len(b_raw) > 0 else 45.0,
-                    ),
-                ])
-            )
-            s_plot = (
-                s_raw[-n_bars_now:]
-                if len(s_raw) >= n_bars_now
-                else np.concatenate([
-                    s_raw,
-                    np.full(
-                        n_bars_now - len(s_raw),
-                        float(s_raw[-1]) if len(s_raw) > 0 else 45.0,
-                    ),
-                ])
-            )
-            ax_sub1.plot(x, b_plot, color="#FF3333", linewidth=1.25, linestyle="-", label="大戶(%)", zorder=4)
-            ax_sub1.plot(x, s_plot, color="#00E64D", linewidth=1.25, linestyle="-", label="羊群(%)", zorder=5)
-            comb = np.concatenate([b_plot, s_plot])
-            comb = comb[np.isfinite(comb)]
-            if len(comb) > 0:
-                y_lo, y_hi = float(np.min(comb)), float(np.max(comb))
-                pad = max(y_hi - y_lo, 5.0) * 0.18
-                ax_sub1.set_ylim(max(0.0, y_lo - pad), y_hi + pad)
-                ax_sub1.axhline(float(np.mean(comb)), color="#666666", linestyle=":", linewidth=0.9, zorder=2)
+            _plot_chip_axis(ax_sub1)
 
         if selected_indicator != "集保":
             ax_sub1.axhline(0, color="#777777", linestyle=":", linewidth=1.0)
