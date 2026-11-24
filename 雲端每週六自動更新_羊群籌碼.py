@@ -9,6 +9,11 @@ from playwright.sync_api import sync_playwright
 目前資料夾 = Path(__file__).resolve().parent
 集保查詢網址 = "https://www.tdcc.com.tw/portal/zh/smWeb/qryStock"
 
+候選股票清單檔 = [
+    目前資料夾 / "StockIDs.xlsx",
+    目前資料夾 / "資料" / "StockIDs.xlsx",
+    目前資料夾 / "data" / "StockIDs.xlsx",
+]
 候選快取清單 = [
     目前資料夾 / "羊群籌碼_219檔.jsonl",
     目前資料夾 / "資料" / "羊群籌碼_219檔.jsonl",
@@ -21,6 +26,60 @@ from playwright.sync_api import sync_playwright
 
 def 現在時間() -> str:
     return datetime.now().strftime("%H:%M:%S")
+
+
+def 正規化代號(數值) -> str:
+    文字 = str(數值 or "").strip()
+    if 文字.endswith(".0"):
+        文字 = 文字[:-2]
+    文字 = 文字.split()[0].replace(".TW", "").replace(".TWO", "").strip()
+    return 文字.zfill(4) if 文字.isdigit() else 文字
+
+
+def 載入股票名稱對照表() -> dict[str, str]:
+    """從 StockIDs.xlsx 讀取「代號 -> 名稱」對照表"""
+    名稱表: dict[str, str] = {}
+    清單檔 = next((p for p in 候選股票清單檔 if p.exists()), None)
+    if 清單檔 is None:
+        return 名稱表
+
+    try:
+        excel檔案 = pd.ExcelFile(清單檔)
+        for 分頁名稱 in excel檔案.sheet_names:
+            df = pd.read_excel(清單檔, sheet_name=分頁名稱, dtype=str)
+            if df.empty:
+                continue
+
+            代號欄 = next(
+                (
+                    c
+                    for c in df.columns
+                    if any(k in str(c) for k in ["代號", "股票代號", "代碼", "StockID", "stock_id"])
+                ),
+                None,
+            )
+            名稱欄 = next(
+                (
+                    c
+                    for c in df.columns
+                    if any(k in str(c) for k in ["名稱", "股名", "股票名稱", "Name", "name"])
+                ),
+                None,
+            )
+            if 代號欄 is None or 名稱欄 is None:
+                continue
+
+            for _, 列 in df.iterrows():
+                代號 = 正規化代號(列.get(代號欄))
+                名稱 = str(列.get(名稱欄) or "").strip()
+                if 名稱.lower() in ("nan", "none", "null"):
+                    名稱 = ""
+                if 代號 and 名稱 and 代號 not in 名稱表:
+                    名稱表[代號] = 名稱
+    except Exception as 錯誤:
+        print(f"[{現在時間()}] 讀取 StockIDs.xlsx 名稱略過：{錯誤}")
+
+    return 名稱表
 
 
 def 是否有效比例(大戶值, 散戶值) -> bool:
@@ -205,6 +264,9 @@ def 執行雲端更新():
             "雲端找不到「羊群籌碼_219檔.jsonl」，請確認檔案已上傳到雲端專案資料夾。"
         )
 
+    股票名稱表 = 載入股票名稱對照表()
+    print(f"[{現在時間()}] 已載入股票名稱對照 {len(股票名稱表)} 筆。")
+
     所有股票紀錄: list[dict] = []
     with 來源快取檔.open("r", encoding="utf-8") as f:
         for 行內容 in f:
@@ -282,7 +344,6 @@ def 執行雲端更新():
             f"[{現在時間()}] 雲端連線集保略過／發生狀況（將以現有快取產出 CSV）：{錯誤}"
         )
 
-    # 回寫更新後的 219 檔快取：只剔除超過 100% 或小於 0% 的異常週次，保留正常歷史趨勢線
     暫存快取檔 = 輸出快取檔.with_suffix(".jsonl.tmp")
     with 暫存快取檔.open("w", encoding="utf-8") as 寫出檔:
         for 紀錄 in 所有股票紀錄:
@@ -313,7 +374,13 @@ def 執行雲端更新():
     已剔除異常檔數 = 0
     for 紀錄 in 所有股票紀錄:
         代號 = str(紀錄.get("stock_id") or 紀錄.get("代號") or "").strip()
+        正規代號 = 正規化代號(代號)
         名稱 = str(紀錄.get("name") or 紀錄.get("名稱") or "").strip()
+        if 名稱.lower() in ("nan", "none", "null"):
+            名稱 = ""
+        if not 名稱:
+            名稱 = 股票名稱表.get(正規代號) or 股票名稱表.get(代號) or ""
+
         週資料 = 取得週資料清單(紀錄)
         訊號, 最新大戶, 最新散戶, 近1週變動, 近4週變動, 最新日期 = (
             計算交叉與變動(週資料)
