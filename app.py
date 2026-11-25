@@ -1772,6 +1772,44 @@ def build_bar_analysis_snapshot(
     else:
         wave_txt, wave_cls, wave_top_col = "空方整理", "t-val-green", "#00E64D"
 
+    # 右側黃框安置位置：KDJ 解盤 與 成交量解盤（隨目前 K 棒／滑鼠游標即時連動）
+    if is_gc:
+        kdj_note_1 = "KD黃金交叉偏多"
+    elif is_dc:
+        kdj_note_1 = "KD死亡交叉偏空"
+    elif k_v >= 80 or j_v >= 100:
+        kdj_note_1 = "高檔過熱留意震盪"
+    elif k_v <= 20 or j_v <= 0:
+        kdj_note_1 = "低檔超賣留意反彈"
+    elif k_v > d_v:
+        kdj_note_1 = "K>D 短多格局"
+    else:
+        kdj_note_1 = "K<D 偏弱整理"
+
+    if kd_diff >= 15:
+        kdj_note_2 = f"正乖離+{kd_diff:.1f}防回測"
+    elif kd_diff <= -15:
+        kdj_note_2 = f"負乖離{kd_diff:.1f}易反彈"
+    else:
+        kdj_note_2 = f"K-D乖離 {kd_diff:+.1f}"
+
+    if v_ratio_5 >= 1.5 and c_close >= c_open:
+        vol_note_1 = f"放量紅K({v_ratio_5:.2f}x)"
+    elif v_ratio_5 >= 1.5 and c_close < c_open:
+        vol_note_1 = f"爆量黑K({v_ratio_5:.2f}x)"
+    elif v_ratio_5 < 0.7:
+        vol_note_1 = f"量能萎縮({v_ratio_5:.2f}x)"
+    else:
+        vol_note_1 = f"量能溫和({v_ratio_5:.2f}x)"
+
+    if c_vol >= vol_ma20_v:
+        vol_note_2 = "量過20日均偏強"
+    else:
+        vol_note_2 = "量未過20日均量"
+
+    kdj_panel_lines = [kdj_note_1, kdj_note_2]
+    vol_panel_lines = [vol_note_1, vol_note_2]
+
     # 將原本右下角的「KDJ綜合解盤」與「成交量解盤」整合進主圖最上方列（緊接在量:...之後，不重疊且不撞右邊標籤）
     chg_is_up = bar_diff >= 0
     top_summary_tokens = [
@@ -2027,6 +2065,8 @@ def build_bar_analysis_snapshot(
         "wave_cls": wave_cls,
         "red_days": f"{red_d}日",
         "green_days": f"{green_d}日",
+        "kdj_panel_lines": kdj_panel_lines,
+        "vol_panel_lines": vol_panel_lines,
     }
 
 
@@ -2562,7 +2602,7 @@ if app_mode == "📈 個股籌碼圖表":
     )
 
     x_min_bar = -1.0
-    pad_right_bars = max(4, int(len(x) * 0.12))
+    pad_right_bars = max(14, int(len(x) * 0.22))
     x_max_bar = float(len(x) + pad_right_bars)
 
     if not df.empty:
@@ -3150,6 +3190,7 @@ if app_mode == "📈 個股籌碼圖表":
 
       const stockCode = {json.dumps(stock_id)};
       const stockName = {json.dumps(stock_name)};
+      const selectedIndicator = {json.dumps(selected_indicator)};
       const isFourPane = {str(is_four_pane).lower()};
       const rulerBtnActive = {str(ruler_mode_active).lower()};
       const totalBars = rows.length;
@@ -3493,6 +3534,50 @@ if app_mode == "📈 個股籌碼圖表":
         }} else {{
           drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, maxTextRight);
           drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, maxTextRight);
+        }}
+
+        // 精準放置於標示圖中的兩個黃色框框右側留白區：KDJ 解盤 與 成交量解盤
+        function drawRightBoxNotes(boxLines, paneTopFrac, paneBotFrac, boxTitle, accentColor) {{
+          if (!boxLines || boxLines.length === 0) return;
+          const boxLeft = plotRight - b.width * 0.145;
+          const boxW = b.width * 0.140;
+          const boxTop = b.top + b.height * (paneTopFrac + 0.012);
+          const boxBot = b.top + b.height * (paneBotFrac - 0.012);
+          const boxH = Math.max(26, boxBot - boxTop);
+          if (boxW <= 45) return;
+
+          ctx.save();
+          ctx.fillStyle = "rgba(10, 14, 22, 0.88)";
+          ctx.strokeStyle = "#FACC15";
+          ctx.lineWidth = 1.0;
+          ctx.fillRect(boxLeft, boxTop, boxW, boxH);
+          ctx.strokeRect(boxLeft, boxTop, boxW, boxH);
+
+          const fontBoxTitle = "bold 9.5px Arial, 'Microsoft JhengHei', sans-serif";
+          const fontBoxLine = "bold 9.0px Arial, 'Microsoft JhengHei', sans-serif";
+          drawOutlinedText(boxTitle, boxLeft + 5, boxTop + 3, "#FACC15", fontBoxTitle, 1.2);
+          boxLines.forEach((lnText, iLn) => {{
+            const yLn = boxTop + 15 + iLn * 11.5;
+            if (yLn + 10 <= boxTop + boxH) {{
+              drawOutlinedText(lnText, boxLeft + 5, yLn, accentColor, fontBoxLine, 1.2);
+            }}
+          }});
+          ctx.restore();
+        }}
+
+        if (isFourPane) {{
+          const kdjPaneTop = (selectedIndicator === "組合1") ? sub1TopFrac : (selectedIndicator === "組合" ? sub1TopFrac : -1);
+          const kdjPaneBot = (selectedIndicator === "組合1") ? sub2TopFrac : (selectedIndicator === "組合" ? sub2TopFrac : -1);
+          if (kdjPaneTop >= 0) {{
+            drawRightBoxNotes(s.kdj_panel_lines, kdjPaneTop, kdjPaneBot, "KDJ解盤", "#00FFFF");
+          }}
+          const volPaneTop = (selectedIndicator === "組合" || selectedIndicator === "組合3") ? sub3TopFrac : -1;
+          const volPaneBot = (selectedIndicator === "組合" || selectedIndicator === "組合3") ? 0.92 : -1;
+          if (volPaneTop >= 0) {{
+            drawRightBoxNotes(s.vol_panel_lines, volPaneTop, volPaneBot, "成交量解盤", "#FF9900");
+          }}
+        }} else {{
+          drawRightBoxNotes(s.vol_panel_lines, sub2TopFrac, 0.90, "成交量解盤", "#FF9900");
         }}
       }}
 
