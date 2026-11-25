@@ -1810,8 +1810,7 @@ def build_bar_analysis_snapshot(
     kdj_panel_lines = [kdj_note_1, kdj_note_2]
     vol_panel_lines = [vol_note_1, vol_note_2]
 
-    # 依指定順序排列主圖最上方列（已移除 KD 摘要，不含 KDJ 副圖解盤框）：
-    # K線 ---[代碼] 名稱 日期 開 高 低 收 量 ｜ 振 漲跌 ｜ 大戶 羊群 ｜波段狀態 【季線多頭】 逆序
+    # 主圖頂列依指定順序呈現，並保留 KD 摘要（不刪除 KDJ 副圖解盤）：
     chg_is_up = bar_diff >= 0
     top_summary_tokens = [
         {"text": "｜", "color": "#888888"},
@@ -1825,6 +1824,8 @@ def build_bar_analysis_snapshot(
         {"text": f"{b_val:.1f}%", "color": "#FF3333"},
         {"text": "羊群:", "color": "#FFFF00"},
         {"text": f"{s_val:.1f}%", "color": "#00E64D"},
+        {"text": "KD:", "color": "#FFFF00"},
+        {"text": f"{kdj_sig}({k_v:.1f}/{d_v:.1f} J:{j_v:.1f} 乖:{kd_diff:+.1f})", "color": kdj_top_col},
         {"text": "｜", "color": "#888888"},
         {"text": "波段狀態:", "color": "#FFFF00"},
         {"text": wave_txt, "color": wave_top_col},
@@ -3533,36 +3534,42 @@ if app_mode == "📈 個股籌碼圖表":
           drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, maxTextRight);
         }}
 
-        // 精準放置於標示圖中的兩個黃色框框右側留白區：KDJ 解盤 與 成交量解盤
+        // 無框框線純文字解盤（KDJ 解盤 與 成交量解盤）：縮小寬度、放大字體、整齊排版
         function drawRightBoxNotes(boxLines, paneTopFrac, paneBotFrac, boxTitle, accentColor) {{
           if (!boxLines || boxLines.length === 0) return;
-          const boxLeft = plotRight - b.width * 0.145;
-          const boxW = b.width * 0.140;
-          const boxTop = b.top + b.height * (paneTopFrac + 0.012);
-          const boxBot = b.top + b.height * (paneBotFrac - 0.012);
-          const boxH = Math.max(26, boxBot - boxTop);
-          if (boxW <= 45) return;
+          const noteLeft = plotRight + 16.0;
+          const noteW = Math.max(70.0, (b.left + b.width) - noteLeft - 4.0);
+          const noteTop = b.top + b.height * (paneTopFrac + 0.015);
+          const noteBot = b.top + b.height * (paneBotFrac - 0.010);
+          const noteH = Math.max(28.0, noteBot - noteTop);
 
           ctx.save();
-          ctx.fillStyle = "rgba(10, 14, 22, 0.88)";
-          ctx.strokeStyle = "#FACC15";
-          ctx.lineWidth = 1.0;
-          ctx.fillRect(boxLeft, boxTop, boxW, boxH);
-          ctx.strokeRect(boxLeft, boxTop, boxW, boxH);
+          const fontNoteTitle = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
+          const fontNoteLine = "bold 11.0px Arial, 'Microsoft JhengHei', sans-serif";
+          const titleY = noteTop + 1.0;
+          drawOutlinedText(boxTitle, noteLeft, titleY, "#FFFF00", fontNoteTitle, 1.4);
 
-          const fontBoxTitle = "bold 9.5px Arial, 'Microsoft JhengHei', sans-serif";
-          const fontBoxLine = "bold 9.0px Arial, 'Microsoft JhengHei', sans-serif";
-          drawOutlinedText(boxTitle, boxLeft + 5, boxTop + 3, "#FACC15", fontBoxTitle, 1.2);
+          const lineStep = 14.5;
           boxLines.forEach((lnText, iLn) => {{
-            const yLn = boxTop + 15 + iLn * 11.5;
-            if (yLn + 10 <= boxTop + boxH) {{
-              drawOutlinedText(lnText, boxLeft + 5, yLn, accentColor, fontBoxLine, 1.2);
+            const yLn = titleY + 15.5 + iLn * lineStep;
+            if (yLn + 12.0 <= noteTop + noteH) {{
+              let dispTxt = lnText;
+              ctx.font = fontNoteLine;
+              while (dispTxt.length > 1 && ctx.measureText(dispTxt).width > noteW) {{
+                dispTxt = dispTxt.slice(0, -1);
+              }}
+              drawOutlinedText(dispTxt, noteLeft, yLn, accentColor, fontNoteLine, 1.35);
             }}
           }});
           ctx.restore();
         }}
 
         if (isFourPane) {{
+          const kdjPaneTop = (selectedIndicator === "組合1" || selectedIndicator === "組合") ? sub1TopFrac : -1;
+          const kdjPaneBot = (selectedIndicator === "組合1" || selectedIndicator === "組合") ? sub2TopFrac : -1;
+          if (kdjPaneTop >= 0) {{
+            drawRightBoxNotes(s.kdj_panel_lines, kdjPaneTop, kdjPaneBot, "KDJ解盤", "#00FFFF");
+          }}
           const volPaneTop = (selectedIndicator === "組合" || selectedIndicator === "組合3") ? sub3TopFrac : -1;
           const volPaneBot = (selectedIndicator === "組合" || selectedIndicator === "組合3") ? 0.92 : -1;
           if (volPaneTop >= 0) {{
