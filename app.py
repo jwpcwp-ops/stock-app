@@ -1810,23 +1810,23 @@ def build_bar_analysis_snapshot(
     kdj_panel_lines = [kdj_note_1, kdj_note_2]
     vol_panel_lines = [vol_note_1, vol_note_2]
 
-    # 將原本右下角的「KDJ綜合解盤」與「成交量解盤」整合進主圖最上方列（緊接在量:...之後，不重疊且不撞右邊標籤）
+    # 依指定順序排列主圖最上方列（已移除 KD 摘要，不含 KDJ 副圖解盤框）：
+    # K線 ---[代碼] 名稱 日期 開 高 低 收 量 ｜ 振 漲跌 ｜ 大戶 羊群 ｜波段狀態 【季線多頭】 逆序
     chg_is_up = bar_diff >= 0
     top_summary_tokens = [
+        {"text": "｜", "color": "#888888"},
         {"text": f"振:{bar_amp_pct:.2f}%", "color": "#FFFF00"},
         {
             "text": f"{'漲' if chg_is_up else '跌'}({bar_diff:+.2f}){bar_chg_pct:+.2f}%{'▲' if chg_is_up else '▼'}",
             "color": "#FF3333" if chg_is_up else "#00E64D",
         },
+        {"text": "｜", "color": "#888888"},
         {"text": "大戶:", "color": "#FFFF00"},
         {"text": f"{b_val:.1f}%", "color": "#FF3333"},
         {"text": "羊群:", "color": "#FFFF00"},
         {"text": f"{s_val:.1f}%", "color": "#00E64D"},
-        {"text": "KD:", "color": "#FFFF00"},
-        {"text": f"{kdj_sig}({k_v:.1f}/{d_v:.1f} J:{j_v:.1f} 乖:{kd_diff:+.1f})", "color": kdj_top_col},
-        {"text": "量比:", "color": "#FFFF00"},
-        {"text": f"{v_ratio_5:.2f}x({vol_status})", "color": "#FF3333" if v_ratio_5 >= 1.5 else "#00FFFF"},
-        {"text": "波段:", "color": "#FFFF00"},
+        {"text": "｜", "color": "#888888"},
+        {"text": "波段狀態:", "color": "#FFFF00"},
         {"text": wave_txt, "color": wave_top_col},
     ]
 
@@ -3474,7 +3474,7 @@ if app_mode == "📈 個股籌碼圖表":
         const badgeX = revX - badgeW - 8.0;
         const summaryMaxRight = badgeX - 10.0;
 
-        const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
+        const prefixTitle = `K線 ---[${{stockCode}}] ${{stockName}}`;
         drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4);
         let hx = headerX + ctx.measureText(prefixTitle).width + 10.0;
 
@@ -3492,22 +3492,19 @@ if app_mode == "📈 個股籌碼圖表":
           hx += ctx.measureText(s.header_text || "").width + 10.0;
         }}
 
-        // 緊接在「量:...」後面繪製整合後的解盤重點（振/漲跌、大戶/羊群、KD解盤、量比現況、波段）
+        // 緊接在「量:...」後面繪製：｜ 振 漲跌 ｜ 大戶 羊群 ｜波段狀態
         if (s.top_summary_tokens && s.top_summary_tokens.length > 0) {{
-          let sx = hx + 6.0;
+          let sx = hx + 4.0;
           const fontTopSum = "bold 10.5px Arial, 'Microsoft JhengHei', sans-serif";
           ctx.font = fontTopSum;
-          for (let i = 0; i < s.top_summary_tokens.length; i += 2) {{
-            const lblTk = s.top_summary_tokens[i];
-            const valTk = s.top_summary_tokens[i + 1];
-            if (!lblTk || !valTk) continue;
-            const lblW = ctx.measureText(lblTk.text).width;
-            const valW = ctx.measureText(valTk.text).width;
-            const pairW = lblW + 3.0 + valW + 8.0;
-            if ((sx + pairW) > summaryMaxRight) break;
-            drawOutlinedText(lblTk.text, sx, headerY + 0.5, lblTk.color, fontTopSum, 1.3);
-            drawOutlinedText(valTk.text, sx + lblW + 3.0, headerY + 0.5, valTk.color, fontTopSum, 1.3);
-            sx += pairW;
+          for (let i = 0; i < s.top_summary_tokens.length; i++) {{
+            const tk = s.top_summary_tokens[i];
+            if (!tk || !tk.text) continue;
+            const tkW = ctx.measureText(tk.text).width;
+            const gapW = (tk.text === "｜") ? 5.0 : 7.0;
+            if ((sx + tkW) > summaryMaxRight) break;
+            drawOutlinedText(tk.text, sx, headerY + 0.5, tk.color, fontTopSum, 1.3);
+            sx += tkW + gapW;
           }}
         }}
 
@@ -3566,11 +3563,6 @@ if app_mode == "📈 個股籌碼圖表":
         }}
 
         if (isFourPane) {{
-          const kdjPaneTop = (selectedIndicator === "組合1") ? sub1TopFrac : (selectedIndicator === "組合" ? sub1TopFrac : -1);
-          const kdjPaneBot = (selectedIndicator === "組合1") ? sub2TopFrac : (selectedIndicator === "組合" ? sub2TopFrac : -1);
-          if (kdjPaneTop >= 0) {{
-            drawRightBoxNotes(s.kdj_panel_lines, kdjPaneTop, kdjPaneBot, "KDJ解盤", "#00FFFF");
-          }}
           const volPaneTop = (selectedIndicator === "組合" || selectedIndicator === "組合3") ? sub3TopFrac : -1;
           const volPaneBot = (selectedIndicator === "組合" || selectedIndicator === "組合3") ? 0.92 : -1;
           if (volPaneTop >= 0) {{
