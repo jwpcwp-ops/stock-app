@@ -1721,24 +1721,25 @@ def build_bar_analysis_snapshot(
     is_dc = prev_k >= prev_d and k_v < d_v
 
     kdj_sig, kdj_cls = "中立觀望", "t-val-white"
+    kdj_top_col = "#FFFFFF"
     if k_v > 90:
-        kdj_sig, kdj_cls = "【強力賣出】K>90超買", "t-val-green"
+        kdj_sig, kdj_cls, kdj_top_col = "【強力賣出】K>90超買", "t-val-green", "#00E64D"
     elif j_v > 100:
-        kdj_sig, kdj_cls = "【強力賣出】J>100超買", "t-val-green"
+        kdj_sig, kdj_cls, kdj_top_col = "【強力賣出】J>100超買", "t-val-green", "#00E64D"
     elif kd_diff > 18:
-        kdj_sig, kdj_cls = "【強力賣出】正乖離>+18", "t-val-green"
+        kdj_sig, kdj_cls, kdj_top_col = "【強力賣出】正乖離>+18", "t-val-green", "#00E64D"
     elif is_dc:
-        kdj_sig, kdj_cls = "【賣出訊號】KD死叉", "t-val-green"
+        kdj_sig, kdj_cls, kdj_top_col = "【賣出訊號】KD死叉", "t-val-green", "#00E64D"
     elif k_v < 9:
-        kdj_sig, kdj_cls = "【強力買進】K<9超賣", "t-val-red"
+        kdj_sig, kdj_cls, kdj_top_col = "【強力買進】K<9超賣", "t-val-red", "#FF3333"
     elif k_v < 9 and d_v < 9:
-        kdj_sig, kdj_cls = "【強力買進】KD雙跌破9", "t-val-red"
+        kdj_sig, kdj_cls, kdj_top_col = "【強力買進】KD雙跌破9", "t-val-red", "#FF3333"
     elif j_v < 0:
-        kdj_sig, kdj_cls = "【強力買進】J<0超賣", "t-val-red"
+        kdj_sig, kdj_cls, kdj_top_col = "【強力買進】J<0超賣", "t-val-red", "#FF3333"
     elif kd_diff < -18:
-        kdj_sig, kdj_cls = "【強力買進】負乖離<-18", "t-val-red"
+        kdj_sig, kdj_cls, kdj_top_col = "【強力買進】負乖離<-18", "t-val-red", "#FF3333"
     elif is_gc:
-        kdj_sig, kdj_cls = "【買進訊號】KD金交叉", "t-val-red"
+        kdj_sig, kdj_cls, kdj_top_col = "【買進訊號】KD金交叉", "t-val-red", "#FF3333"
 
     vol_ma5_v = (
         float(r["vol_ma5"])
@@ -1765,13 +1766,27 @@ def build_bar_analysis_snapshot(
     green_d = int(r["green_days"]) if "green_days" in df.columns else 0
 
     if is_buy_s:
-        wave_txt, wave_cls = "★ 波段買進訊號", "t-val-red"
+        wave_txt, wave_cls, wave_top_col = "★ 波段買進訊號", "t-val-red", "#FF3333"
     elif is_sell_s:
-        wave_txt, wave_cls = "✖ 波段賣出訊號", "t-val-cyan"
+        wave_txt, wave_cls, wave_top_col = "✖ 波段賣出訊號", "t-val-cyan", "#00FFFF"
     elif red_d < green_d:
-        wave_txt, wave_cls = "多方波段運行中", "t-val-red"
+        wave_txt, wave_cls, wave_top_col = "多方波段運行中", "t-val-red", "#FF3333"
     else:
-        wave_txt, wave_cls = "空方波段整理中", "t-val-green"
+        wave_txt, wave_cls, wave_top_col = "空方波段整理中", "t-val-green", "#00E64D"
+
+    # 抽取有解盤價值的項目放至主圖最上方中段
+    top_summary_tokens = [
+        {"text": "波段:", "color": "#FFFF00"},
+        {"text": wave_txt, "color": wave_top_col},
+        {"text": "大戶:", "color": "#FFFF00"},
+        {"text": f"{b_val:.1f}%", "color": "#FF3333"},
+        {"text": "羊群:", "color": "#FFFF00"},
+        {"text": f"{s_val:.1f}%", "color": "#00E64D"},
+        {"text": "KD:", "color": "#FFFF00"},
+        {"text": kdj_sig, "color": kdj_top_col},
+        {"text": "量能:", "color": "#FFFF00"},
+        {"text": f"{vol_status}({v_ratio_5:.2f}x)", "color": "#FF3333" if v_ratio_5 >= 1.5 else "#00FFFF"},
+    ]
 
     prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
     prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
@@ -1991,6 +2006,7 @@ def build_bar_analysis_snapshot(
             f" 收:{c_close:.2f} 量:{int(c_vol):,}"
         ),
         "header_tokens": header_tokens,
+        "top_summary_tokens": top_summary_tokens,
         "trend_badge": "【季線多頭】" if is_bull else "【季線空頭】",
         "trend_badge_color": "#FF3333" if is_bull else "#00E64D",
         "period_badge": f" {period_label} ",
@@ -3443,20 +3459,44 @@ if app_mode == "📈 個股籌碼圖表":
 
         const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
         drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4);
-        let hx = headerX + ctx.measureText(prefixTitle).width + 16.0;
+        let hx = headerX + ctx.measureText(prefixTitle).width + 14.0;
+
+        const badgeX = plotLeft + b.width * 0.72;
+        const summaryMaxRight = badgeX - 12.0;
 
         if (s.header_tokens && s.header_tokens.length > 0) {{
           s.header_tokens.forEach((ht) => {{
             if (!ht || !ht.text) return;
+            const w = ctx.measureText(ht.text).width;
+            if ((hx + w) > summaryMaxRight) return;
             drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4);
             const isTag = ht.text.endsWith(":");
-            hx += ctx.measureText(ht.text).width + (isTag ? 4.5 : 14.0);
+            hx += w + (isTag ? 4.0 : 12.0);
           }});
         }} else {{
           drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4);
+          hx += ctx.measureText(s.header_text || "").width + 14.0;
         }}
 
-        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.72, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4);
+        // 將抽出的有解盤重點放置在上方中段，並嚴格限制在【季線多頭】左側前
+        if (s.top_summary_tokens && s.top_summary_tokens.length > 0) {{
+          let sx = hx + 8.0;
+          const fontTopSum = "bold 11px Arial, 'Microsoft JhengHei', sans-serif";
+          for (let i = 0; i < s.top_summary_tokens.length; i += 2) {{
+            const lblTk = s.top_summary_tokens[i];
+            const valTk = s.top_summary_tokens[i + 1];
+            if (!lblTk || !valTk) continue;
+            const lblW = ctx.measureText(lblTk.text).width;
+            const valW = ctx.measureText(valTk.text).width;
+            const pairW = lblW + 3.0 + valW + 10.0;
+            if ((sx + pairW) > summaryMaxRight) break;
+            drawOutlinedText(lblTk.text, sx, headerY + 0.5, lblTk.color, fontTopSum, 1.3);
+            drawOutlinedText(valTk.text, sx + lblW + 3.0, headerY + 0.5, valTk.color, fontTopSum, 1.3);
+            sx += pairW;
+          }}
+        }}
+
+        drawOutlinedText(s.trend_badge || "", badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4);
         drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.815, headerY, "#00FFFF", fontHeader, 1.4);
 
         if (r.ma_items && r.ma_items.length > 0) {{
