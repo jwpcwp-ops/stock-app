@@ -1719,25 +1719,39 @@ def build_bar_analysis_snapshot(
     is_gc = prev_k <= prev_d and k_v > d_v
     is_dc = prev_k >= prev_d and k_v < d_v
 
-    kdj_sig, kdj_cls, kdj_top_col = "中立觀望", "t-val-white", "#FFFFFF"
+    kdj_sig, kdj_cls = "中立觀望", "t-val-white"
+    kdj_right_txt, kdj_right_col = "解盤: KD中性震盪，留意高80低20", "#00FFFF"
     if k_v > 90:
-        kdj_sig, kdj_cls, kdj_top_col = "【強力賣出】K>90超買", "t-val-green", "#00E64D"
+        kdj_sig, kdj_cls = "【強力賣出】K>90超買", "t-val-green"
+        kdj_right_txt, kdj_right_col = "解盤: K>90高檔超買，防拉回", "#00E64D"
     elif j_v > 100:
-        kdj_sig, kdj_cls, kdj_top_col = "【強力賣出】J>100超買", "t-val-green", "#00E64D"
+        kdj_sig, kdj_cls = "【強力賣出】J>100超買", "t-val-green"
+        kdj_right_txt, kdj_right_col = "解盤: J>100短線過熱，留意轉弱", "#00E64D"
     elif kd_diff > 18:
-        kdj_sig, kdj_cls, kdj_top_col = "【強力賣出】正乖離>+18", "t-val-green", "#00E64D"
+        kdj_sig, kdj_cls = "【強力賣出】正乖離>+18", "t-val-green"
+        kdj_right_txt, kdj_right_col = "解盤: KD正乖離偏大，慎防回檔", "#00E64D"
     elif is_dc:
-        kdj_sig, kdj_cls, kdj_top_col = "【賣出訊號】KD死叉", "t-val-green", "#00E64D"
+        kdj_sig, kdj_cls = "【賣出訊號】KD死叉", "t-val-green"
+        kdj_right_txt, kdj_right_col = "解盤: K向下穿D死叉，短線偏空", "#00E64D"
     elif k_v < 9:
-        kdj_sig, kdj_cls, kdj_top_col = "【強力買進】K<9超賣", "t-val-red", "#FF3333"
+        kdj_sig, kdj_cls = "【強力買進】K<9超賣", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: K<9低檔超賣，留意反彈契機", "#FF3333"
     elif k_v < 9 and d_v < 9:
-        kdj_sig, kdj_cls, kdj_top_col = "【強力買進】KD雙跌破9", "t-val-red", "#FF3333"
+        kdj_sig, kdj_cls = "【強力買進】KD雙跌破9", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: KD雙破9極度超賣，關注止跌", "#FF3333"
     elif j_v < 0:
-        kdj_sig, kdj_cls, kdj_top_col = "【強力買進】J<0超賣", "t-val-red", "#FF3333"
+        kdj_sig, kdj_cls = "【強力買進】J<0超賣", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: J<0低檔超賣，留意築底反彈", "#FF3333"
     elif kd_diff < -18:
-        kdj_sig, kdj_cls, kdj_top_col = "【強力買進】負乖離<-18", "t-val-red", "#FF3333"
+        kdj_sig, kdj_cls = "【強力買進】負乖離<-18", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: KD負乖離過大，醞釀反彈", "#FF3333"
     elif is_gc:
-        kdj_sig, kdj_cls, kdj_top_col = "【買進訊號】KD金交叉", "t-val-red", "#FF3333"
+        kdj_sig, kdj_cls = "【買進訊號】KD金交叉", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: K向上穿D金叉，短多轉強", "#FF3333"
+    elif k_v >= 80:
+        kdj_right_txt, kdj_right_col = "解盤: KD進入80高檔區，留意鈍化", "#FFFF00"
+    elif k_v <= 20:
+        kdj_right_txt, kdj_right_col = "解盤: KD進入20低檔區，觀察止跌", "#FFFF00"
 
     vol_ma5_v = (
         float(r["vol_ma5"])
@@ -1754,6 +1768,15 @@ def build_bar_analysis_snapshot(
     vol_status = "量能平穩" if v_ratio_5 < 1.5 else "量能顯著放大"
     vol_cls = "t-val-white" if v_ratio_5 < 1.5 else "t-val-red"
 
+    if v_ratio_5 >= 1.5 and c_close >= p_close:
+        vol_right_txt, vol_right_col = f"解盤: 帶量上攻({v_ratio_5:.2f}x)，買盤積極", "#FF3333"
+    elif v_ratio_5 >= 1.5 and c_close < p_close:
+        vol_right_txt, vol_right_col = f"解盤: 爆量收黑({v_ratio_5:.2f}x)，留意調節賣壓", "#00E64D"
+    elif v_ratio_5 < 0.7:
+        vol_right_txt, vol_right_col = f"解盤: 量能萎縮({v_ratio_5:.2f}x)，觀望氣氛濃", "#FFFF00"
+    else:
+        vol_right_txt, vol_right_col = f"解盤: 量能溫和({v_ratio_5:.2f}x)，延續既有節奏", "#00FFFF"
+
     is_bull = c_close >= ma60_v
     trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
     trend_cls = "t-val-red" if is_bull else "t-val-green"
@@ -1764,72 +1787,13 @@ def build_bar_analysis_snapshot(
     green_d = int(r["green_days"]) if "green_days" in df.columns else 0
 
     if is_buy_s:
-        wave_txt, wave_cls, wave_top_col = "★波段買進", "t-val-red", "#FF3333"
+        wave_txt, wave_cls = "★ 波段買進訊號", "t-val-red"
     elif is_sell_s:
-        wave_txt, wave_cls, wave_top_col = "✖波段賣出", "t-val-cyan", "#00FFFF"
+        wave_txt, wave_cls = "✖ 波段賣出訊號", "t-val-cyan"
     elif red_d < green_d:
-        wave_txt, wave_cls, wave_top_col = "多方運行", "t-val-red", "#FF3333"
+        wave_txt, wave_cls = "多方波段運行中", "t-val-red"
     else:
-        wave_txt, wave_cls, wave_top_col = "空方整理", "t-val-green", "#00E64D"
-
-    # 右側黃框安置位置：KDJ 解盤 與 成交量解盤（隨目前 K 棒／滑鼠游標即時連動）
-    if is_gc:
-        kdj_note_1 = "KD黃金交叉偏多"
-    elif is_dc:
-        kdj_note_1 = "KD死亡交叉偏空"
-    elif k_v >= 80 or j_v >= 100:
-        kdj_note_1 = "高檔過熱留意震盪"
-    elif k_v <= 20 or j_v <= 0:
-        kdj_note_1 = "低檔超賣留意反彈"
-    elif k_v > d_v:
-        kdj_note_1 = "K>D 短多格局"
-    else:
-        kdj_note_1 = "K<D 偏弱整理"
-
-    if kd_diff >= 15:
-        kdj_note_2 = f"正乖離+{kd_diff:.1f}防回測"
-    elif kd_diff <= -15:
-        kdj_note_2 = f"負乖離{kd_diff:.1f}易反彈"
-    else:
-        kdj_note_2 = f"K-D乖離 {kd_diff:+.1f}"
-
-    if v_ratio_5 >= 1.5 and c_close >= c_open:
-        vol_note_1 = f"放量紅K({v_ratio_5:.2f}x)"
-    elif v_ratio_5 >= 1.5 and c_close < c_open:
-        vol_note_1 = f"爆量黑K({v_ratio_5:.2f}x)"
-    elif v_ratio_5 < 0.7:
-        vol_note_1 = f"量能萎縮({v_ratio_5:.2f}x)"
-    else:
-        vol_note_1 = f"量能溫和({v_ratio_5:.2f}x)"
-
-    if c_vol >= vol_ma20_v:
-        vol_note_2 = "量過20日均偏強"
-    else:
-        vol_note_2 = "量未過20日均量"
-
-    kdj_panel_lines = [kdj_note_1, kdj_note_2]
-    vol_panel_lines = [vol_note_1, vol_note_2]
-
-    # 主圖頂列依指定順序呈現，並保留 KD 摘要（不刪除 KDJ 副圖解盤）：
-    chg_is_up = bar_diff >= 0
-    top_summary_tokens = [
-        {"text": "｜", "color": "#888888"},
-        {"text": f"振:{bar_amp_pct:.2f}%", "color": "#FFFF00"},
-        {
-            "text": f"{'漲' if chg_is_up else '跌'}({bar_diff:+.2f}){bar_chg_pct:+.2f}%{'▲' if chg_is_up else '▼'}",
-            "color": "#FF3333" if chg_is_up else "#00E64D",
-        },
-        {"text": "｜", "color": "#888888"},
-        {"text": "大戶:", "color": "#FFFF00"},
-        {"text": f"{b_val:.1f}%", "color": "#FF3333"},
-        {"text": "羊群:", "color": "#FFFF00"},
-        {"text": f"{s_val:.1f}%", "color": "#00E64D"},
-        {"text": "KD:", "color": "#FFFF00"},
-        {"text": f"{kdj_sig}({k_v:.1f}/{d_v:.1f} J:{j_v:.1f} 乖:{kd_diff:+.1f})", "color": kdj_top_col},
-        {"text": "｜", "color": "#888888"},
-        {"text": "波段狀態:", "color": "#FFFF00"},
-        {"text": wave_txt, "color": wave_top_col},
-    ]
+        wave_txt, wave_cls = "空方波段整理中", "t-val-green"
 
     prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
     prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
@@ -2027,13 +1991,28 @@ def build_bar_analysis_snapshot(
         },
     ]
 
+    if stock_id == "99991":
+        chg_pts = c_close - p_close
+        chg_pct = (chg_pts / p_close * 100) if p_close > 0 else 0.0
+        amp_pct = ((c_high - c_low) / p_close * 100) if p_close > 0 else 0.0
+        chg_is_up = chg_pts >= 0
+        header_tokens.extend([
+            {"text": f"振:{amp_pct:.2f}%", "color": "#FFFF00"},
+            {
+                "text": (
+                    f"{'漲' if chg_is_up else '跌'}({abs(chg_pts):.2f}){chg_pct:.2f}%"
+                    f"{'▲' if chg_is_up else '▼'}"
+                ),
+                "color": "#FF3333" if chg_is_up else "#00E64D",
+            },
+        ])
+
     return {
         "header_text": (
             f"{c_date}  開:{c_open:.2f} 高:{c_high:.2f} 低:{c_low:.2f}"
             f" 收:{c_close:.2f} 量:{int(c_vol):,}"
         ),
         "header_tokens": header_tokens,
-        "top_summary_tokens": top_summary_tokens,
         "trend_badge": "【季線多頭】" if is_bull else "【季線空頭】",
         "trend_badge_color": "#FF3333" if is_bull else "#00E64D",
         "period_badge": f" {period_label} ",
@@ -2041,6 +2020,8 @@ def build_bar_analysis_snapshot(
         "sub2_tokens": sub2_tokens,
         "sub3_tokens": sub3_tokens,
         "vol_tokens": vol_tokens,
+        "kdj_right_note": {"text": kdj_right_txt, "color": kdj_right_col},
+        "vol_right_note": {"text": vol_right_txt, "color": vol_right_col},
         "ma_status": ma_status,
         "ma_cls": ma_cls,
         "ma5": f"{ma5_v:.1f}",
@@ -2066,8 +2047,6 @@ def build_bar_analysis_snapshot(
         "wave_cls": wave_cls,
         "red_days": f"{red_d}日",
         "green_days": f"{green_d}日",
-        "kdj_panel_lines": kdj_panel_lines,
-        "vol_panel_lines": vol_panel_lines,
     }
 
 
@@ -2603,7 +2582,7 @@ if app_mode == "📈 個股籌碼圖表":
     )
 
     x_min_bar = -1.0
-    pad_right_bars = max(14, int(len(x) * 0.22))
+    pad_right_bars = max(4, int(len(x) * 0.12))
     x_max_bar = float(len(x) + pad_right_bars)
 
     if not df.empty:
@@ -3173,6 +3152,21 @@ if app_mode == "📈 個股籌碼圖表":
         </div>
 
         <div class="terminal-panel">
+          <div class="terminal-title">【KDJ綜合解盤】</div>
+          <div class="t-row"><span class="t-label">判定:</span><span id="p-kdj-sig" class="{init_snap.get("kdj_cls", "t-val-white")}">{init_snap.get("kdj_sig", "")}</span></div>
+          <div class="t-row"><span class="t-label">K/D:</span><span id="p-kd" class="t-val-white">{init_snap.get("kd_str", "")}</span></div>
+          <div class="t-row"><span class="t-label">J值:</span><span id="p-j" class="t-val-cyan">{init_snap.get("j_str", "")}</span></div>
+          <div class="t-row"><span class="t-label">K-D乖離:</span><span id="p-kddiff" class="t-val-white">{init_snap.get("kd_diff", "")}</span></div>
+        </div>
+
+        <div class="terminal-panel">
+          <div class="terminal-title">【成交量解盤】</div>
+          <div class="t-row"><span class="t-label">5日均量比:</span><span id="p-vratio" class="{init_snap.get("vol_cls", "t-val-white")}">{init_snap.get("vol_ratio", "")}</span></div>
+          <div class="t-row"><span class="t-label">現況:</span><span id="p-vstatus" class="t-val-white">{init_snap.get("vol_status", "")}</span></div>
+          <div class="t-row"><span class="t-label">當日量:</span><span id="p-vval" class="t-val-cyan">{init_snap.get("vol_str", "")}</span></div>
+        </div>
+
+        <div class="terminal-panel">
           <div class="terminal-title">【多空與波段判定】</div>
           <div class="t-row"><span class="t-label">多空:</span><span id="p-trend" class="{init_snap.get("trend_cls", "t-val-white")}">{init_snap.get("trend_txt", "")}</span></div>
           <div class="t-row"><span class="t-label">波段狀態:</span><span id="p-wave" class="{init_snap.get("wave_cls", "t-val-white")}">{init_snap.get("wave_txt", "")}</span></div>
@@ -3191,7 +3185,7 @@ if app_mode == "📈 個股籌碼圖表":
 
       const stockCode = {json.dumps(stock_id)};
       const stockName = {json.dumps(stock_name)};
-      const selectedIndicator = {json.dumps(selected_indicator)};
+      const isComboMode = {str(is_combo_mode).lower()};
       const isFourPane = {str(is_four_pane).lower()};
       const rulerBtnActive = {str(ruler_mode_active).lower()};
       const totalBars = rows.length;
@@ -3304,6 +3298,13 @@ if app_mode == "📈 個股籌碼圖表":
         setEl("p-ma20", s.ma20);
         setEl("p-ma60", s.ma60);
         updateDynamicSidePanel(r);
+        setEl("p-kdj-sig", s.kdj_sig, s.kdj_cls);
+        setEl("p-kd", s.kd_str);
+        setEl("p-j", s.j_str);
+        setEl("p-kddiff", s.kd_diff);
+        setEl("p-vratio", s.vol_ratio, s.vol_cls);
+        setEl("p-vstatus", s.vol_status);
+        setEl("p-vval", s.vol_str);
         setEl("p-trend", s.trend_txt, s.trend_cls);
         setEl("p-wave", s.wave_txt, s.wave_cls);
         setEl("p-pe", s.pe_str || "--");
@@ -3347,15 +3348,27 @@ if app_mode == "📈 個股籌碼圖表":
         return plotLeft + fracIdx * plotW;
       }}
 
-      function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW) {{
+      function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW, alignMode) {{
         ctx.save();
         ctx.font = fontStr;
         ctx.textBaseline = "top";
+        ctx.textAlign = alignMode || "left";
         ctx.lineWidth = strokeW || 1.4;
         ctx.strokeStyle = "#000000";
         ctx.strokeText(txt, xPos, yPos);
         ctx.fillStyle = color;
         ctx.fillText(txt, xPos, yPos);
+        ctx.restore();
+      }}
+
+      function drawRightPaneNote(noteObj, yPos, rightEdgeX, leftMinX, fontStr) {{
+        if (!noteObj || !noteObj.text) return;
+        ctx.save();
+        ctx.font = fontStr;
+        const txtW = ctx.measureText(noteObj.text).width;
+        if (rightEdgeX - txtW >= leftMinX) {{
+          drawOutlinedText(noteObj.text, rightEdgeX, yPos, noteObj.color || "#00FFFF", fontStr, 1.4, "right");
+        }}
         ctx.restore();
       }}
 
@@ -3418,7 +3431,7 @@ if app_mode == "📈 個股籌碼圖表":
           let col = "#FFFFFF";
           if (idxLine === 0) col = "#00FFFF";
           else if (idxLine === 1 || idxLine === 2) col = isUp ? "#FF4444" : "#00E64D";
-          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
+          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2, "left");
         }});
         ctx.restore();
       }}
@@ -3427,12 +3440,16 @@ if app_mode == "📈 個股籌碼圖表":
         let curX = startX;
         (tokens || []).forEach((tk) => {{
           if (!tk || !tk.text) return;
+          ctx.save();
+          ctx.font = fontStr;
           const w = ctx.measureText(tk.text).width;
+          ctx.restore();
           if (maxRightX && (curX + w) > maxRightX) return;
-          drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.4);
+          drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.4, "left");
           const isLabel = tk.text.endsWith(":");
           curX += w + (isLabel ? 8.0 : (baseGap || 12.0));
         }});
+        return curX;
       }}
 
       function renderInPlaceOverlay(r, drawLines, lineX, lineY, b) {{
@@ -3442,7 +3459,7 @@ if app_mode == "📈 個股籌碼圖表":
 
         const plotLeft = b.left + b.width * axX0;
         const plotRight = b.left + b.width * axX1;
-        const maxTextRight = plotRight - 10;
+        const rightNoteEdge = plotRight - 10;
 
         if (crosshairEnabled && drawLines) {{
           ctx.save();
@@ -3461,122 +3478,64 @@ if app_mode == "📈 個股籌碼圖表":
         drawRulerOverlay(b);
 
         const s = r.snap || {{}};
-        const headerX = plotLeft + b.width * 0.008;
-        const headerY = b.top + b.height * (ax1TopFrac + 0.012);
-        const fontHeader = "bold 11px Arial, 'Microsoft JhengHei', sans-serif";
+        const headerX = plotLeft + b.width * 0.010;
+        const headerY = b.top + b.height * (ax1TopFrac + 0.014);
+        const fontHeader = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
+
+        const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
+        drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4, "left");
+        ctx.save();
         ctx.font = fontHeader;
-
-        // 先量測右側固定徽章寬度，確保左側整合資訊絕不撞上或重疊
-        const badgeText = s.trend_badge || "";
-        const revText = `逆序:${{r.rev_no}}`;
-        const revW = ctx.measureText(revText).width;
-        const badgeW = ctx.measureText(badgeText).width;
-        const revX = plotRight - revW - 8.0;
-        const badgeX = revX - badgeW - 8.0;
-        const summaryMaxRight = badgeX - 10.0;
-
-        const prefixTitle = `K線 ---[${{stockCode}}] ${{stockName}}`;
-        drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4);
-        let hx = headerX + ctx.measureText(prefixTitle).width + 10.0;
+        let hx = headerX + ctx.measureText(prefixTitle).width + 16.0;
+        ctx.restore();
 
         if (s.header_tokens && s.header_tokens.length > 0) {{
           s.header_tokens.forEach((ht) => {{
             if (!ht || !ht.text) return;
-            const w = ctx.measureText(ht.text).width;
-            if ((hx + w) > summaryMaxRight) return;
-            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4);
+            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4, "left");
             const isTag = ht.text.endsWith(":");
-            hx += w + (isTag ? 3.0 : 9.0);
+            ctx.save();
+            ctx.font = fontHeader;
+            hx += ctx.measureText(ht.text).width + (isTag ? 4.5 : 14.0);
+            ctx.restore();
           }});
         }} else {{
-          drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4);
-          hx += ctx.measureText(s.header_text || "").width + 10.0;
+          drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4, "left");
         }}
 
-        // 緊接在「量:...」後面繪製：｜ 振 漲跌 ｜ 大戶 羊群 ｜波段狀態
-        if (s.top_summary_tokens && s.top_summary_tokens.length > 0) {{
-          let sx = hx + 4.0;
-          const fontTopSum = "bold 10.5px Arial, 'Microsoft JhengHei', sans-serif";
-          ctx.font = fontTopSum;
-          for (let i = 0; i < s.top_summary_tokens.length; i++) {{
-            const tk = s.top_summary_tokens[i];
-            if (!tk || !tk.text) continue;
-            const tkW = ctx.measureText(tk.text).width;
-            const gapW = (tk.text === "｜") ? 5.0 : 7.0;
-            if ((sx + tkW) > summaryMaxRight) break;
-            drawOutlinedText(tk.text, sx, headerY + 0.5, tk.color, fontTopSum, 1.3);
-            sx += tkW + gapW;
-          }}
-        }}
-
-        drawOutlinedText(badgeText, badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4);
-        drawOutlinedText(revText, revX, headerY, "#00FFFF", fontHeader, 1.4);
+        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.72, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
+        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.815, headerY, "#00FFFF", fontHeader, 1.4, "left");
 
         if (r.ma_items && r.ma_items.length > 0) {{
-          const maY = headerY + 19;
+          const maY = headerY + 20;
           let curX = headerX;
           const fontMa = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
-          ctx.font = fontMa;
           r.ma_items.forEach((m) => {{
-            drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4);
+            drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4, "left");
+            ctx.save();
+            ctx.font = fontMa;
             curX += ctx.measureText(m.text).width + 16.0;
+            ctx.restore();
           }});
         }}
 
         const fontSub = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
-        ctx.font = fontSub;
         if (isFourPane) {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.014), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.sub2_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.014), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.sub3_tokens, headerX, b.top + b.height * (sub3TopFrac + 0.014), fontSub, 12.0, maxTextRight);
-        }} else {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, maxTextRight);
-        }}
+          const y1 = b.top + b.height * (sub1TopFrac + 0.014);
+          const y2 = b.top + b.height * (sub2TopFrac + 0.014);
+          const y3 = b.top + b.height * (sub3TopFrac + 0.014);
 
-        // 無框框線純文字解盤（KDJ 解盤 與 成交量解盤）：縮小寬度、放大字體、整齊排版
-        function drawRightBoxNotes(boxLines, paneTopFrac, paneBotFrac, boxTitle, accentColor) {{
-          if (!boxLines || boxLines.length === 0) return;
-          const noteLeft = plotRight + 16.0;
-          const noteW = Math.max(70.0, (b.left + b.width) - noteLeft - 4.0);
-          const noteTop = b.top + b.height * (paneTopFrac + 0.015);
-          const noteBot = b.top + b.height * (paneBotFrac - 0.010);
-          const noteH = Math.max(28.0, noteBot - noteTop);
+          const endX1 = drawTokensRow(s.ind_tokens, headerX, y1, fontSub, 12.0, rightNoteEdge);
+          drawTokensRow(s.sub2_tokens, headerX, y2, fontSub, 12.0, rightNoteEdge);
+          const endX3 = drawTokensRow(s.sub3_tokens, headerX, y3, fontSub, 12.0, rightNoteEdge);
 
-          ctx.save();
-          const fontNoteTitle = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
-          const fontNoteLine = "bold 11.0px Arial, 'Microsoft JhengHei', sans-serif";
-          const titleY = noteTop + 1.0;
-          drawOutlinedText(boxTitle, noteLeft, titleY, "#FFFF00", fontNoteTitle, 1.4);
-
-          const lineStep = 14.5;
-          boxLines.forEach((lnText, iLn) => {{
-            const yLn = titleY + 15.5 + iLn * lineStep;
-            if (yLn + 12.0 <= noteTop + noteH) {{
-              let dispTxt = lnText;
-              ctx.font = fontNoteLine;
-              while (dispTxt.length > 1 && ctx.measureText(dispTxt).width > noteW) {{
-                dispTxt = dispTxt.slice(0, -1);
-              }}
-              drawOutlinedText(dispTxt, noteLeft, yLn, accentColor, fontNoteLine, 1.35);
-            }}
-          }});
-          ctx.restore();
-        }}
-
-        if (isFourPane) {{
-          const kdjPaneTop = (selectedIndicator === "組合1" || selectedIndicator === "組合") ? sub1TopFrac : -1;
-          const kdjPaneBot = (selectedIndicator === "組合1" || selectedIndicator === "組合") ? sub2TopFrac : -1;
-          if (kdjPaneTop >= 0) {{
-            drawRightBoxNotes(s.kdj_panel_lines, kdjPaneTop, kdjPaneBot, "KDJ解盤", "#00FFFF");
-          }}
-          const volPaneTop = (selectedIndicator === "組合" || selectedIndicator === "組合3") ? sub3TopFrac : -1;
-          const volPaneBot = (selectedIndicator === "組合" || selectedIndicator === "組合3") ? 0.92 : -1;
-          if (volPaneTop >= 0) {{
-            drawRightBoxNotes(s.vol_panel_lines, volPaneTop, volPaneBot, "成交量解盤", "#FF9900");
+          if (isComboMode) {{
+            drawRightPaneNote(s.kdj_right_note, y1, rightNoteEdge, endX1 + 12, fontSub);
+            drawRightPaneNote(s.vol_right_note, y3, rightNoteEdge, endX3 + 12, fontSub);
           }}
         }} else {{
-          drawRightBoxNotes(s.vol_panel_lines, sub2TopFrac, 0.90, "成交量解盤", "#FF9900");
+          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, rightNoteEdge);
+          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, rightNoteEdge);
         }}
       }}
 
