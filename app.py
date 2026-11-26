@@ -1450,6 +1450,7 @@ def _compute_qt_series(df_full):
     qt_ratio = qt_curve / qt_ma.replace(0.0, np.nan)
     qt_ratio = qt_ratio.replace([np.inf, -np.inf], np.nan).fillna(1.0)
 
+    # 位階判斷：以近60根高低區間或季線(MA60)判斷高檔 / 低檔
     ma60_ref = df_full.get("ma_60", s_close.rolling(60, min_periods=1).mean().bfill())
     hi60 = s_high.rolling(60, min_periods=1).max().bfill()
     lo60 = s_low.rolling(60, min_periods=1).min().bfill()
@@ -1677,6 +1678,7 @@ def build_bar_analysis_snapshot(
     c_low = float(r["low"])
     c_vol = float(r["vol"])
     c_date = str(r["date"])
+    rev_no_val = len(df) - idx_r
 
     prev_r = df.iloc[idx_r - 1] if idx_r > 0 else r
     p_open = float(prev_r["open"])
@@ -1686,7 +1688,6 @@ def build_bar_analysis_snapshot(
     p_vol = float(prev_r["vol"])
 
     ma5_v = float(r["ma_5"]) if "ma_5" in df.columns and pd.notna(r["ma_5"]) else 0.0
-    ma10_v = float(r["ma_10"]) if "ma_10" in df.columns and pd.notna(r["ma_10"]) else 0.0
     ma20_v = float(r["ma_20"]) if "ma_20" in df.columns and pd.notna(r["ma_20"]) else 0.0
     ma60_v = float(r["ma_60"]) if "ma_60" in df.columns and pd.notna(r["ma_60"]) else 0.0
     prev_ma60_v = (
@@ -1703,15 +1704,39 @@ def build_bar_analysis_snapshot(
         ma_status = "均線交錯"
     ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
 
-    # 均線狀態：針對 5日 / 10日均線顯示 多方 或 空方
-    short_ma_is_bull = ma5_v >= ma10_v
-    short_ma_txt = "多方" if short_ma_is_bull else "空方"
-    short_ma_col = "#FF3333" if short_ma_is_bull else "#00E64D"
+    # 季線解析（MA60 位置、斜率與乖離）
+    ma60_diff = ma60_v - prev_ma60_v
+    ma60_slope_pct = (ma60_diff / prev_ma60_v * 100.0) if prev_ma60_v > 0 else 0.0
+    ma60_bias_pct = ((c_close - ma60_v) / ma60_v * 100.0) if ma60_v > 0 else 0.0
+    if abs(ma60_slope_pct) < 0.03:
+        ma60_slope_txt = "走平"
+    elif ma60_slope_pct > 0:
+        ma60_slope_txt = "翻揚向上"
+    else:
+        ma60_slope_txt = "下彎走弱"
 
-    # 【季線多頭】/【季線空頭】針對 60日均線
-    is_bull = (ma60_v > prev_ma60_v) if idx_r > 0 else (c_close >= ma60_v)
-    season_badge_txt = "【季線多頭】" if is_bull else "【季線空頭】"
-    season_badge_col = "#FF3333" if is_bull else "#00E64D"
+    above_ma60 = c_close >= ma60_v
+    if above_ma60 and ma60_slope_pct >= 0.03:
+        q_status = "季線多頭助漲"
+        q_cls = "t-val-red"
+    elif above_ma60:
+        q_status = "站上季線整理"
+        q_cls = "t-val-red"
+    elif ma60_slope_pct < -0.03:
+        q_status = "季線空頭壓制"
+        q_cls = "t-val-green"
+    else:
+        q_status = "季線下偏弱震盪"
+        q_cls = "t-val-green"
+
+    q_pos_txt = f"{'站上' if above_ma60 else '跌破'}季線({ma60_bias_pct:+.2f}%)"
+    q_pos_cls = "t-val-red" if above_ma60 else "t-val-green"
+    q_slope_str = f"{ma60_slope_txt}({ma60_slope_pct:+.2f}%)"
+    q_slope_cls = (
+        "t-val-red"
+        if ma60_slope_pct >= 0.03
+        else ("t-val-green" if ma60_slope_pct <= -0.03 else "t-val-cyan")
+    )
 
     bar_diff = c_close - p_close
     bar_chg_pct = (bar_diff / p_close * 100.0) if p_close > 0 else 0.0
@@ -1736,38 +1761,24 @@ def build_bar_analysis_snapshot(
     is_dc = prev_k >= prev_d and k_v < d_v
 
     kdj_sig, kdj_cls = "中立觀望", "t-val-white"
-    kdj_right_txt, kdj_right_col = "解盤: KD中性震盪，留意高80低20", "#00FFFF"
     if k_v > 90:
         kdj_sig, kdj_cls = "【強力賣出】K>90超買", "t-val-green"
-        kdj_right_txt, kdj_right_col = "解盤: K>90高檔超買，防拉回", "#00E64D"
     elif j_v > 100:
         kdj_sig, kdj_cls = "【強力賣出】J>100超買", "t-val-green"
-        kdj_right_txt, kdj_right_col = "解盤: J>100短線過熱，留意轉弱", "#00E64D"
     elif kd_diff > 18:
         kdj_sig, kdj_cls = "【強力賣出】正乖離>+18", "t-val-green"
-        kdj_right_txt, kdj_right_col = "解盤: KD正乖離偏大，慎防回檔", "#00E64D"
     elif is_dc:
         kdj_sig, kdj_cls = "【賣出訊號】KD死叉", "t-val-green"
-        kdj_right_txt, kdj_right_col = "解盤: K向下穿D死叉，短線偏空", "#00E64D"
     elif k_v < 9:
         kdj_sig, kdj_cls = "【強力買進】K<9超賣", "t-val-red"
-        kdj_right_txt, kdj_right_col = "解盤: K<9低檔超賣，留意反彈契機", "#FF3333"
     elif k_v < 9 and d_v < 9:
         kdj_sig, kdj_cls = "【強力買進】KD雙跌破9", "t-val-red"
-        kdj_right_txt, kdj_right_col = "解盤: KD雙破9極度超賣，關注止跌", "#FF3333"
     elif j_v < 0:
         kdj_sig, kdj_cls = "【強力買進】J<0超賣", "t-val-red"
-        kdj_right_txt, kdj_right_col = "解盤: J<0低檔超賣，留意築底反彈", "#FF3333"
     elif kd_diff < -18:
         kdj_sig, kdj_cls = "【強力買進】負乖離<-18", "t-val-red"
-        kdj_right_txt, kdj_right_col = "解盤: KD負乖離過大，醞釀反彈", "#FF3333"
     elif is_gc:
         kdj_sig, kdj_cls = "【買進訊號】KD金交叉", "t-val-red"
-        kdj_right_txt, kdj_right_col = "解盤: K向上穿D金叉，短多轉強", "#FF3333"
-    elif k_v >= 80:
-        kdj_right_txt, kdj_right_col = "解盤: KD進入80高檔區，留意鈍化", "#FFFF00"
-    elif k_v <= 20:
-        kdj_right_txt, kdj_right_col = "解盤: KD進入20低檔區，觀察止跌", "#FFFF00"
 
     vol_ma5_v = (
         float(r["vol_ma5"])
@@ -1784,15 +1795,7 @@ def build_bar_analysis_snapshot(
     vol_status = "量能平穩" if v_ratio_5 < 1.5 else "量能顯著放大"
     vol_cls = "t-val-white" if v_ratio_5 < 1.5 else "t-val-red"
 
-    if v_ratio_5 >= 1.5 and c_close >= p_close:
-        vol_right_txt, vol_right_col = f"解盤: 帶量上攻({v_ratio_5:.2f}x)，買盤積極", "#FF3333"
-    elif v_ratio_5 >= 1.5 and c_close < p_close:
-        vol_right_txt, vol_right_col = f"解盤: 爆量收黑({v_ratio_5:.2f}x)，留意調節賣壓", "#00E64D"
-    elif v_ratio_5 < 0.7:
-        vol_right_txt, vol_right_col = f"解盤: 量能萎縮({v_ratio_5:.2f}x)，觀望氣氛濃", "#FFFF00"
-    else:
-        vol_right_txt, vol_right_col = f"解盤: 量能溫和({v_ratio_5:.2f}x)，延續既有節奏", "#00FFFF"
-
+    is_bull = c_close >= ma60_v
     trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
     trend_cls = "t-val-red" if is_bull else "t-val-green"
 
@@ -2006,46 +2009,20 @@ def build_bar_analysis_snapshot(
         },
     ]
 
-    chg_pts = c_close - p_close
-    chg_pct = (chg_pts / p_close * 100.0) if p_close > 0 else 0.0
-    amp_pct = ((c_high - c_low) / p_close * 100.0) if p_close > 0 else 0.0
-    chg_is_up = chg_pts >= 0
-    is_wave_bull = ("多" in wave_txt) or ("買" in wave_txt)
-    wave_short_txt = "多方" if is_wave_bull else "空方"
-    wave_col = "#FF3333" if is_wave_bull else "#00E64D"
-
-    header_tokens.extend([
-        {"text": "|", "color": "#888888"},
-        {"text": f"振:{amp_pct:.2f}%", "color": "#FFFF00"},
-        {
-            "text": (
-                f"{'漲' if chg_is_up else '跌'}:{abs(chg_pts):.2f}({chg_pct:+.2f}%)"
-                f"{'▲' if chg_is_up else '▼'}"
-            ),
-            "color": "#FF3333" if chg_is_up else "#00E64D",
-        },
-    ])
-
-    if stock_id != "99991":
+    if stock_id == "99991":
+        chg_pts = c_close - p_close
+        chg_pct = (chg_pts / p_close * 100) if p_close > 0 else 0.0
+        amp_pct = ((c_high - c_low) / p_close * 100) if p_close > 0 else 0.0
+        chg_is_up = chg_pts >= 0
         header_tokens.extend([
-            {"text": "|", "color": "#888888"},
-            {"text": "大戶:", "color": "#FFFFFF"},
-            {"text": f"{b_val:.1f}%", "color": "#FF3333"},
-            {"text": "羊群:", "color": "#FFFFFF"},
-            {"text": f"{s_val:.1f}%", "color": "#00E64D"},
-            {"text": "|", "color": "#888888"},
-            {"text": "波段:", "color": "#FFFFFF"},
-            {"text": wave_short_txt, "color": wave_col},
-            {"text": "均線狀態:", "color": "#FFFFFF"},
-            {"text": short_ma_txt, "color": short_ma_col},
-        ])
-    else:
-        header_tokens.extend([
-            {"text": "|", "color": "#888888"},
-            {"text": "波段:", "color": "#FFFFFF"},
-            {"text": wave_short_txt, "color": wave_col},
-            {"text": "均線狀態:", "color": "#FFFFFF"},
-            {"text": short_ma_txt, "color": short_ma_col},
+            {"text": f"振:{amp_pct:.2f}%", "color": "#FFFF00"},
+            {
+                "text": (
+                    f"{'漲' if chg_is_up else '跌'}({abs(chg_pts):.2f}){chg_pct:.2f}%"
+                    f"{'▲' if chg_is_up else '▼'}"
+                ),
+                "color": "#FF3333" if chg_is_up else "#00E64D",
+            },
         ])
 
     return {
@@ -2054,22 +2031,25 @@ def build_bar_analysis_snapshot(
             f" 收:{c_close:.2f} 量:{int(c_vol):,}"
         ),
         "header_tokens": header_tokens,
-        "trend_badge": season_badge_txt,
-        "trend_badge_color": season_badge_col,
+        "trend_badge": "【季線多頭】" if is_bull else "【季線空頭】",
+        "trend_badge_color": "#FF3333" if is_bull else "#00E64D",
         "period_badge": f" {period_label} ",
         "ind_tokens": ind_tokens,
         "sub2_tokens": sub2_tokens,
         "sub3_tokens": sub3_tokens,
         "vol_tokens": vol_tokens,
-        "kdj_right_note": {"text": kdj_right_txt, "color": kdj_right_col},
-        "vol_right_note": {"text": vol_right_txt, "color": vol_right_col},
+        "rev_no_str": f"{rev_no_val}",
         "ma_status": ma_status,
         "ma_cls": ma_cls,
-        "short_ma_status": short_ma_txt,
-        "short_ma_cls": "t-val-red" if short_ma_is_bull else "t-val-green",
         "ma5": f"{ma5_v:.1f}",
         "ma20": f"{ma20_v:.1f}",
         "ma60": f"{ma60_v:.1f}",
+        "q_status": q_status,
+        "q_cls": q_cls,
+        "q_pos_txt": q_pos_txt,
+        "q_pos_cls": q_pos_cls,
+        "q_slope_str": q_slope_str,
+        "q_slope_cls": q_slope_cls,
         "bar_chg_str": bar_chg_str,
         "bar_chg_cls": bar_chg_cls,
         "bar_amp_str": bar_amp_str,
@@ -3075,20 +3055,8 @@ if app_mode == "📈 個股籌碼圖表":
                 fund_data, str(r["date"]), float(r["close"])
             )
         )
-        # 逆序序列：由目前這根往回算（idx_r -> idx_r-1 -> idx_r-2...），取近5根短均線狀態
-        rev_hist = []
-        for back_i in range(idx_r, max(-1, idx_r - 5), -1):
-            b_r = df.iloc[back_i]
-            b_ma5 = float(b_r["ma_5"]) if "ma_5" in df.columns and pd.notna(b_r["ma_5"]) else 0.0
-            b_ma10 = float(b_r["ma_10"]) if "ma_10" in df.columns and pd.notna(b_r["ma_10"]) else 0.0
-            rev_hist.append("多方" if b_ma5 >= b_ma10 else "空方")
-        rev_seq_str = "←".join(rev_hist)
-
         payload_rows.append({
-            "idx": idx_r,
-            "bar_no": idx_r + 1,
             "rev_no": total_bars_cnt - idx_r,
-            "rev_seq": rev_seq_str,
             "date": str(r["date"]),
             "open": round(float(r["open"]), 2),
             "high": round(float(r["high"]), 2),
@@ -3136,7 +3104,7 @@ if app_mode == "📈 個股籌碼圖表":
       .terminal-panel {{
         background-color: #0b0b0b;
         border: 1px solid #cc0000;
-        padding: 5px 8px;
+        padding: 4px 7px;
         color: #ffffff;
         box-sizing: border-box;
       }}
@@ -3144,23 +3112,23 @@ if app_mode == "📈 個股籌碼圖表":
         color: #ffffff;
         background-color: #0000aa;
         font-weight: bold;
-        font-size: 12px;
-        padding: 2px 5px;
-        margin-bottom: 3px;
+        font-size: 11.5px;
+        padding: 1.5px 5px;
+        margin-bottom: 2.5px;
         text-align: center;
       }}
       .terminal-title-ruler {{
         color: #000000;
         background-color: #ffff00;
         font-weight: bold;
-        font-size: 12px;
-        padding: 2px 5px;
-        margin-bottom: 3px;
+        font-size: 11.5px;
+        padding: 1.5px 5px;
+        margin-bottom: 2.5px;
         text-align: center;
       }}
       .t-row {{
-        font-size: 11px;
-        line-height: 1.3;
+        font-size: 10.5px;
+        line-height: 1.25;
         margin-bottom: 1px;
         display: flex;
         justify-content: space-between;
@@ -3191,9 +3159,17 @@ if app_mode == "📈 個股籌碼圖表":
         <div class="terminal-panel">
           <div class="terminal-title">【均線解盤】</div>
           <div class="t-row"><span class="t-label">狀態:</span><span id="p-ma-status" class="{init_snap.get("ma_cls", "t-val-white")}">{init_snap.get("ma_status", "")}</span></div>
+          <div class="t-row"><span class="t-label">逆序:</span><span id="p-rev-no" class="t-val-cyan">{init_snap.get("rev_no_str", "--")}</span></div>
           <div class="t-row"><span class="t-label">MA5:</span><span id="p-ma5" class="t-val-cyan">{init_snap.get("ma5", "")}</span></div>
           <div class="t-row"><span class="t-label">MA20:</span><span id="p-ma20" class="t-val-cyan">{init_snap.get("ma20", "")}</span></div>
           <div class="t-row"><span class="t-label">季60:</span><span id="p-ma60" class="t-val-cyan">{init_snap.get("ma60", "")}</span></div>
+        </div>
+
+        <div class="terminal-panel">
+          <div class="terminal-title">【季線解析】</div>
+          <div class="t-row"><span class="t-label">季線狀態:</span><span id="p-q-status" class="{init_snap.get("q_cls", "t-val-white")}">{init_snap.get("q_status", "")}</span></div>
+          <div class="t-row"><span class="t-label">相對位置:</span><span id="p-q-pos" class="{init_snap.get("q_pos_cls", "t-val-white")}">{init_snap.get("q_pos_txt", "")}</span></div>
+          <div class="t-row"><span class="t-label">季線斜率:</span><span id="p-q-slope" class="{init_snap.get("q_slope_cls", "t-val-cyan")}">{init_snap.get("q_slope_str", "")}</span></div>
         </div>
 
         <div class="terminal-panel" id="p-dynamic-box">
@@ -3224,7 +3200,6 @@ if app_mode == "📈 個股籌碼圖表":
         <div class="terminal-panel">
           <div class="terminal-title">【多空與波段判定】</div>
           <div class="t-row"><span class="t-label">多空:</span><span id="p-trend" class="{init_snap.get("trend_cls", "t-val-white")}">{init_snap.get("trend_txt", "")}</span></div>
-          <div class="t-row"><span class="t-label">均線狀態:</span><span id="p-wave-ma" class="{init_snap.get("ma_cls", "t-val-white")}">{init_snap.get("ma_status", "")}</span></div>
           <div class="t-row"><span class="t-label">波段狀態:</span><span id="p-wave" class="{init_snap.get("wave_cls", "t-val-white")}">{init_snap.get("wave_txt", "")}</span></div>
         </div>
       </div>
@@ -3241,7 +3216,6 @@ if app_mode == "📈 個股籌碼圖表":
 
       const stockCode = {json.dumps(stock_id)};
       const stockName = {json.dumps(stock_name)};
-      const isComboMode = {str(is_combo_mode).lower()};
       const isFourPane = {str(is_four_pane).lower()};
       const rulerBtnActive = {str(ruler_mode_active).lower()};
       const totalBars = rows.length;
@@ -3259,7 +3233,6 @@ if app_mode == "📈 個股籌碼圖表":
       let rulerStartIdx = null;
       let rulerEndIdx = null;
       let rulerPreviewIdx = null;
-      let activeBarIdx = totalBars > 0 ? totalBars - 1 : 0;
 
       function setEl(id, text, cls) {{
         const el = document.getElementById(id);
@@ -3297,8 +3270,6 @@ if app_mode == "📈 個股籌碼圖表":
 
         return {{
           i1, i2,
-          startBarNo: i1 + 1,
-          endBarNo: i2 + 1,
           startDate: r1.date,
           endDate: r2.date,
           barCount,
@@ -3312,24 +3283,6 @@ if app_mode == "📈 個股籌碼圖表":
           sumVol: Math.round(sumVol),
           avgVol
         }};
-      }}
-
-      function formatBarTrialText(r) {{
-        if (!r) return "";
-        const barNo = r.bar_no || (r.idx + 1);
-        const revNo = r.rev_no || (totalBars - r.idx);
-        const revSeq = r.rev_seq ? `${{r.rev_seq}}(倒${{revNo}})` : `倒${{revNo}}`;
-        let trialPart = `試算:第${{barNo}}根`;
-        const targetEnd = (rulerEndIdx !== null) ? rulerEndIdx : rulerPreviewIdx;
-        if (rulerStartIdx !== null && targetEnd !== null) {{
-          const st = calcRangeStats(rulerStartIdx, targetEnd);
-          if (st) {{
-            const deltaFromStart = Number(r.idx) - st.i1;
-            const sign = deltaFromStart >= 0 ? "+" : "";
-            trialPart += `(起${{sign}}${{deltaFromStart}}/${{st.barCount}}K)`;
-          }}
-        }}
-        return `逆序:${{revSeq}} (${{trialPart}})`;
       }}
 
       function updateDynamicSidePanel(r) {{
@@ -3371,9 +3324,13 @@ if app_mode == "📈 個股籌碼圖表":
         if (!r || !r.snap) return;
         const s = r.snap;
         setEl("p-ma-status", s.ma_status, s.ma_cls);
+        setEl("p-rev-no", s.rev_no_str || String(r.rev_no || "--"), "t-val-cyan");
         setEl("p-ma5", s.ma5);
         setEl("p-ma20", s.ma20);
         setEl("p-ma60", s.ma60);
+        setEl("p-q-status", s.q_status, s.q_cls);
+        setEl("p-q-pos", s.q_pos_txt, s.q_pos_cls);
+        setEl("p-q-slope", s.q_slope_str, s.q_slope_cls);
         updateDynamicSidePanel(r);
         setEl("p-kdj-sig", s.kdj_sig, s.kdj_cls);
         setEl("p-kd", s.kd_str);
@@ -3383,7 +3340,6 @@ if app_mode == "📈 個股籌碼圖表":
         setEl("p-vstatus", s.vol_status);
         setEl("p-vval", s.vol_str);
         setEl("p-trend", s.trend_txt, s.trend_cls);
-        setEl("p-wave-ma", s.ma_status, s.ma_cls);
         setEl("p-wave", s.wave_txt, s.wave_cls);
         setEl("p-pe", s.pe_str || "--");
         setEl("p-eps", s.eps_str || "--");
@@ -3426,27 +3382,15 @@ if app_mode == "📈 個股籌碼圖表":
         return plotLeft + fracIdx * plotW;
       }}
 
-      function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW, alignMode) {{
+      function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW) {{
         ctx.save();
         ctx.font = fontStr;
         ctx.textBaseline = "top";
-        ctx.textAlign = alignMode || "left";
         ctx.lineWidth = strokeW || 1.4;
         ctx.strokeStyle = "#000000";
         ctx.strokeText(txt, xPos, yPos);
         ctx.fillStyle = color;
         ctx.fillText(txt, xPos, yPos);
-        ctx.restore();
-      }}
-
-      function drawRightPaneNote(noteObj, yPos, rightEdgeX, leftMinX, fontStr) {{
-        if (!noteObj || !noteObj.text) return;
-        ctx.save();
-        ctx.font = fontStr;
-        const txtW = ctx.measureText(noteObj.text).width;
-        if (rightEdgeX - txtW >= leftMinX) {{
-          drawOutlinedText(noteObj.text, rightEdgeX, yPos, noteObj.color || "#00FFFF", fontStr, 1.4, "right");
-        }}
         ctx.restore();
       }}
 
@@ -3487,13 +3431,13 @@ if app_mode == "📈 個股籌碼圖表":
         const pctSign = st.diffPct >= 0 ? "+" : "";
         const ampSign = isUp ? "+" : "-";
         const lines = [
-          `【尺規測距】#${{st.startBarNo}}~#${{st.endBarNo}} (${{st.startDate}} → ${{st.endDate}}, ${{st.barCount}}K)`,
+          `【尺規測距】${{st.startDate}} → ${{st.endDate}} (${{st.barCount}}K)`,
           `區間漲跌: ${{sign}}${{st.diffPts.toFixed(2)}} (${{pctSign}}${{st.diffPct.toFixed(2)}}%)  收: ${{st.startClose.toFixed(2)}} → ${{st.endClose.toFixed(2)}}`,
           `區間高低: ${{st.maxH.toFixed(2)}} / ${{st.minL.toFixed(2)}}  振幅: ${{ampSign}}${{st.ampPct.toFixed(2)}}%`,
           `累積量: ${{st.sumVol.toLocaleString()}}  均量: ${{st.avgVol.toLocaleString()}}`
         ];
 
-        const cardW = 370, cardH = 74;
+        const cardW = 355, cardH = 74;
         let cardX = Math.max(xA, xB) + 10;
         if (cardX + cardW > plotRight - 6) cardX = Math.min(xA, xB) - cardW - 10;
         if (cardX < plotLeft + 6) cardX = plotLeft + 10;
@@ -3509,7 +3453,7 @@ if app_mode == "📈 個股籌碼圖表":
           let col = "#FFFFFF";
           if (idxLine === 0) col = "#00FFFF";
           else if (idxLine === 1 || idxLine === 2) col = isUp ? "#FF4444" : "#00E64D";
-          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2, "left");
+          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
         }});
         ctx.restore();
       }}
@@ -3518,16 +3462,12 @@ if app_mode == "📈 個股籌碼圖表":
         let curX = startX;
         (tokens || []).forEach((tk) => {{
           if (!tk || !tk.text) return;
-          ctx.save();
-          ctx.font = fontStr;
           const w = ctx.measureText(tk.text).width;
-          ctx.restore();
           if (maxRightX && (curX + w) > maxRightX) return;
-          drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.4, "left");
+          drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.4);
           const isLabel = tk.text.endsWith(":");
           curX += w + (isLabel ? 8.0 : (baseGap || 12.0));
         }});
-        return curX;
       }}
 
       function renderInPlaceOverlay(r, drawLines, lineX, lineY, b) {{
@@ -3537,7 +3477,7 @@ if app_mode == "📈 個股籌碼圖表":
 
         const plotLeft = b.left + b.width * axX0;
         const plotRight = b.left + b.width * axX1;
-        const rightNoteEdge = plotRight - 10;
+        const maxTextRight = plotRight - 10;
 
         if (crosshairEnabled && drawLines) {{
           ctx.save();
@@ -3560,81 +3500,42 @@ if app_mode == "📈 個股籌碼圖表":
         const headerY = b.top + b.height * (ax1TopFrac + 0.014);
         const fontHeader = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
 
-        const prefixTitle = `K線----[${{stockCode}}] ${{stockName}}`;
-        drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4, "left");
-        ctx.save();
-        ctx.font = fontHeader;
-        let hx = headerX + ctx.measureText(prefixTitle).width + 14.0;
-        ctx.restore();
+        const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
+        drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4);
+        let hx = headerX + ctx.measureText(prefixTitle).width + 16.0;
 
         if (s.header_tokens && s.header_tokens.length > 0) {{
           s.header_tokens.forEach((ht) => {{
             if (!ht || !ht.text) return;
-            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4, "left");
+            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4);
             const isTag = ht.text.endsWith(":");
-            const isPipe = ht.text === "|";
-            ctx.save();
-            ctx.font = fontHeader;
-            hx += ctx.measureText(ht.text).width + (isTag ? 3.0 : (isPipe ? 6.0 : 8.5));
-            ctx.restore();
+            hx += ctx.measureText(ht.text).width + (isTag ? 4.5 : 14.0);
           }});
         }} else {{
-          drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4, "left");
-          ctx.save();
-          ctx.font = fontHeader;
-          hx += ctx.measureText(s.header_text || "").width + 12.0;
-          ctx.restore();
+          drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4);
         }}
 
-        // 右側：先畫【季線多頭】/【季線空頭】，再畫 試算K線: 第幾根 | 逆序:xxx
-        const trialText = formatBarTrialText(r);
-        const badgeText = s.trend_badge || "";
-        ctx.save();
-        ctx.font = fontHeader;
-        const trialW = ctx.measureText(trialText).width;
-        const badgeW = badgeText ? ctx.measureText(badgeText).width : 0;
-        ctx.restore();
-
-        const trialX = Math.max(hx + 8.0, rightNoteEdge - trialW);
-        const badgeX = trialX - badgeW - 8.0;
-
-        if (badgeText && badgeX >= (hx + 6.0)) {{
-          drawOutlinedText(badgeText, badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
-        }}
-        if (trialX >= (hx + 6.0)) {{
-          drawOutlinedText(trialText, trialX, headerY, "#00FFFF", fontHeader, 1.4, "left");
-        }}
+        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.72, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4);
+        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.815, headerY, "#00FFFF", fontHeader, 1.4);
 
         if (r.ma_items && r.ma_items.length > 0) {{
           const maY = headerY + 20;
           let curX = headerX;
           const fontMa = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
           r.ma_items.forEach((m) => {{
-            drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4, "left");
-            ctx.save();
-            ctx.font = fontMa;
+            drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4);
             curX += ctx.measureText(m.text).width + 16.0;
-            ctx.restore();
           }});
         }}
 
         const fontSub = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
         if (isFourPane) {{
-          const y1 = b.top + b.height * (sub1TopFrac + 0.014);
-          const y2 = b.top + b.height * (sub2TopFrac + 0.014);
-          const y3 = b.top + b.height * (sub3TopFrac + 0.014);
-
-          const endX1 = drawTokensRow(s.ind_tokens, headerX, y1, fontSub, 12.0, rightNoteEdge);
-          drawTokensRow(s.sub2_tokens, headerX, y2, fontSub, 12.0, rightNoteEdge);
-          const endX3 = drawTokensRow(s.sub3_tokens, headerX, y3, fontSub, 12.0, rightNoteEdge);
-
-          if (isComboMode) {{
-            drawRightPaneNote(s.kdj_right_note, y1, rightNoteEdge, endX1 + 12, fontSub);
-            drawRightPaneNote(s.vol_right_note, y3, rightNoteEdge, endX3 + 12, fontSub);
-          }}
+          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.014), fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.sub2_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.014), fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.sub3_tokens, headerX, b.top + b.height * (sub3TopFrac + 0.014), fontSub, 12.0, maxTextRight);
         }} else {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, rightNoteEdge);
-          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, rightNoteEdge);
+          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, maxTextRight);
         }}
       }}
 
@@ -3643,7 +3544,6 @@ if app_mode == "📈 個股籌碼圖表":
         if (b.width <= 0 || b.height <= 0 || totalBars <= 0) return;
 
         const idx = clientXToBarIdx(clientX, b);
-        activeBarIdx = idx;
         const r = rows[idx];
         if (rulerStartIdx !== null && rulerEndIdx === null) rulerPreviewIdx = idx;
 
@@ -3662,8 +3562,7 @@ if app_mode == "📈 個股籌碼圖表":
       function initDefault() {{
         const b = getImgBounds();
         if (totalBars > 0 && b.width > 0) {{
-          const safeIdx = Math.max(0, Math.min(totalBars - 1, activeBarIdx));
-          const latest = rows[safeIdx];
+          const latest = rows[totalBars - 1];
           renderInPlaceOverlay(latest, false, 0, 0, b);
           syncAnalysisPanel(latest);
         }}
@@ -3678,7 +3577,6 @@ if app_mode == "📈 個股籌碼圖表":
         wrap.focus();
         const b = getImgBounds();
         const idx = clientXToBarIdx(e.clientX, b);
-        activeBarIdx = idx;
 
         if (rulerArmed || e.shiftKey) {{
           if (rulerStartIdx === null || rulerEndIdx !== null) {{
@@ -3754,7 +3652,7 @@ if app_mode == "📈 個股籌碼圖表":
     }})();
     </script>
     """
-    components.html(unified_interactive_html, height=675, scrolling=False)
+    components.html(unified_interactive_html, height=695, scrolling=False)
 
 # =========================================================
 # 分頁二：⚡ 9大策略選股
