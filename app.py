@@ -1698,20 +1698,7 @@ def build_bar_analysis_snapshot(
     else:
         ma_status = "均線交錯"
     ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
-
-    # 對 5日 / 10日均線解盤
-    if c_close >= ma5_v and c_close >= ma10_v:
-        ma5_10_status = "站上5/10日均線" if ma5_v >= ma10_v else "站上雙均線(5<10)"
-        ma5_10_color = "#FF3333"
-    elif c_close < ma5_v and c_close < ma10_v:
-        ma5_10_status = "跌破5/10日均線" if ma5_v <= ma10_v else "跌破雙均線(5>10)"
-        ma5_10_color = "#00E64D"
-    elif c_close >= ma5_v:
-        ma5_10_status = "站上5日測10日線"
-        ma5_10_color = "#FFFF00"
-    else:
-        ma5_10_status = "破5日守10日均線"
-        ma5_10_color = "#00FFFF"
+    ma_dir_txt = "多方" if ma5_v > ma20_v else "空方"
 
     bar_diff = c_close - p_close
     bar_chg_pct = (bar_diff / p_close * 100.0) if p_close > 0 else 0.0
@@ -1781,12 +1768,16 @@ def build_bar_analysis_snapshot(
 
     if is_buy_s:
         wave_txt, wave_cls = "★ 波段買進訊號", "t-val-red"
+        wave_dir_txt = "多方"
     elif is_sell_s:
         wave_txt, wave_cls = "✖ 波段賣出訊號", "t-val-cyan"
+        wave_dir_txt = "空方"
     elif red_d < green_d:
         wave_txt, wave_cls = "多方波段運行中", "t-val-red"
+        wave_dir_txt = "多方"
     else:
         wave_txt, wave_cls = "空方波段整理中", "t-val-green"
+        wave_dir_txt = "空方"
 
     prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
     prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
@@ -2159,9 +2150,9 @@ def build_bar_analysis_snapshot(
         },
         {"text": "｜", "color": "#888888"},
         {"text": "波段狀態:", "color": "#FFFF00"},
-        {"text": wave_txt, "color": wave_hdr_col},
+        {"text": wave_dir_txt, "color": wave_hdr_col},
         {"text": "均線狀態:", "color": "#FFFF00"},
-        {"text": f"{ma_status}({ma5_10_status})", "color": ma_hdr_col},
+        {"text": ma_dir_txt, "color": ma_hdr_col},
     ])
 
     return {
