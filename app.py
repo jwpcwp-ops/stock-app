@@ -3128,21 +3128,7 @@ if app_mode == "📈 個股籌碼圖表":
             sub_ax.axhline(
                 y_top_line, color="#888888", linestyle="-", linewidth=1.0, zorder=6
             )
-            # 在指標欄位左上角放置柔和的亮光白點（波段、組合、組合1、組合2、組合3 皆顯示）
-            dot_x = x_min_bar + max(1.2, len(x) * 0.012)
-            dot_y = y_hi_s - (y_hi_s - y_lo_s) * 0.08
-            sub_ax.plot(
-                [dot_x],
-                [dot_y],
-                marker="o",
-                markersize=3.6,
-                markerfacecolor="#FFFFFF",
-                markeredgecolor="#E2E8F0",
-                markeredgewidth=0.4,
-                alpha=0.78,
-                linestyle="None",
-                zorder=8,
-            )
+            # 已移除指標欄位左上角亮光白點，避免組合／組合1／組合2／組合3出現光點干擾
 
         right_margin = 0.92 if is_wave_mode else 0.965
         plt.subplots_adjust(
@@ -3667,19 +3653,12 @@ if app_mode == "📈 個股籌碼圖表":
           }});
         }}
 
+        // 已將指標欄位亮光白點改為極低亮度淡化微點（或移除），避免在組合／組合1／組合2／組合3產生明顯白點
         function drawSoftGlowDot(cx, cy) {{
           ctx.save();
-          const grad = ctx.createRadialGradient(cx, cy, 0.5, cx, cy, 4.5);
-          grad.addColorStop(0, "rgba(255, 255, 255, 0.85)");
-          grad.addColorStop(0.55, "rgba(226, 232, 240, 0.35)");
-          grad.addColorStop(1, "rgba(255, 255, 255, 0.0)");
-          ctx.fillStyle = grad;
+          ctx.fillStyle = "rgba(148, 163, 184, 0.14)";
           ctx.beginPath();
-          ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-          ctx.beginPath();
-          ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+          ctx.arc(cx, cy, 1.1, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         }}
