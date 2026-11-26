@@ -3475,40 +3475,51 @@ if app_mode == "📈 個股籌碼圖表":
         drawRulerOverlay(b);
 
         const s = r.snap || {{}};
-        const headerX = plotLeft + b.width * 0.010;
+        const headerX = plotLeft + b.width * 0.008;
         const headerY = b.top + b.height * (ax1TopFrac + 0.014);
-        const fontHeader = "bold 11.0px Arial, 'Microsoft JhengHei', sans-serif";
+        const fontHeader = "bold 10.5px Arial, 'Microsoft JhengHei', sans-serif";
 
-        // K線頂部列：K線----[代碼] 名稱 日期 開 高 低 收 量 ｜ 振 漲跌 ｜ 大戶 羊群 ｜ 波段狀態 均線狀態: 多方或空方 【季線多頭】 逆序
-        const prefixTitle = `K線----[${{stockCode}}] ${{stockName}}`;
         ctx.save();
         ctx.font = fontHeader;
-        drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4);
-        let hx = headerX + ctx.measureText(prefixTitle).width + 12.0;
 
-        if (s.header_tokens && s.header_tokens.length > 0) {{
-          s.header_tokens.forEach((ht) => {{
-            if (!ht || !ht.text) return;
-            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4);
-            const isTag = ht.text.endsWith(":");
-            const isSep = ht.text === "｜";
-            hx += ctx.measureText(ht.text).width + (isTag ? 3.5 : (isSep ? 8.0 : 10.0));
-          }});
-        }} else {{
-          drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4);
-        }}
-
+        // 先計算右側「逆序」與「【季線多頭】/【季線空頭】」的安全左界，避免左側長字串重疊
         const revText = `逆序:${{r.rev_no}}`;
         const revW = ctx.measureText(revText).width;
-        const revX = plotRight - revW - 10;
-        drawOutlinedText(revText, revX, headerY, "#00FFFF", fontHeader, 1.4);
+        const revX = plotRight - revW - 8;
 
         const trendBadge = s.trend_badge || "";
+        const badgeW = trendBadge ? ctx.measureText(trendBadge).width : 0;
+        const badgeX = trendBadge ? (revX - badgeW - 10) : revX;
+        const headerMaxRight = (trendBadge ? badgeX : revX) - 10;
+
+        // K線頂部列：去掉多餘的 K線---- 前綴，直接以 [代碼] 名稱 開始
+        const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
+        let hx = headerX;
+        if (hx + ctx.measureText(prefixTitle).width <= headerMaxRight) {{
+          drawOutlinedText(prefixTitle, hx, headerY, "#FFFFFF", fontHeader, 1.4);
+          hx += ctx.measureText(prefixTitle).width + 8.0;
+
+          if (s.header_tokens && s.header_tokens.length > 0) {{
+            for (let i = 0; i < s.header_tokens.length; i++) {{
+              const ht = s.header_tokens[i];
+              if (!ht || !ht.text) continue;
+              const isTag = ht.text.endsWith(":");
+              const nextHt = (isTag && i + 1 < s.header_tokens.length) ? s.header_tokens[i + 1] : null;
+              const pairW = ctx.measureText(ht.text).width + (nextHt && nextHt.text ? ctx.measureText(nextHt.text).width + 3.0 : 0);
+              if (hx + pairW > headerMaxRight) break;
+              drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4);
+              const isSep = ht.text === "｜";
+              hx += ctx.measureText(ht.text).width + (isTag ? 2.5 : (isSep ? 6.0 : 8.0));
+            }}
+          }} else if (s.header_text) {{
+            drawOutlinedText(s.header_text, hx, headerY, "#FFFFFF", fontHeader, 1.4);
+          }}
+        }}
+
         if (trendBadge) {{
-          const badgeW = ctx.measureText(trendBadge).width;
-          const badgeX = revX - badgeW - 14;
           drawOutlinedText(trendBadge, badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4);
         }}
+        drawOutlinedText(revText, revX, headerY, "#00FFFF", fontHeader, 1.4);
         ctx.restore();
 
         if (r.ma_items && r.ma_items.length > 0) {{
