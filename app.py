@@ -2377,10 +2377,19 @@ def step_feihu_bars(current_bars, direction):
     larger = [v for v in FEIHU_BAR_STEPS if v > current_bars]
     return larger[0] if larger else FEIHU_BAR_STEPS[-1]
 
+def step_stock_index(delta):
+    n_stocks = len(stock_options)
+    if n_stocks <= 0:
+        return
+    cur_idx = int(st.session_state.selected_index) % n_stocks
+    st.session_state.selected_index = (cur_idx + delta) % n_stocks
+    st.session_state.stock_select_version += 1
+    st.rerun()
+
 # ---------------------------------------------------------
-# 8. 頂部導航列
+# 8. 頂部導航列（左上角含股票選單 + PgUp / PgDn 快速切換）
 # ---------------------------------------------------------
-top_cols = st.columns([2.2, 1.2, 1.8, 1.8, 1.5, 1.8])
+top_cols = st.columns([2.2, 0.42, 0.42, 1.1, 1.7, 1.7, 1.4, 1.7])
 
 with top_cols[0]:
     if st.session_state.selected_index >= len(stock_options):
@@ -2401,6 +2410,14 @@ with top_cols[0]:
     stock_name = stock_parts[1] if len(stock_parts) > 1 else ""
 
 with top_cols[1]:
+    if st.button("PgUp", key="top_pgup_btn", use_container_width=True, help="上一檔 (PageUp)"):
+        step_stock_index(-1)
+
+with top_cols[2]:
+    if st.button("PgDn", key="top_pgdn_btn", use_container_width=True, help="下一檔 (PageDown)"):
+        step_stock_index(+1)
+
+with top_cols[3]:
     actual_chart_period = st.selectbox(
         "週期",
         ["日線", "5分", "10分", "15分", "30分", "60分", "週線", "月線"],
@@ -2410,16 +2427,57 @@ with top_cols[1]:
     )
 
 nav_items = [
-    ("📈 個股籌碼圖表", "top_go_chart", 2),
-    ("⚡ 9大策略選股", "top_go_strat", 3),
-    ("📋 大戶總表", "top_go_table", 4),
-    ("📊 基本面與圖表", "top_go_fund", 5),
+    ("📈 個股籌碼圖表", "top_go_chart", 4),
+    ("⚡ 9大策略選股", "top_go_strat", 5),
+    ("📋 大戶總表", "top_go_table", 6),
+    ("📊 基本面與圖表", "top_go_fund", 7),
 ]
 for nav_label, nav_key, col_idx in nav_items:
     with top_cols[col_idx]:
         if st.button(nav_label, use_container_width=True, key=nav_key):
             st.session_state.app_mode_state = nav_label
             st.rerun()
+
+# 全頁掛載 PageUp / PageDown 鍵盤監聽（觸發左上角 PgUp / PgDn 按鈕，避免整頁捲動與輸入框搶焦點）
+components.html(
+    """
+    <script>
+    (function() {
+      const targetDoc = (window.parent && window.parent.document) ? window.parent.document : document;
+      const targetWin = (window.parent) ? window.parent : window;
+
+      if (targetWin.__fxPageKeyBound) return;
+      targetWin.__fxPageKeyBound = true;
+
+      function isTypingTarget(el) {
+        if (!el) return false;
+        const tag = (el.tagName || "").toUpperCase();
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+        if (el.isContentEditable) return true;
+        if (el.closest && el.closest('[data-baseweb="select"]')) return true;
+        return false;
+      }
+
+      targetDoc.addEventListener("keydown", function(e) {
+        if (e.key !== "PageUp" && e.key !== "PageDown") return;
+        if (isTypingTarget(targetDoc.activeElement) || isTypingTarget(e.target)) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const btnLabel = e.key === "PageUp" ? "PgUp" : "PgDn";
+        const btns = Array.from(targetDoc.querySelectorAll("button"));
+        const matchBtn = btns.find((b) => (b.innerText || "").trim() === btnLabel);
+        if (matchBtn) {
+          matchBtn.click();
+        }
+      }, true);
+    })();
+    </script>
+    """,
+    height=0,
+    width=0,
+)
 
 app_mode = st.session_state.app_mode_state
 
@@ -2695,7 +2753,6 @@ if app_mode == "📈 個股籌碼圖表":
         p_max = float(df["high"].max())
         p_min = float(df["low"].min())
         p_range = p_max - p_min if p_max != p_min else 1.0
-        # 預留頂部資訊列/均線文字與底部多空色塊/月份刻度的緩衝空間
         y_top_pad = p_range * 0.22
         y_bot_pad = p_range * 0.16
         ax1.set_ylim(p_min - y_bot_pad, p_max + y_top_pad)
@@ -2706,13 +2763,11 @@ if app_mode == "📈 個股籌碼圖表":
         high_val = float(df["high"].iloc[high_idx])
         low_val = float(df["low"].iloc[low_idx])
 
-        # 左右邊界防呆（避免高低點靠近最左/最右邊緣時文字被裁切）
         left_safe_x = x_min_bar + max(3.5, len(x) * 0.03)
         right_safe_x = float(len(x) - 1) - max(3.5, len(x) * 0.03)
         hi_text_x = float(np.clip(high_idx, left_safe_x, right_safe_x))
         lo_text_x = float(np.clip(low_idx, left_safe_x, right_safe_x))
 
-        # 最高價防重疊：若高點接近上方資訊列/均線區，改放高點下方並做上下限夾制
         y_hi_upper_limit = p_max + y_top_pad * 0.68
         if high_val + p_range * 0.03 > y_hi_upper_limit:
             hi_text_y = max(p_min + p_range * 0.08, high_val - p_range * 0.03)
@@ -2721,7 +2776,6 @@ if app_mode == "📈 個股籌碼圖表":
             hi_text_y = min(y_hi_upper_limit, high_val + p_range * 0.018)
             hi_va = "bottom"
 
-        # 最低價防重疊：確保不壓到下方多空色塊與月份刻度區
         y_lo_lower_limit = p_min - y_bot_pad * 0.55
         if low_val - p_range * 0.03 < y_lo_lower_limit:
             lo_text_y = min(p_max - p_range * 0.08, low_val + p_range * 0.03)
@@ -2862,7 +2916,6 @@ if app_mode == "📈 個股籌碼圖表":
         zorder=2,
     )
 
-    # 固定以每月第 1 個交易日（或每月首筆K棒）為基點，低調顯示月份標記（不加任何圈圈）
     if not df.empty:
         month_start_marks = []
         seen_ym = set()
@@ -2993,7 +3046,6 @@ if app_mode == "📈 個股籌碼圖表":
             label="QT_MA5",
             zorder=3,
         )
-        # 已移除散點亮光白框，避免指標欄位出現亮光白點
 
     def _plot_chip_axis(ax_chip):
         ax_chip.set_facecolor(PANEL_BG)
@@ -3129,7 +3181,6 @@ if app_mode == "📈 個股籌碼圖表":
             spine.set_linewidth(1.0 if is_wave_mode else 1.2)
 
     if is_four_pane:
-        # 僅隱藏前三個子圖的 bottom 框線，保留每個子圖自身的 top 框線以 100% 無縫銜接
         ax1.spines["bottom"].set_visible(False)
         ax_sub1.spines["bottom"].set_visible(False)
         ax_sub2.spines["bottom"].set_visible(False)
@@ -3620,7 +3671,6 @@ if app_mode == "📈 個股籌碼圖表":
         const s = r.snap || {{}};
         const headerX = plotLeft + b.width * 0.010;
         const headerY = b.top + b.height * (ax1TopFrac + 0.014);
-        const fontHeader = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
 
         const fontHeaderDyn = b.width < 1180
           ? "bold 10.2px Arial, 'Microsoft JhengHei', sans-serif"
