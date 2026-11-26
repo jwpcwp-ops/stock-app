@@ -1450,7 +1450,6 @@ def _compute_qt_series(df_full):
     qt_ratio = qt_curve / qt_ma.replace(0.0, np.nan)
     qt_ratio = qt_ratio.replace([np.inf, -np.inf], np.nan).fillna(1.0)
 
-    # 位階判斷：以近60根高低區間或季線(MA60)判斷高檔 / 低檔
     ma60_ref = df_full.get("ma_60", s_close.rolling(60, min_periods=1).mean().bfill())
     hi60 = s_high.rolling(60, min_periods=1).max().bfill()
     lo60 = s_low.rolling(60, min_periods=1).min().bfill()
@@ -1678,7 +1677,6 @@ def build_bar_analysis_snapshot(
     c_low = float(r["low"])
     c_vol = float(r["vol"])
     c_date = str(r["date"])
-    rev_no_val = len(df) - idx_r
 
     prev_r = df.iloc[idx_r - 1] if idx_r > 0 else r
     p_open = float(prev_r["open"])
@@ -1688,55 +1686,17 @@ def build_bar_analysis_snapshot(
     p_vol = float(prev_r["vol"])
 
     ma5_v = float(r["ma_5"]) if "ma_5" in df.columns and pd.notna(r["ma_5"]) else 0.0
+    ma10_v = float(r["ma_10"]) if "ma_10" in df.columns and pd.notna(r["ma_10"]) else 0.0
     ma20_v = float(r["ma_20"]) if "ma_20" in df.columns and pd.notna(r["ma_20"]) else 0.0
     ma60_v = float(r["ma_60"]) if "ma_60" in df.columns and pd.notna(r["ma_60"]) else 0.0
-    prev_ma60_v = (
-        float(df["ma_60"].iloc[idx_r - 1])
-        if idx_r > 0 and "ma_60" in df.columns and pd.notna(df["ma_60"].iloc[idx_r - 1])
-        else ma60_v
-    )
 
-    if ma5_v > ma20_v > ma60_v:
-        ma_status = "多頭排列"
-    elif ma5_v < ma20_v < ma60_v:
-        ma_status = "空頭排列"
+    # 均線狀態：針對 5日 10日均線判定多方或空方
+    if ma5_v >= ma10_v:
+        ma_status = "多方"
+        ma_cls = "t-val-red"
     else:
-        ma_status = "均線交錯"
-    ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
-
-    # 季線解析（MA60 位置、斜率與乖離）
-    ma60_diff = ma60_v - prev_ma60_v
-    ma60_slope_pct = (ma60_diff / prev_ma60_v * 100.0) if prev_ma60_v > 0 else 0.0
-    ma60_bias_pct = ((c_close - ma60_v) / ma60_v * 100.0) if ma60_v > 0 else 0.0
-    if abs(ma60_slope_pct) < 0.03:
-        ma60_slope_txt = "走平"
-    elif ma60_slope_pct > 0:
-        ma60_slope_txt = "翻揚向上"
-    else:
-        ma60_slope_txt = "下彎走弱"
-
-    above_ma60 = c_close >= ma60_v
-    if above_ma60 and ma60_slope_pct >= 0.03:
-        q_status = "季線多頭助漲"
-        q_cls = "t-val-red"
-    elif above_ma60:
-        q_status = "站上季線整理"
-        q_cls = "t-val-red"
-    elif ma60_slope_pct < -0.03:
-        q_status = "季線空頭壓制"
-        q_cls = "t-val-green"
-    else:
-        q_status = "季線下偏弱震盪"
-        q_cls = "t-val-green"
-
-    q_pos_txt = f"{'站上' if above_ma60 else '跌破'}季線({ma60_bias_pct:+.2f}%)"
-    q_pos_cls = "t-val-red" if above_ma60 else "t-val-green"
-    q_slope_str = f"{ma60_slope_txt}({ma60_slope_pct:+.2f}%)"
-    q_slope_cls = (
-        "t-val-red"
-        if ma60_slope_pct >= 0.03
-        else ("t-val-green" if ma60_slope_pct <= -0.03 else "t-val-cyan")
-    )
+        ma_status = "空方"
+        ma_cls = "t-val-green"
 
     bar_diff = c_close - p_close
     bar_chg_pct = (bar_diff / p_close * 100.0) if p_close > 0 else 0.0
@@ -1795,6 +1755,7 @@ def build_bar_analysis_snapshot(
     vol_status = "量能平穩" if v_ratio_5 < 1.5 else "量能顯著放大"
     vol_cls = "t-val-white" if v_ratio_5 < 1.5 else "t-val-red"
 
+    # 針對 60日均線判定【季線多頭】/【季線空頭】
     is_bull = c_close >= ma60_v
     trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
     trend_cls = "t-val-red" if is_bull else "t-val-green"
@@ -1977,6 +1938,19 @@ def build_bar_analysis_snapshot(
             {"text": f"{mtm_avg_v:.2f}", "color": "#00FF66"},
         ]
 
+    # K線頂部列：日期 開 高 低 收 量 ｜ 振 漲跌 ｜ 大戶 羊群 ｜ 波段狀態 均線狀態: 多方或空方 【季線多頭】 逆序
+    chg_pts = c_close - p_close
+    chg_pct = (chg_pts / p_close * 100.0) if p_close > 0 else 0.0
+    amp_pct = ((c_high - c_low) / p_close * 100.0) if p_close > 0 else 0.0
+    chg_is_up = chg_pts >= 0
+
+    wave_short_label = (
+        "波段買進" if is_buy_s else ("波段賣出" if is_sell_s else ("波段多方" if red_d < green_d else "波段空方"))
+    )
+    wave_short_color = (
+        "#FF3333" if is_buy_s else ("#00FFFF" if is_sell_s else ("#FF3333" if red_d < green_d else "#00E64D"))
+    )
+
     header_tokens = [
         {"text": f"{c_date}", "color": "#FFFFFF"},
         {"text": "開:", "color": "#FFFFFF"},
@@ -2007,23 +1981,31 @@ def build_bar_analysis_snapshot(
             ),
             "color": "#FF3333" if c_vol >= p_vol else "#00E64D",
         },
+        {"text": "｜", "color": "#888888"},
+        {"text": f"振:{amp_pct:.2f}%", "color": "#FFFF00"},
+        {
+            "text": (
+                f"漲跌:{chg_pts:+.2f}({chg_pct:+.2f}%)"
+                f"{'▲' if chg_is_up else '▼'}"
+            ),
+            "color": "#FF3333" if chg_is_up else "#00E64D",
+        },
+        {"text": "｜", "color": "#888888"},
+        {"text": f"大戶:{b_val:.1f}%", "color": "#FF3333"},
+        {"text": f"羊群:{s_val:.1f}%", "color": "#00E64D"},
+        {"text": "｜", "color": "#888888"},
+        {"text": f"波段:{wave_short_label}", "color": wave_short_color},
+        {"text": "均線狀態:", "color": "#FFFFFF"},
+        {"text": ma_status, "color": "#FF3333" if ma_status == "多方" else "#00E64D"},
     ]
 
-    if stock_id == "99991":
-        chg_pts = c_close - p_close
-        chg_pct = (chg_pts / p_close * 100) if p_close > 0 else 0.0
-        amp_pct = ((c_high - c_low) / p_close * 100) if p_close > 0 else 0.0
-        chg_is_up = chg_pts >= 0
-        header_tokens.extend([
-            {"text": f"振:{amp_pct:.2f}%", "color": "#FFFF00"},
-            {
-                "text": (
-                    f"{'漲' if chg_is_up else '跌'}({abs(chg_pts):.2f}){chg_pct:.2f}%"
-                    f"{'▲' if chg_is_up else '▼'}"
-                ),
-                "color": "#FF3333" if chg_is_up else "#00E64D",
-            },
-        ])
+    # 成交量右側空白處解盤（第4格）：彙整當日量能、5/20日均量比與高低檔 Q/T 資金研判
+    vol_right_tokens = [
+        {"text": f"5日量比:{v_ratio_5:.2f}x", "color": "#FF3333" if v_ratio_5 >= 1.5 else "#FFFF00"},
+        {"text": f"20日量比:{v_ratio_20:.2f}x", "color": "#FF9900" if v_ratio_20 >= 1.5 else "#00FFFF"},
+        {"text": vol_status, "color": "#FF3333" if v_ratio_5 >= 1.5 else "#FFFFFF"},
+        {"text": qt_lbl_s, "color": qt_col_s},
+    ]
 
     return {
         "header_text": (
@@ -2038,18 +2020,13 @@ def build_bar_analysis_snapshot(
         "sub2_tokens": sub2_tokens,
         "sub3_tokens": sub3_tokens,
         "vol_tokens": vol_tokens,
-        "rev_no_str": f"{rev_no_val}",
+        "vol_right_tokens": vol_right_tokens,
         "ma_status": ma_status,
         "ma_cls": ma_cls,
         "ma5": f"{ma5_v:.1f}",
+        "ma10": f"{ma10_v:.1f}",
         "ma20": f"{ma20_v:.1f}",
         "ma60": f"{ma60_v:.1f}",
-        "q_status": q_status,
-        "q_cls": q_cls,
-        "q_pos_txt": q_pos_txt,
-        "q_pos_cls": q_pos_cls,
-        "q_slope_str": q_slope_str,
-        "q_slope_cls": q_slope_cls,
         "bar_chg_str": bar_chg_str,
         "bar_chg_cls": bar_chg_cls,
         "bar_amp_str": bar_amp_str,
@@ -3104,7 +3081,7 @@ if app_mode == "📈 個股籌碼圖表":
       .terminal-panel {{
         background-color: #0b0b0b;
         border: 1px solid #cc0000;
-        padding: 4px 7px;
+        padding: 5px 8px;
         color: #ffffff;
         box-sizing: border-box;
       }}
@@ -3112,23 +3089,23 @@ if app_mode == "📈 個股籌碼圖表":
         color: #ffffff;
         background-color: #0000aa;
         font-weight: bold;
-        font-size: 11.5px;
-        padding: 1.5px 5px;
-        margin-bottom: 2.5px;
+        font-size: 12px;
+        padding: 2px 5px;
+        margin-bottom: 3px;
         text-align: center;
       }}
       .terminal-title-ruler {{
         color: #000000;
         background-color: #ffff00;
         font-weight: bold;
-        font-size: 11.5px;
-        padding: 1.5px 5px;
-        margin-bottom: 2.5px;
+        font-size: 12px;
+        padding: 2px 5px;
+        margin-bottom: 3px;
         text-align: center;
       }}
       .t-row {{
-        font-size: 10.5px;
-        line-height: 1.25;
+        font-size: 11px;
+        line-height: 1.3;
         margin-bottom: 1px;
         display: flex;
         justify-content: space-between;
@@ -3159,17 +3136,9 @@ if app_mode == "📈 個股籌碼圖表":
         <div class="terminal-panel">
           <div class="terminal-title">【均線解盤】</div>
           <div class="t-row"><span class="t-label">狀態:</span><span id="p-ma-status" class="{init_snap.get("ma_cls", "t-val-white")}">{init_snap.get("ma_status", "")}</span></div>
-          <div class="t-row"><span class="t-label">逆序:</span><span id="p-rev-no" class="t-val-cyan">{init_snap.get("rev_no_str", "--")}</span></div>
           <div class="t-row"><span class="t-label">MA5:</span><span id="p-ma5" class="t-val-cyan">{init_snap.get("ma5", "")}</span></div>
           <div class="t-row"><span class="t-label">MA20:</span><span id="p-ma20" class="t-val-cyan">{init_snap.get("ma20", "")}</span></div>
           <div class="t-row"><span class="t-label">季60:</span><span id="p-ma60" class="t-val-cyan">{init_snap.get("ma60", "")}</span></div>
-        </div>
-
-        <div class="terminal-panel">
-          <div class="terminal-title">【季線解析】</div>
-          <div class="t-row"><span class="t-label">季線狀態:</span><span id="p-q-status" class="{init_snap.get("q_cls", "t-val-white")}">{init_snap.get("q_status", "")}</span></div>
-          <div class="t-row"><span class="t-label">相對位置:</span><span id="p-q-pos" class="{init_snap.get("q_pos_cls", "t-val-white")}">{init_snap.get("q_pos_txt", "")}</span></div>
-          <div class="t-row"><span class="t-label">季線斜率:</span><span id="p-q-slope" class="{init_snap.get("q_slope_cls", "t-val-cyan")}">{init_snap.get("q_slope_str", "")}</span></div>
         </div>
 
         <div class="terminal-panel" id="p-dynamic-box">
@@ -3324,13 +3293,9 @@ if app_mode == "📈 個股籌碼圖表":
         if (!r || !r.snap) return;
         const s = r.snap;
         setEl("p-ma-status", s.ma_status, s.ma_cls);
-        setEl("p-rev-no", s.rev_no_str || String(r.rev_no || "--"), "t-val-cyan");
         setEl("p-ma5", s.ma5);
         setEl("p-ma20", s.ma20);
         setEl("p-ma60", s.ma60);
-        setEl("p-q-status", s.q_status, s.q_cls);
-        setEl("p-q-pos", s.q_pos_txt, s.q_pos_cls);
-        setEl("p-q-slope", s.q_slope_str, s.q_slope_cls);
         updateDynamicSidePanel(r);
         setEl("p-kdj-sig", s.kdj_sig, s.kdj_cls);
         setEl("p-kd", s.kd_str);
@@ -3470,6 +3435,20 @@ if app_mode == "📈 個股籌碼圖表":
         }});
       }}
 
+      function measureTokensWidth(tokens, fontStr, baseGap) {{
+        ctx.save();
+        ctx.font = fontStr;
+        let totalW = 0;
+        (tokens || []).forEach((tk) => {{
+          if (!tk || !tk.text) return;
+          const w = ctx.measureText(tk.text).width;
+          const isLabel = tk.text.endsWith(":");
+          totalW += w + (isLabel ? 8.0 : (baseGap || 12.0));
+        }});
+        ctx.restore();
+        return totalW;
+      }}
+
       function renderInPlaceOverlay(r, drawLines, lineX, lineY, b) {{
         syncSize();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -3498,44 +3477,82 @@ if app_mode == "📈 個股籌碼圖表":
         const s = r.snap || {{}};
         const headerX = plotLeft + b.width * 0.010;
         const headerY = b.top + b.height * (ax1TopFrac + 0.014);
-        const fontHeader = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
+        const fontHeader = "bold 11.0px Arial, 'Microsoft JhengHei', sans-serif";
 
-        const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
+        // K線頂部列：K線----[代碼] 名稱 日期 開 高 低 收 量 ｜ 振 漲跌 ｜ 大戶 羊群 ｜ 波段狀態 均線狀態: 多方或空方 【季線多頭】 逆序
+        const prefixTitle = `K線----[${{stockCode}}] ${{stockName}}`;
+        ctx.save();
+        ctx.font = fontHeader;
         drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4);
-        let hx = headerX + ctx.measureText(prefixTitle).width + 16.0;
+        let hx = headerX + ctx.measureText(prefixTitle).width + 12.0;
 
         if (s.header_tokens && s.header_tokens.length > 0) {{
           s.header_tokens.forEach((ht) => {{
             if (!ht || !ht.text) return;
             drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4);
             const isTag = ht.text.endsWith(":");
-            hx += ctx.measureText(ht.text).width + (isTag ? 4.5 : 14.0);
+            const isSep = ht.text === "｜";
+            hx += ctx.measureText(ht.text).width + (isTag ? 3.5 : (isSep ? 8.0 : 10.0));
           }});
         }} else {{
           drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4);
         }}
 
-        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.72, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4);
-        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.815, headerY, "#00FFFF", fontHeader, 1.4);
+        const revText = `逆序:${{r.rev_no}}`;
+        const revW = ctx.measureText(revText).width;
+        const revX = plotRight - revW - 10;
+        drawOutlinedText(revText, revX, headerY, "#00FFFF", fontHeader, 1.4);
+
+        const trendBadge = s.trend_badge || "";
+        if (trendBadge) {{
+          const badgeW = ctx.measureText(trendBadge).width;
+          const badgeX = revX - badgeW - 14;
+          drawOutlinedText(trendBadge, badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4);
+        }}
+        ctx.restore();
 
         if (r.ma_items && r.ma_items.length > 0) {{
-          const maY = headerY + 20;
+          const maY = headerY + 19;
           let curX = headerX;
-          const fontMa = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
+          const fontMa = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
           r.ma_items.forEach((m) => {{
             drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4);
-            curX += ctx.measureText(m.text).width + 16.0;
+            curX += ctx.measureText(m.text).width + 14.0;
           }});
         }}
 
-        const fontSub = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
+        const fontSub = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
         if (isFourPane) {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.014), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.sub2_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.014), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.sub3_tokens, headerX, b.top + b.height * (sub3TopFrac + 0.014), fontSub, 12.0, maxTextRight);
+          // 第1副圖（KDJ / 波段 / Q/T / MACD）
+          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.014), fontSub, 11.0, maxTextRight);
+
+          // 第2副圖（KDJ 欄位 右側空白處 安置解盤）
+          const sub2Y = b.top + b.height * (sub2TopFrac + 0.014);
+          drawTokensRow(s.sub2_tokens, headerX, sub2Y, fontSub, 11.0, maxTextRight);
+          const sub2LeftW = measureTokensWidth(s.sub2_tokens, fontSub, 11.0);
+          const kdjSideX = Math.max(headerX + sub2LeftW + 24.0, plotLeft + b.width * 0.56);
+          const kdjSideTokens = [
+            {{"text": "KDJ解盤:", "color": "#FFFF00"}},
+            {{"text": s.kdj_sig || "中立觀望", "color": s.kdj_cls === "t-val-red" ? "#FF3333" : (s.kdj_cls === "t-val-green" ? "#00E64D" : "#FFFFFF")}},
+            {{"text": `K/D:${{s.kd_str || "--"}}`, "color": "#00FFFF"}},
+            {{"text": `J:${{s.j_str || "--"}}`, "color": "#FFFFFF"}},
+            {{"text": `乖離:${{s.kd_diff || "--"}}`, "color": "#FFFF00"}}
+          ];
+          drawTokensRow(kdjSideTokens, kdjSideX, sub2Y, fontSub, 10.0, maxTextRight);
+
+          // 第3副圖（成交量 欄位 右側空白處 安置解盤）
+          const sub3Y = b.top + b.height * (sub3TopFrac + 0.014);
+          drawTokensRow(s.sub3_tokens, headerX, sub3Y, fontSub, 11.0, maxTextRight);
+          const sub3LeftW = measureTokensWidth(s.sub3_tokens, fontSub, 11.0);
+          const volSideX = Math.max(headerX + sub3LeftW + 24.0, plotLeft + b.width * 0.54);
+          drawTokensRow(s.vol_right_tokens, volSideX, sub3Y, fontSub, 10.0, maxTextRight);
         }} else {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 11.0, maxTextRight);
+          const volY = b.top + b.height * (sub2TopFrac + 0.016);
+          drawTokensRow(s.vol_tokens, headerX, volY, fontSub, 11.0, maxTextRight);
+          const volLeftW = measureTokensWidth(s.vol_tokens, fontSub, 11.0);
+          const volSideX = Math.max(headerX + volLeftW + 24.0, plotLeft + b.width * 0.54);
+          drawTokensRow(s.vol_right_tokens, volSideX, volY, fontSub, 10.0, maxTextRight);
         }}
       }}
 
@@ -3652,7 +3669,7 @@ if app_mode == "📈 個股籌碼圖表":
     }})();
     </script>
     """
-    components.html(unified_interactive_html, height=695, scrolling=False)
+    components.html(unified_interactive_html, height=675, scrolling=False)
 
 # =========================================================
 # 分頁二：⚡ 9大策略選股
