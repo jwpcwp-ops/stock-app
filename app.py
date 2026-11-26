@@ -2978,15 +2978,7 @@ if app_mode == "📈 個股籌碼圖表":
             label="QT_MA5",
             zorder=3,
         )
-        if "qt_spike" in df.columns:
-            spike_mask = df["qt_spike"].astype(bool).values
-            if np.any(spike_mask):
-                sx = x[spike_mask]
-                sy = qt_vals[spike_mask]
-                sc = df.loc[spike_mask, "qt_color"].tolist()
-                ax_qt.scatter(
-                    sx, sy, s=16, c=sc, edgecolors="#FFFFFF", linewidths=0.4, zorder=5
-                )
+        # 已移除散點亮光白框，避免指標欄位出現亮光白點
 
     def _plot_chip_axis(ax_chip):
         ax_chip.set_facecolor(PANEL_BG)
@@ -3131,9 +3123,25 @@ if app_mode == "📈 個股籌碼圖表":
         ax_sub3.spines["top"].set_visible(False)
 
         for sub_ax in [ax_sub1, ax_sub2, ax_sub3]:
-            y_top_line = sub_ax.get_ylim()[1]
+            y_lo_s, y_hi_s = sub_ax.get_ylim()
+            y_top_line = y_hi_s
             sub_ax.axhline(
                 y_top_line, color="#888888", linestyle="-", linewidth=1.0, zorder=6
+            )
+            # 在指標欄位左上角放置柔和的亮光白點（波段、組合、組合1、組合2、組合3 皆顯示）
+            dot_x = x_min_bar + max(1.2, len(x) * 0.012)
+            dot_y = y_hi_s - (y_hi_s - y_lo_s) * 0.08
+            sub_ax.plot(
+                [dot_x],
+                [dot_y],
+                marker="o",
+                markersize=3.6,
+                markerfacecolor="#FFFFFF",
+                markeredgecolor="#E2E8F0",
+                markeredgewidth=0.4,
+                alpha=0.78,
+                linestyle="None",
+                zorder=8,
             )
 
         right_margin = 0.92 if is_wave_mode else 0.965
@@ -3659,14 +3667,42 @@ if app_mode == "📈 個股籌碼圖表":
           }});
         }}
 
+        function drawSoftGlowDot(cx, cy) {{
+          ctx.save();
+          const grad = ctx.createRadialGradient(cx, cy, 0.5, cx, cy, 4.5);
+          grad.addColorStop(0, "rgba(255, 255, 255, 0.85)");
+          grad.addColorStop(0.55, "rgba(226, 232, 240, 0.35)");
+          grad.addColorStop(1, "rgba(255, 255, 255, 0.0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+          ctx.beginPath();
+          ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }}
+
         const fontSub = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
+        const dotX = plotLeft + b.width * 0.004;
         if (isFourPane) {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.014), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.sub2_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.014), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.sub3_tokens, headerX, b.top + b.height * (sub3TopFrac + 0.014), fontSub, 12.0, maxTextRight);
+          const y1 = b.top + b.height * (sub1TopFrac + 0.014);
+          const y2 = b.top + b.height * (sub2TopFrac + 0.014);
+          const y3 = b.top + b.height * (sub3TopFrac + 0.014);
+          drawSoftGlowDot(dotX, y1 + 6);
+          drawSoftGlowDot(dotX, y2 + 6);
+          drawSoftGlowDot(dotX, y3 + 6);
+          drawTokensRow(s.ind_tokens, headerX, y1, fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.sub2_tokens, headerX, y2, fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.sub3_tokens, headerX, y3, fontSub, 12.0, maxTextRight);
         }} else {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, maxTextRight);
+          const y1 = b.top + b.height * (sub1TopFrac + 0.016);
+          const y2 = b.top + b.height * (sub2TopFrac + 0.016);
+          drawSoftGlowDot(dotX, y1 + 6);
+          drawSoftGlowDot(dotX, y2 + 6);
+          drawTokensRow(s.ind_tokens, headerX, y1, fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.vol_tokens, headerX, y2, fontSub, 12.0, maxTextRight);
         }}
       }}
 
