@@ -83,11 +83,15 @@ EXCEL_FILENAME = "大戶持股最新分析總表.xlsx"
 OUTPUT_CSV = "smart_selected_output.csv"
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS
+# 2. 注入自訂 CSS（含鎖定網頁不因 PageUp/PageDown 移動）
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
+        html, body, [data-testid="stAppViewContainer"], .main {
+            overflow-x: hidden !important;
+            scroll-behavior: auto !important;
+        }
         header[data-testid="stHeader"] { display: none !important; }
         footer { display: none !important; }
         
@@ -556,6 +560,10 @@ def _jump_to_chart_with_code(picked_code, picked_name=""):
     st.session_state.stock_select_version += 1
     st.session_state.default_indicator_override = "組合2"
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
+    try:
+        st.query_params["stock_idx"] = str(st.session_state.selected_index)
+    except Exception:
+        pass
     st.rerun()
 
 # ---------------------------------------------------------
@@ -2342,7 +2350,7 @@ def _filter_chip_candidates(is_golden, th_val):
     return results_list[:10]
 
 # ---------------------------------------------------------
-# 7. Session State 初始化
+# 7. Session State 初始化與換股/鍵盤橋接輔助
 # ---------------------------------------------------------
 DEFAULTS = {
     "selected_index": 0,
@@ -2377,14 +2385,135 @@ def step_feihu_bars(current_bars, direction):
     larger = [v for v in FEIHU_BAR_STEPS if v > current_bars]
     return larger[0] if larger else FEIHU_BAR_STEPS[-1]
 
-def step_stock_index(delta):
-    n_stocks = len(stock_options)
+def step_stock_index(delta: int, total_count: int = None):
+    n_stocks = len(stock_options) if total_count is None else int(total_count)
     if n_stocks <= 0:
         return
-    cur_idx = int(st.session_state.selected_index) % n_stocks
-    st.session_state.selected_index = (cur_idx + delta) % n_stocks
-    st.session_state.stock_select_version += 1
+    cur_idx = int(st.session_state.get("selected_index", 0)) % n_stocks
+    next_idx = (cur_idx + delta) % n_stocks
+    st.session_state.selected_index = next_idx
+    st.session_state.stock_select_version = (
+        int(st.session_state.get("stock_select_version", 0)) + 1
+    )
+    try:
+        st.query_params["stock_idx"] = str(next_idx)
+    except Exception:
+        pass
     st.rerun()
+
+def mount_page_key_bridge(total_count: int):
+    """
+    透過 URL query param (?stock_idx=...) 觸發換股，避免 iframe 無法直接 click 外層按鈕的問題；
+    同時攔截 PageUp / PageDown 預設捲動行為。
+    """
+    if total_count <= 1:
+        return
+
+    try:
+        qp_val = st.query_params.get("stock_idx", None)
+        if qp_val is not None:
+            qp_idx = int(str(qp_val).strip()) % total_count
+            cur_idx = int(st.session_state.get("selected_index", 0)) % total_count
+            if qp_idx != cur_idx:
+                st.session_state.selected_index = qp_idx
+                st.session_state.stock_select_version = (
+                    int(st.session_state.get("stock_select_version", 0)) + 1
+                )
+                st.rerun()
+    except Exception:
+        pass
+
+    cur_idx = int(st.session_state.get("selected_index", 0)) % total_count
+    components.html(
+        f"""
+        <script>
+        (function() {{
+          const total = {total_count};
+          let currentIdx = {cur_idx};
+          let lastTriggerTs = 0;
+
+          function getTargetWindow() {{
+            try {{
+              if (window.parent && window.parent !== window) {{
+                return window.parent;
+              }}
+            }} catch (e) {{}}
+            return window;
+          }}
+
+          function getTargetDocument(win) {{
+            try {{
+              if (win && win.document) return win.document;
+            }} catch (e) {{}}
+            return document;
+          }}
+
+          function isTypingElement(el) {{
+            if (!el) return false;
+            const tag = (el.tagName || "").toUpperCase();
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+            if (el.isContentEditable) return true;
+            if (el.closest && el.closest('[data-baseweb="select"], [role="combobox"], [role="listbox"]')) {{
+              return true;
+            }}
+            return false;
+          }}
+
+          function navigateStock(delta) {{
+            const now = Date.now();
+            if (now - lastTriggerTs < 260) return;
+            lastTriggerTs = now;
+
+            currentIdx = (currentIdx + delta + total) % total;
+            const win = getTargetWindow();
+            try {{
+              const url = new URL(win.location.href);
+              url.searchParams.set("stock_idx", String(currentIdx));
+              win.location.assign(url.toString());
+            }} catch (e) {{
+              try {{
+                const url = new URL(window.location.href);
+                url.searchParams.set("stock_idx", String(currentIdx));
+                window.location.assign(url.toString());
+              }} catch (e2) {{}}
+            }}
+          }}
+
+          const win = getTargetWindow();
+          const doc = getTargetDocument(win);
+
+          function handleKeyDown(e) {{
+            if (e.key !== "PageUp" && e.key !== "PageDown") return;
+            const active = doc.activeElement || document.activeElement;
+            if (isTypingElement(active) || isTypingElement(e.target)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+
+            if (e.key === "PageUp") {{
+              navigateStock(-1);
+            }} else if (e.key === "PageDown") {{
+              navigateStock(+1);
+            }}
+          }}
+
+          if (!win.__fxStockPgKeyHandler) {{
+            win.__fxStockPgKeyHandler = handleKeyDown;
+            win.addEventListener("keydown", handleKeyDown, true);
+            doc.addEventListener("keydown", handleKeyDown, true);
+          }}
+          if (!window.__fxStockPgKeyHandlerLocal) {{
+            window.__fxStockPgKeyHandlerLocal = handleKeyDown;
+            window.addEventListener("keydown", handleKeyDown, true);
+            document.addEventListener("keydown", handleKeyDown, true);
+          }}
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 # ---------------------------------------------------------
 # 8. 頂部導航列（左上角含股票選單 + PgUp / PgDn 快速切換）
@@ -2411,11 +2540,11 @@ with top_cols[0]:
 
 with top_cols[1]:
     if st.button("PgUp", key="top_pgup_btn", use_container_width=True, help="上一檔 (PageUp)"):
-        step_stock_index(-1)
+        step_stock_index(-1, len(stock_options))
 
 with top_cols[2]:
     if st.button("PgDn", key="top_pgdn_btn", use_container_width=True, help="下一檔 (PageDown)"):
-        step_stock_index(+1)
+        step_stock_index(+1, len(stock_options))
 
 with top_cols[3]:
     actual_chart_period = st.selectbox(
@@ -2438,46 +2567,7 @@ for nav_label, nav_key, col_idx in nav_items:
             st.session_state.app_mode_state = nav_label
             st.rerun()
 
-# 全頁掛載 PageUp / PageDown 鍵盤監聽（觸發左上角 PgUp / PgDn 按鈕，避免整頁捲動與輸入框搶焦點）
-components.html(
-    """
-    <script>
-    (function() {
-      const targetDoc = (window.parent && window.parent.document) ? window.parent.document : document;
-      const targetWin = (window.parent) ? window.parent : window;
-
-      if (targetWin.__fxPageKeyBound) return;
-      targetWin.__fxPageKeyBound = true;
-
-      function isTypingTarget(el) {
-        if (!el) return false;
-        const tag = (el.tagName || "").toUpperCase();
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-        if (el.isContentEditable) return true;
-        if (el.closest && el.closest('[data-baseweb="select"]')) return true;
-        return false;
-      }
-
-      targetDoc.addEventListener("keydown", function(e) {
-        if (e.key !== "PageUp" && e.key !== "PageDown") return;
-        if (isTypingTarget(targetDoc.activeElement) || isTypingTarget(e.target)) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        const btnLabel = e.key === "PageUp" ? "PgUp" : "PgDn";
-        const btns = Array.from(targetDoc.querySelectorAll("button"));
-        const matchBtn = btns.find((b) => (b.innerText || "").trim() === btnLabel);
-        if (matchBtn) {
-          matchBtn.click();
-        }
-      }, true);
-    })();
-    </script>
-    """,
-    height=0,
-    width=0,
-)
+mount_page_key_bridge(len(stock_options))
 
 app_mode = st.session_state.app_mode_state
 
