@@ -2897,52 +2897,39 @@ if app_mode == "📈 個股籌碼圖表":
         zorder=2,
     )
 
-    # 固定以每月「1日」為基點標註月份刻度，並用低調細緻小圓圈顯示在格內
-    month_first_marks = []
+    # 固定以每月第 1 個交易日（或每月首筆K棒）為基點，低調顯示月份標記（不加任何圈圈）
     if not df.empty:
+        month_start_marks = []
         seen_ym = set()
         for idx_m, dt_str in enumerate(df["date"].astype(str)):
-            date_part = dt_str.strip().split(" ")[0]
+            date_part = dt_str.split(" ")[0]
             parts = date_part.split("/")
-            if len(parts) >= 3:
-                try:
-                    yr_i = int(parts[0])
-                    mo_i = int(parts[1])
-                    dy_i = int(parts[2])
-                    ym_key = (yr_i, mo_i)
-                    if dy_i == 1 and ym_key not in seen_ym:
-                        seen_ym.add(ym_key)
-                        month_first_marks.append((idx_m, str(mo_i)))
-                except Exception:
-                    pass
-        if not month_first_marks:
-            prev_ym = None
-            for idx_m, dt_str in enumerate(df["date"].astype(str)):
-                parts = dt_str.strip().split(" ")[0].split("/")
-                if len(parts) >= 2:
-                    ym = f"{parts[0]}/{parts[1]}"
-                    if ym != prev_ym:
-                        prev_ym = ym
-                        try:
-                            month_first_marks.append((idx_m, str(int(parts[1]))))
-                        except Exception:
-                            pass
+            if len(parts) >= 2:
+                ym = f"{parts[0]}/{parts[1]}"
+                if ym not in seen_ym:
+                    seen_ym.add(ym)
+                    try:
+                        m_num = str(int(parts[1]))
+                        month_start_marks.append((idx_m, m_num))
+                    except Exception:
+                        pass
 
-        step_m = max(1, int(np.ceil(len(month_first_marks) / 14.0)))
-        for m_i, (m_idx, m_lbl) in enumerate(month_first_marks):
+        step_m = max(1, int(np.ceil(len(month_start_marks) / 14.0)))
+        for m_i, (m_idx, m_lbl) in enumerate(month_start_marks):
             if m_i % step_m == 0:
                 t_m = ax1.text(
                     m_idx,
                     ymin_lim + band_height * 0.50,
                     m_lbl,
-                    color="#FFFFFF",
-                    fontsize=7.2,
-                    fontweight="bold",
+                    color="#E2E8F0",
+                    fontsize=6.8,
+                    fontweight="normal",
                     ha="center",
                     va="center",
+                    alpha=0.85,
                     zorder=7,
                 )
-                t_m.set_path_effects(get_bright_effect("#000000", 2.0))
+                t_m.set_path_effects(get_bright_effect("#000000", 1.2))
 
     def _style_axis(ax_obj, show_x=False):
         ax_obj.yaxis.tick_right()
@@ -3204,31 +3191,6 @@ if app_mode == "📈 個股籌碼圖表":
     sub1_top_frac = float(1.0 - ax_sub1_bbox.y1)
     sub2_top_frac = float(1.0 - ax_sub2_bbox.y1)
     sub3_top_frac = float(1.0 - ax_sub3_bbox.y1) if ax_sub3_bbox is not None else 0.0
-
-    # 在各子圖格內以每月 1 日為基點繪製低調細緻小圓圈，不破壞畫面
-    month_circle_coords = []
-    if month_first_marks and len(x) > 0:
-        step_c = max(1, int(np.ceil(len(month_first_marks) / 14.0)))
-        chosen_c_indices = [
-            m_idx for m_i, (m_idx, _) in enumerate(month_first_marks) if m_i % step_c == 0
-        ]
-        for sub_ax in axes[1:]:
-            y_lo_c, y_hi_c = sub_ax.get_ylim()
-            if np.isfinite(y_lo_c) and np.isfinite(y_hi_c) and y_hi_c != y_lo_c:
-                # 放在子圖格內底部偏內側一點的位置，清楚且不搶眼
-                y_pos_c = y_lo_c + (y_hi_c - y_lo_c) * 0.075
-                for m_idx in chosen_c_indices:
-                    sub_ax.scatter(
-                        [float(m_idx)],
-                        [y_pos_c],
-                        s=22,
-                        facecolors="none",
-                        edgecolors="#FACC15",
-                        linewidths=0.75,
-                        alpha=0.55,
-                        zorder=5,
-                    )
-                    month_circle_coords.append((float(m_idx), float(y_pos_c)))
 
     buf = BytesIO()
     fig.savefig(buf, format="png", dpi=150, facecolor=BG_COLOR, edgecolor="none")
@@ -3858,30 +3820,6 @@ if app_mode == "📈 個股籌碼圖表":
     """
     components.html(unified_interactive_html, height=675, scrolling=False)
 
-    # 直接提供當前圖表與 K 線資料可下載檔案
-    dl_col1, dl_col2 = st.columns([1, 1])
-    with dl_col1:
-        png_bytes = base64.b64decode(img_b64)
-        st.download_button(
-            "📥 下載目前籌碼圖表 (PNG)",
-            data=png_bytes,
-            file_name=f"{stock_id}_{stock_name}_{actual_chart_period}_{selected_indicator}_{k_days_choice}K.png",
-            mime="image/png",
-            use_container_width=True,
-            key="btn_dl_chart_png",
-        )
-    with dl_col2:
-        export_df = df.copy()
-        csv_bytes = export_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button(
-            "📥 下載目前指標與K線資料 (CSV)",
-            data=csv_bytes,
-            file_name=f"{stock_id}_{stock_name}_{actual_chart_period}_{k_days_choice}K指標明細.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="btn_dl_chart_csv",
-        )
-
 # =========================================================
 # 分頁二：⚡ 9大策略選股
 # =========================================================
@@ -4055,13 +3993,6 @@ elif app_mode == "⚡ 9大策略選股":
             on_select="rerun",
             selection_mode="single-row",
         )
-        st.download_button(
-            "📥 下載策略篩選結果 (CSV)",
-            data=filtered_df.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"策略選股_{selected_strat}_{dw_choice_cur}.csv",
-            mime="text/csv",
-            key="btn_dl_strat_csv",
-        )
         selected_rows = event.selection.rows if hasattr(event, "selection") else []
         if selected_rows:
             row_idx = selected_rows[0]
@@ -4194,13 +4125,6 @@ elif app_mode == "📋 大戶總表":
             selection_mode="single-row",
             key="df_chip_screen_table",
         )
-        st.download_button(
-            "📥 下載大戶羊群過濾結果 (CSV)",
-            data=df_chip_res.to_csv(index=False).encode("utf-8-sig"),
-            file_name="大戶羊群籌碼過濾結果.csv",
-            mime="text/csv",
-            key="btn_dl_chip_res_csv",
-        )
         chip_selected_rows = (
             chip_event.selection.rows if hasattr(chip_event, "selection") else []
         )
@@ -4323,13 +4247,6 @@ elif app_mode == "📊 基本面與圖表":
         }
     ])
     st.dataframe(_fund_table_df, use_container_width=True, hide_index=True)
-    st.download_button(
-        "📥 下載基本面快訊表 (CSV)",
-        data=_fund_table_df.to_csv(index=False).encode("utf-8-sig"),
-        file_name=f"{stock_id}_{stock_name}_基本面快訊.csv",
-        mime="text/csv",
-        key="btn_dl_fund_csv",
-    )
 
     st.markdown(
         f'<p class="sub-header-14">📊 基本面趨勢圖表 ｜ [{stock_id}] {stock_name}</p>',
