@@ -1,8 +1,3 @@
-
-
-
-「PY」圖示
-app-v2
 import base64
 from datetime import datetime
 from io import BytesIO
