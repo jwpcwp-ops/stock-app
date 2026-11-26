@@ -1998,6 +1998,11 @@ def build_bar_analysis_snapshot(
     is_wave_bull = ("多" in wave_txt) or ("買" in wave_txt)
     wave_short_txt = "多方" if is_wave_bull else "空方"
     wave_col = "#FF3333" if is_wave_bull else "#00E64D"
+    ma_status_col = (
+        "#FF3333"
+        if ma_status == "多頭排列"
+        else ("#00E64D" if ma_status == "空頭排列" else "#FFFF00")
+    )
 
     header_tokens.extend([
         {"text": "|", "color": "#888888"},
@@ -2021,12 +2026,14 @@ def build_bar_analysis_snapshot(
             {"text": "|", "color": "#888888"},
             {"text": "多空指標:", "color": "#FFFFFF"},
             {"text": wave_short_txt, "color": wave_col},
+            {"text": f"({ma_status})", "color": ma_status_col},
         ])
     else:
         header_tokens.extend([
             {"text": "|", "color": "#888888"},
             {"text": "多空指標:", "color": "#FFFFFF"},
             {"text": wave_short_txt, "color": wave_col},
+            {"text": f"({ma_status})", "color": ma_status_col},
         ])
 
     return {
@@ -3191,6 +3198,7 @@ if app_mode == "📈 個股籌碼圖表":
         <div class="terminal-panel">
           <div class="terminal-title">【多空與波段判定】</div>
           <div class="t-row"><span class="t-label">多空:</span><span id="p-trend" class="{init_snap.get("trend_cls", "t-val-white")}">{init_snap.get("trend_txt", "")}</span></div>
+          <div class="t-row"><span class="t-label">均線狀態:</span><span id="p-wave-ma" class="{init_snap.get("ma_cls", "t-val-white")}">{init_snap.get("ma_status", "")}</span></div>
           <div class="t-row"><span class="t-label">波段狀態:</span><span id="p-wave" class="{init_snap.get("wave_cls", "t-val-white")}">{init_snap.get("wave_txt", "")}</span></div>
         </div>
       </div>
@@ -3328,6 +3336,7 @@ if app_mode == "📈 個股籌碼圖表":
         setEl("p-vstatus", s.vol_status);
         setEl("p-vval", s.vol_str);
         setEl("p-trend", s.trend_txt, s.trend_cls);
+        setEl("p-wave-ma", s.ma_status, s.ma_cls);
         setEl("p-wave", s.wave_txt, s.wave_cls);
         setEl("p-pe", s.pe_str || "--");
         setEl("p-eps", s.eps_str || "--");
@@ -3526,8 +3535,8 @@ if app_mode == "📈 個股籌碼圖表":
           drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4, "left");
         }}
 
-        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.835, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
-        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.918, headerY, "#00FFFF", fontHeader, 1.4, "left");
+        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.858, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
+        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.935, headerY, "#00FFFF", fontHeader, 1.4, "left");
 
         if (r.ma_items && r.ma_items.length > 0) {{
           const maY = headerY + 20;
