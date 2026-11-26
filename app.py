@@ -467,7 +467,9 @@ def _code_candidates(val):
     return cands
 
 def _norm_col(c):
-    return "".join(str(c).replace("\r", "").replace("\n", "").split())
+    return "".join(str(c).replace("
+", "").replace("
+", "").split())
 
 def _pyramid_link(code_str):
     return f"https://norway.twsthr.info/StockHolders.aspx?stock={_clean_code(code_str)}"
@@ -1398,12 +1400,6 @@ def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
     }
 
 def _compute_qt_series(df_full):
-    """
-    規劃計算 Q/T（每筆均量）：
-    - 若有真實成交筆數欄位 tx_count (>0)，直接計算每筆均量 = 成交量 / 成交筆數
-    - 若無成交筆數，則以「成交量 × (1 + 單根價格波幅權重)」推估每筆均量強度
-    - 同時算出均線 qt_ma 與放大倍數 qt_ratio，並判斷高低檔異常放大
-    """
     s_close = df_full["close"].astype(float)
     s_high = df_full["high"].astype(float)
     s_low = df_full["low"].astype(float)
@@ -2367,6 +2363,8 @@ DEFAULTS = {
     "ruler_mode_active": False,
     "show_qt_guide": False,
     "chip_1w_threshold_val": 0.00,
+    "auto_flip_active": False,
+    "auto_flip_interval": 10,
     "ma_active_map": {
         "5": False,
         "10": False,
@@ -2405,11 +2403,7 @@ def step_stock_index(delta: int, total_count: int = None):
         pass
     st.rerun()
 
-def mount_page_key_bridge(total_count: int):
-    """
-    攔截 PageUp / PageDown 預設捲動行為並同步網址參數 (?stock_idx=...)，
-    避免外層畫面因鍵盤捲動而往下跑掉。
-    """
+def mount_keyboard_and_auto_flip(total_count: int, auto_active: bool, interval_sec: int):
     if total_count <= 1:
         return
 
@@ -2427,93 +2421,98 @@ def mount_page_key_bridge(total_count: int):
     except Exception:
         pass
 
-    cur_idx = int(st.session_state.get("selected_index", 0)) % total_count
     components.html(
         f"""
         <script>
         (function() {{
-          const total = {total_count};
-          let currentIdx = {cur_idx};
-          let lastTriggerTs = 0;
+          const autoActive = {str(bool(auto_active)).lower()};
+          const intervalMs = {int(max(1, interval_sec)) * 1000};
+          let lastStepTs = 0;
 
-          function getTargetWindow() {{
+          function getDocs() {{
+            const docs = [document];
             try {{
-              if (window.parent && window.parent !== window) {{
-                return window.parent;
+              if (window.parent && window.parent.document && window.parent.document !== document) {{
+                docs.push(window.parent.document);
               }}
             }} catch (e) {{}}
-            return window;
+            return docs;
           }}
 
-          function getTargetDocument(win) {{
-            try {{
-              if (win && win.document) return win.document;
-            }} catch (e) {{}}
-            return document;
+          function clickNativeBtn(btnText) {{
+            const now = Date.now();
+            if (now - lastStepTs < 250) return;
+            lastStepTs = now;
+            const docs = getDocs();
+            for (const d of docs) {{
+              const btns = Array.from(d.querySelectorAll("button"));
+              const target = btns.find((b) => (b.innerText || "").trim() === btnText);
+              if (target) {{
+                target.click();
+                return true;
+              }}
+            }}
+            return false;
           }}
 
-          function isTypingElement(el) {{
+          function isTypingOrChartFocus(el) {{
             if (!el) return false;
             const tag = (el.tagName || "").toUpperCase();
             if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
             if (el.isContentEditable) return true;
+            if (el.id === "fx-chart-wrap") return true;
             if (el.closest && el.closest('[data-baseweb="select"], [role="combobox"], [role="listbox"]')) {{
               return true;
             }}
             return false;
           }}
 
-          function navigateStock(delta) {{
-            const now = Date.now();
-            if (now - lastTriggerTs < 260) return;
-            lastTriggerTs = now;
+          function handleKey(e) {{
+            const active = document.activeElement || (window.parent && window.parent.document && window.parent.document.activeElement);
+            if (isTypingOrChartFocus(active) || isTypingOrChartFocus(e.target)) return;
 
-            currentIdx = (currentIdx + delta + total) % total;
-            const win = getTargetWindow();
+            if (e.key === "PageUp" || e.key === "ArrowUp") {{
+              e.preventDefault();
+              e.stopPropagation();
+              clickNativeBtn("PgUp");
+            }} else if (e.key === "PageDown" || e.key === "ArrowDown") {{
+              e.preventDefault();
+              e.stopPropagation();
+              clickNativeBtn("PgDn");
+            }} else if ((e.key === " " || e.key === "Escape") && autoActive) {{
+              e.preventDefault();
+              e.stopPropagation();
+              const docs = getDocs();
+              for (const d of docs) {{
+                const stopBtn = Array.from(d.querySelectorAll("button")).find((b) => (b.innerText || "").includes("停住"));
+                if (stopBtn) {{
+                  stopBtn.click();
+                  break;
+                }}
+              }}
+            }}
+          }}
+
+          if (!window.__fxKeyBound) {{
+            window.__fxKeyBound = handleKey;
+            window.addEventListener("keydown", handleKey, true);
+            document.addEventListener("keydown", handleKey, true);
             try {{
-              if (win.scrollTo) win.scrollTo(0, 0);
+              if (window.parent && window.parent.document) {{
+                window.parent.document.addEventListener("keydown", handleKey, true);
+              }}
             }} catch (e) {{}}
-            try {{
-              const url = new URL(win.location.href);
-              url.searchParams.set("stock_idx", String(currentIdx));
-              win.location.assign(url.toString());
-            }} catch (e) {{
-              try {{
-                const url = new URL(window.location.href);
-                url.searchParams.set("stock_idx", String(currentIdx));
-                window.location.assign(url.toString());
-              }} catch (e2) {{}}
-            }}
           }}
 
-          const win = getTargetWindow();
-          const doc = getTargetDocument(win);
-
-          function handleKeyDown(e) {{
-            if (e.key !== "PageUp" && e.key !== "PageDown") return;
-            const active = doc.activeElement || document.activeElement;
-            if (isTypingElement(active) || isTypingElement(e.target)) return;
-
-            e.preventDefault();
-            e.stopPropagation();
-            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-
-            if (e.key === "PageUp") {{
-              navigateStock(-1);
-            }} else if (e.key === "PageDown") {{
-              navigateStock(+1);
-            }}
+          if (window.__fxAutoFlipTimer) {{
+            clearInterval(window.__fxAutoFlipTimer);
+            window.__fxAutoFlipTimer = null;
           }}
 
-          if (!win.__fxStockPgKeyHandler) {{
-            win.__fxStockPgKeyHandler = handleKeyDown;
-            win.addEventListener("keydown", handleKeyDown, true);
-            doc.addEventListener("keydown", handleKeyDown, true);
-          }}
-          if (!window.__fxStockPgKeyHandlerLocal) {{
-            window.__fxStockPgKeyHandlerLocal = handleKeyDown;
-            window.addEventListener("keydown", handleKeyDown, true);
-            document.addEventListener("keydown", handleKeyDown, true);
+          if (autoActive) {{
+            window.__fxAutoFlipTimer = setInterval(function() {{
+              clickNativeBtn("PgDn");
+            }}, intervalMs);
           }}
         }})();
         </script>
@@ -2523,9 +2522,9 @@ def mount_page_key_bridge(total_count: int):
     )
 
 # ---------------------------------------------------------
-# 8. 頂部導航列（左上角含股票選單 + PgUp / PgDn 快速切換）
+# 8. 頂部導航列（含股票選單、PgUp / PgDn、10秒自動翻閱停住按鈕）
 # ---------------------------------------------------------
-top_cols = st.columns([2.2, 0.42, 0.42, 1.1, 1.7, 1.7, 1.4, 1.7])
+top_cols = st.columns([2.0, 0.38, 0.38, 0.95, 1.0, 1.6, 1.6, 1.3, 1.6])
 
 with top_cols[0]:
     if st.session_state.selected_index >= len(stock_options):
@@ -2546,14 +2545,30 @@ with top_cols[0]:
     stock_name = stock_parts[1] if len(stock_parts) > 1 else ""
 
 with top_cols[1]:
-    if st.button("PgUp", key="top_pgup_btn", use_container_width=True, help="上一檔 (PageUp)"):
+    if st.button("PgUp", key="top_pgup_btn", use_container_width=True, help="上一檔 (PageUp / ↑)"):
+        st.session_state.auto_flip_active = False
         step_stock_index(-1, len(stock_options))
 
 with top_cols[2]:
-    if st.button("PgDn", key="top_pgdn_btn", use_container_width=True, help="下一檔 (PageDown)"):
+    if st.button("PgDn", key="top_pgdn_btn", use_container_width=True, help="下一檔 (PageDown / ↓)"):
         step_stock_index(+1, len(stock_options))
 
 with top_cols[3]:
+    flip_on = bool(st.session_state.auto_flip_active)
+    flip_label = "⏸ 停住(10s)" if flip_on else "▶ 10s翻閱"
+    if st.button(flip_label, key="top_auto_flip_btn", use_container_width=True, help="每10秒自動切下一檔，看到滿意股點一下即停住"):
+        st.session_state.auto_flip_active = not flip_on
+        st.rerun()
+    if flip_on:
+        st.markdown(
+            "<style>div.st-key-top_auto_flip_btn button {"
+            " background-color:#FFFF00 !important; color:#000000 !important;"
+            " border:1px solid #FFFFFF !important; font-weight:bold !important;"
+            " }</style>",
+            unsafe_allow_html=True,
+        )
+
+with top_cols[4]:
     actual_chart_period = st.selectbox(
         "週期",
         ["日線", "5分", "10分", "15分", "30分", "60分", "週線", "月線"],
@@ -2563,18 +2578,23 @@ with top_cols[3]:
     )
 
 nav_items = [
-    ("📈 個股籌碼圖表", "top_go_chart", 4),
-    ("⚡ 9大策略選股", "top_go_strat", 5),
-    ("📋 大戶總表", "top_go_table", 6),
-    ("📊 基本面與圖表", "top_go_fund", 7),
+    ("📈 個股籌碼圖表", "top_go_chart", 5),
+    ("⚡ 9大策略選股", "top_go_strat", 6),
+    ("📋 大戶總表", "top_go_table", 7),
+    ("📊 基本面與圖表", "top_go_fund", 8),
 ]
 for nav_label, nav_key, col_idx in nav_items:
     with top_cols[col_idx]:
         if st.button(nav_label, use_container_width=True, key=nav_key):
+            st.session_state.auto_flip_active = False
             st.session_state.app_mode_state = nav_label
             st.rerun()
 
-mount_page_key_bridge(len(stock_options))
+mount_keyboard_and_auto_flip(
+    len(stock_options),
+    st.session_state.auto_flip_active,
+    st.session_state.auto_flip_interval,
+)
 
 app_mode = st.session_state.app_mode_state
 
