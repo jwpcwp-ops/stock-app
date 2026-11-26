@@ -2675,8 +2675,9 @@ if app_mode == "📈 個股籌碼圖表":
     fig = plt.figure(figsize=(10.0, 4.65))
 
     if is_four_pane:
+        wave_hspace = 0.0 if is_wave_mode else 0.08
         gs = fig.add_gridspec(
-            4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=0.08
+            4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=wave_hspace
         )
         ax1 = fig.add_subplot(gs[0])
         ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
@@ -3147,11 +3148,84 @@ if app_mode == "📈 個股籌碼圖表":
         for spine in ax.spines.values():
             spine.set_visible(True)
             spine.set_color("#777777")
-            spine.set_linewidth(1.2)
+            spine.set_linewidth(1.0 if is_wave_mode else 1.2)
 
-    plt.subplots_adjust(
-        left=0.008, right=0.965, top=0.98, bottom=0.08, hspace=0.10
-    )
+    if is_wave_mode:
+        # 讓相鄰子圖的上下框線緊密銜接成單一條分隔線
+        ax1.spines["bottom"].set_visible(False)
+        ax_sub1.spines["top"].set_visible(False)
+        ax_sub1.spines["bottom"].set_visible(False)
+        ax_sub2.spines["top"].set_visible(False)
+        ax_sub2.spines["bottom"].set_visible(False)
+        ax_sub3.spines["top"].set_visible(False)
+
+        for sub_ax in [ax_sub1, ax_sub2, ax_sub3]:
+            y_top_line = sub_ax.get_ylim()[1]
+            sub_ax.axhline(
+                y_top_line, color="#888888", linestyle="-", linewidth=1.0, zorder=6
+            )
+            sub_ax.axvline(
+                x=len(df) - 0.5,
+                color="#888888",
+                linestyle="-",
+                linewidth=1.0,
+                zorder=6,
+            )
+
+        if not df.empty:
+            last_r = df.iloc[-1]
+            right_x = len(df) + (x_max_bar - len(df)) * 0.12
+
+            y1_min, y1_max = ax_sub1.get_ylim()
+            t_w1 = ax_sub1.text(
+                right_x,
+                (y1_min + y1_max) * 0.5,
+                f"DIF:{float(last_r['band_macd_dif']):.1f}\nDEA:{float(last_r['band_macd_dem']):.1f}\nOSC:{float(last_r['band_macd_osc']):.1f}",
+                color="#FFFF00",
+                fontsize=7.2,
+                fontweight="bold",
+                va="center",
+                ha="left",
+                zorder=8,
+            )
+            t_w1.set_path_effects(get_bright_effect("#000000", 2.0))
+
+            y2_min, y2_max = ax_sub2.get_ylim()
+            b_rev_last = float(last_r["band_bias_val_rev"])
+            t_w2 = ax_sub2.text(
+                right_x,
+                (y2_min + y2_max) * 0.5,
+                f"BIAS(20,反向)\n{b_rev_last:.2f}%",
+                color="#00FFFF" if b_rev_last >= 0 else "#00E64D",
+                fontsize=7.2,
+                fontweight="bold",
+                va="center",
+                ha="left",
+                zorder=8,
+            )
+            t_w2.set_path_effects(get_bright_effect("#000000", 2.0))
+
+            y3_min, y3_max = ax_sub3.get_ylim()
+            t_w3 = ax_sub3.text(
+                right_x,
+                (y3_min + y3_max) * 0.5,
+                f"MTM:{float(last_r['mtm_val']):.1f}\nAvg:{float(last_r['mtm_ma1']):.1f}",
+                color="#00FF66",
+                fontsize=7.2,
+                fontweight="bold",
+                va="center",
+                ha="left",
+                zorder=8,
+            )
+            t_w3.set_path_effects(get_bright_effect("#000000", 2.0))
+
+        plt.subplots_adjust(
+            left=0.008, right=0.92, top=0.98, bottom=0.08, hspace=0.0
+        )
+    else:
+        plt.subplots_adjust(
+            left=0.008, right=0.965, top=0.98, bottom=0.08, hspace=0.10
+        )
 
     fig.canvas.draw()
     ax1_bbox = ax1.get_position()
