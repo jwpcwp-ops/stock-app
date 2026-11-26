@@ -1995,11 +1995,9 @@ def build_bar_analysis_snapshot(
     chg_pct = (chg_pts / p_close * 100.0) if p_close > 0 else 0.0
     amp_pct = ((c_high - c_low) / p_close * 100.0) if p_close > 0 else 0.0
     chg_is_up = chg_pts >= 0
-    wave_col = (
-        "#FF3333"
-        if ("多" in wave_txt or "買" in wave_txt)
-        else ("#00FFFF" if "賣" in wave_txt else "#00E64D")
-    )
+    is_wave_bull = ("多" in wave_txt) or ("買" in wave_txt)
+    wave_short_txt = "多方" if is_wave_bull else "空方"
+    wave_col = "#FF3333" if is_wave_bull else "#00E64D"
 
     header_tokens.extend([
         {"text": "|", "color": "#888888"},
@@ -2021,12 +2019,14 @@ def build_bar_analysis_snapshot(
             {"text": "羊群:", "color": "#FFFFFF"},
             {"text": f"{s_val:.1f}%", "color": "#00E64D"},
             {"text": "|", "color": "#888888"},
-            {"text": wave_txt, "color": wave_col},
+            {"text": "多空指標:", "color": "#FFFFFF"},
+            {"text": wave_short_txt, "color": wave_col},
         ])
     else:
         header_tokens.extend([
             {"text": "|", "color": "#888888"},
-            {"text": wave_txt, "color": wave_col},
+            {"text": "多空指標:", "color": "#FFFFFF"},
+            {"text": wave_short_txt, "color": wave_col},
         ])
 
     return {
@@ -3526,8 +3526,8 @@ if app_mode == "📈 個股籌碼圖表":
           drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4, "left");
         }}
 
-        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.825, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
-        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.910, headerY, "#00FFFF", fontHeader, 1.4, "left");
+        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.835, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
+        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.918, headerY, "#00FFFF", fontHeader, 1.4, "left");
 
         if (r.ma_items && r.ma_items.length > 0) {{
           const maY = headerY + 20;
