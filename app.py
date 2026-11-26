@@ -1,3 +1,8 @@
+
+
+
+「PY」圖示
+app-v2
 import base64
 from datetime import datetime
 from io import BytesIO
@@ -3075,10 +3080,20 @@ if app_mode == "📈 個股籌碼圖表":
                 fund_data, str(r["date"]), float(r["close"])
             )
         )
+        # 逆序序列：由目前這根往回算（idx_r -> idx_r-1 -> idx_r-2...），取近5根短均線狀態
+        rev_hist = []
+        for back_i in range(idx_r, max(-1, idx_r - 5), -1):
+            b_r = df.iloc[back_i]
+            b_ma5 = float(b_r["ma_5"]) if "ma_5" in df.columns and pd.notna(b_r["ma_5"]) else 0.0
+            b_ma10 = float(b_r["ma_10"]) if "ma_10" in df.columns and pd.notna(b_r["ma_10"]) else 0.0
+            rev_hist.append("多方" if b_ma5 >= b_ma10 else "空方")
+        rev_seq_str = "←".join(rev_hist)
+
         payload_rows.append({
             "idx": idx_r,
             "bar_no": idx_r + 1,
             "rev_no": total_bars_cnt - idx_r,
+            "rev_seq": rev_seq_str,
             "date": str(r["date"]),
             "open": round(float(r["open"]), 2),
             "high": round(float(r["high"]), 2),
@@ -3308,17 +3323,18 @@ if app_mode == "📈 個股籌碼圖表":
         if (!r) return "";
         const barNo = r.bar_no || (r.idx + 1);
         const revNo = r.rev_no || (totalBars - r.idx);
-        let txt = `試算K線: 第${{barNo}}根`;
+        const revSeq = r.rev_seq ? `${{r.rev_seq}}(倒${{revNo}})` : `倒${{revNo}}`;
+        let trialPart = `試算:第${{barNo}}根`;
         const targetEnd = (rulerEndIdx !== null) ? rulerEndIdx : rulerPreviewIdx;
         if (rulerStartIdx !== null && targetEnd !== null) {{
           const st = calcRangeStats(rulerStartIdx, targetEnd);
           if (st) {{
             const deltaFromStart = Number(r.idx) - st.i1;
             const sign = deltaFromStart >= 0 ? "+" : "";
-            txt += ` (距起點${{sign}}${{deltaFromStart}}根 / 共${{st.barCount}}根)`;
+            trialPart += `(起${{sign}}${{deltaFromStart}}/${{st.barCount}}K)`;
           }}
         }}
-        return `${{txt}} | 逆序:${{revNo}}`;
+        return `逆序:${{revSeq}} (${{trialPart}})`;
       }}
 
       function updateDynamicSidePanel(r) {{
