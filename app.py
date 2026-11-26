@@ -2143,9 +2143,9 @@ def build_bar_analysis_snapshot(
             "color": "#00E64D" if s_val >= prev_s_val else "#FF3333",
         },
         {"text": "｜", "color": "#888888"},
-        {"text": "波段狀態:", "color": "#FFFF00"},
+        {"text": "波段狀態: ", "color": "#FFFF00"},
         {"text": wave_dir_txt, "color": wave_hdr_col},
-        {"text": "均線狀態:", "color": "#FFFF00"},
+        {"text": "均線狀態: ", "color": "#FFFF00"},
         {"text": ma_dir_txt, "color": ma_hdr_col},
     ])
 
