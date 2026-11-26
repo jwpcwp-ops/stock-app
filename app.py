@@ -2056,7 +2056,7 @@ def build_bar_analysis_snapshot(
         mtm_v = float(r["mtm_val"])
         mtm_avg_v = float(r["mtm_ma1"])
         ind_tokens = [
-            {"text": "波段 MACD(5,10,5)", "color": "#FFFFFF"},
+            {"text": "波段 MACD(5,10,5)  ", "color": "#FFFFFF"},
             {"text": "DIF:", "color": "#FFFF00"},
             {"text": f"{bdif_v:.2f}", "color": "#FFFF00"},
             {"text": "DEA:", "color": "#FF3333"},
