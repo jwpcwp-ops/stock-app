@@ -83,24 +83,28 @@ EXCEL_FILENAME = "大戶持股最新分析總表.xlsx"
 OUTPUT_CSV = "smart_selected_output.csv"
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS（含鎖定網頁不因 PageUp/PageDown 移動）
+# 2. 注入自訂 CSS（鎖定單屏高度、消除右側多餘滑動空間）
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
         html, body, [data-testid="stAppViewContainer"], .main {
-            overflow-x: hidden !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            overflow: hidden !important;
             scroll-behavior: auto !important;
         }
         header[data-testid="stHeader"] { display: none !important; }
         footer { display: none !important; }
-        
+
         .block-container {
-            padding-top: 0.15rem !important;
+            padding-top: 0.12rem !important;
             padding-bottom: 0.0rem !important;
             padding-left: 0.25rem !important;
             padding-right: 0.25rem !important;
             max-width: 100% !important;
+            height: 100vh !important;
+            overflow: hidden !important;
         }
         .sub-header-14 {
             font-size: 16px !important;
@@ -119,7 +123,7 @@ st.markdown(
             flex-direction: row !important;
             gap: 3px !important;
             align-items: center !important;
-            margin-bottom: 4px !important;
+            margin-bottom: 3px !important;
         }
         .stButton button {
             font-size: 9.5px !important;
@@ -128,14 +132,14 @@ st.markdown(
             min-height: 22px !important;
             height: 22px !important;
         }
-        
+
         div[data-testid="stHorizontalBlock"] > div > div > .stButton > button {
             background-color: #1a1a1a !important;
             color: #00ffff !important;
             border: 1px solid #00ffff !important;
             font-weight: bold !important;
             border-radius: 4px !important;
-            height: 28px !important;
+            height: 26px !important;
             font-size: 11px !important;
         }
         div[data-testid="stHorizontalBlock"] > div > div > .stButton > button:hover {
@@ -166,8 +170,8 @@ st.markdown(
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 26px !important;
-            height: 26px !important;
+            min-height: 25px !important;
+            height: 25px !important;
             font-size: 10.5px !important;
             padding-left: 4px !important;
             padding-right: 4px !important;
@@ -190,9 +194,9 @@ st.markdown(
             overflow-x: auto !important;
         }
         [data-testid="stVerticalBlock"] {
-            gap: 4px !important;
+            gap: 3px !important;
         }
-        
+
         .stAlert {
             color: #F0B84B !important;
             background-color: #0b0d10 !important;
@@ -2403,8 +2407,8 @@ def step_stock_index(delta: int, total_count: int = None):
 
 def mount_page_key_bridge(total_count: int):
     """
-    透過 URL query param (?stock_idx=...) 觸發換股，避免 iframe 無法直接 click 外層按鈕的問題；
-    同時攔截 PageUp / PageDown 預設捲動行為。
+    攔截 PageUp / PageDown 預設捲動行為並同步網址參數 (?stock_idx=...)，
+    避免外層畫面因鍵盤捲動而往下跑掉。
     """
     if total_count <= 1:
         return
@@ -2466,6 +2470,9 @@ def mount_page_key_bridge(total_count: int):
 
             currentIdx = (currentIdx + delta + total) % total;
             const win = getTargetWindow();
+            try {{
+              if (win.scrollTo) win.scrollTo(0, 0);
+            }} catch (e) {{}}
             try {{
               const url = new URL(win.location.href);
               url.searchParams.set("stock_idx", String(currentIdx));
@@ -2785,7 +2792,7 @@ if app_mode == "📈 個股籌碼圖表":
         or is_combo2_mode
         or is_combo3_mode
     )
-    fig = plt.figure(figsize=(10.0, 4.65))
+    fig = plt.figure(figsize=(10.0, 4.10))
 
     if is_four_pane:
         wave_hspace = 0.0 if is_wave_mode else 0.08
@@ -3379,7 +3386,7 @@ if app_mode == "📈 個股籌碼圖表":
       .terminal-panel {{
         background-color: #0b0b0b;
         border: 1px solid #cc0000;
-        padding: 5px 8px;
+        padding: 4px 7px;
         color: #ffffff;
         box-sizing: border-box;
       }}
@@ -3387,23 +3394,23 @@ if app_mode == "📈 個股籌碼圖表":
         color: #ffffff;
         background-color: #0000aa;
         font-weight: bold;
-        font-size: 12px;
-        padding: 2px 5px;
-        margin-bottom: 3px;
+        font-size: 11.5px;
+        padding: 1px 4px;
+        margin-bottom: 2px;
         text-align: center;
       }}
       .terminal-title-ruler {{
         color: #000000;
         background-color: #ffff00;
         font-weight: bold;
-        font-size: 12px;
-        padding: 2px 5px;
-        margin-bottom: 3px;
+        font-size: 11.5px;
+        padding: 1px 4px;
+        margin-bottom: 2px;
         text-align: center;
       }}
       .t-row {{
-        font-size: 11px;
-        line-height: 1.3;
+        font-size: 10.5px;
+        line-height: 1.25;
         margin-bottom: 1px;
         display: flex;
         justify-content: space-between;
@@ -3949,7 +3956,7 @@ if app_mode == "📈 個股籌碼圖表":
     }})();
     </script>
     """
-    components.html(unified_interactive_html, height=675, scrolling=False)
+    components.html(unified_interactive_html, height=580, scrolling=False)
 
 # =========================================================
 # 分頁二：⚡ 9大策略選股
