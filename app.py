@@ -3164,13 +3164,6 @@ if app_mode == "📈 個股籌碼圖表":
             sub_ax.axhline(
                 y_top_line, color="#888888", linestyle="-", linewidth=1.0, zorder=6
             )
-            sub_ax.axvline(
-                x=len(df) - 0.5,
-                color="#888888",
-                linestyle="-",
-                linewidth=1.0,
-                zorder=6,
-            )
 
         plt.subplots_adjust(
             left=0.008, right=0.92, top=0.98, bottom=0.08, hspace=0.0
