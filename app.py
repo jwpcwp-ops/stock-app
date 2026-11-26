@@ -3535,8 +3535,8 @@ if app_mode == "📈 個股籌碼圖表":
           drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4, "left");
         }}
 
-        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.858, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
-        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.935, headerY, "#00FFFF", fontHeader, 1.4, "left");
+        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.770, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
+        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.862, headerY, "#00FFFF", fontHeader, 1.4, "left");
 
         if (r.ma_items && r.ma_items.length > 0) {{
           const maY = headerY + 20;
