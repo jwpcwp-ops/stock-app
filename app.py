@@ -3533,10 +3533,30 @@ if app_mode == "📈 個股籌碼圖表":
           }});
         }} else {{
           drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4, "left");
+          ctx.save();
+          ctx.font = fontHeader;
+          hx += ctx.measureText(s.header_text || "").width + 12.0;
+          ctx.restore();
         }}
 
-        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.770, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
-        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.862, headerY, "#00FFFF", fontHeader, 1.4, "left");
+        const revText = `逆序:${{r.rev_no}}`;
+        ctx.save();
+        ctx.font = fontHeader;
+        const revW = ctx.measureText(revText).width;
+        const badgeText = s.trend_badge || "";
+        const badgeW = badgeText ? ctx.measureText(badgeText).width : 0;
+        ctx.restore();
+
+        const revX = Math.max(hx + 10.0, plotLeft + b.width * 0.862);
+        const badgeX = Math.max(hx + 10.0, plotLeft + b.width * 0.770);
+        const maxBadgeRight = revX - 10.0;
+
+        if (badgeText && (badgeX + badgeW) <= maxBadgeRight) {{
+          drawOutlinedText(badgeText, badgeX, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
+        }}
+        if ((revX + revW) <= rightNoteEdge) {{
+          drawOutlinedText(revText, revX, headerY, "#00FFFF", fontHeader, 1.4, "left");
+        }}
 
         if (r.ma_items && r.ma_items.length > 0) {{
           const maY = headerY + 20;
