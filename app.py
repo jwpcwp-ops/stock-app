@@ -1781,12 +1781,23 @@ def build_bar_analysis_snapshot(
 
     if is_buy_s:
         wave_txt, wave_cls = "★ 波段買進訊號", "t-val-red"
+        wave_short = "多方(買進)"
     elif is_sell_s:
         wave_txt, wave_cls = "✖ 波段賣出訊號", "t-val-cyan"
+        wave_short = "空方(賣出)"
     elif red_d < green_d:
         wave_txt, wave_cls = "多方波段運行中", "t-val-red"
+        wave_short = "多方"
     else:
         wave_txt, wave_cls = "空方波段整理中", "t-val-green"
+        wave_short = "空方"
+
+    if ma5_v > ma20_v > ma60_v:
+        ma_short = "多方"
+    elif ma5_v < ma20_v < ma60_v:
+        ma_short = "空方"
+    else:
+        ma_short = "多方" if ma5_v >= ma20_v else "空方"
 
     prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
     prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
@@ -2132,9 +2143,9 @@ def build_bar_analysis_snapshot(
         },
         {"text": "｜", "color": "#888888"},
         {"text": "波段狀態:", "color": "#FFFF00"},
-        {"text": wave_txt, "color": wave_hdr_col},
+        {"text": wave_short, "color": wave_hdr_col},
         {"text": "均線狀態:", "color": "#FFFF00"},
-        {"text": f"{ma_status}({ma5_10_status})", "color": ma_hdr_col},
+        {"text": ma_short, "color": ma_hdr_col},
     ])
 
     return {
