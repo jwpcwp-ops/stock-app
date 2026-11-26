@@ -1450,7 +1450,6 @@ def _compute_qt_series(df_full):
     qt_ratio = qt_curve / qt_ma.replace(0.0, np.nan)
     qt_ratio = qt_ratio.replace([np.inf, -np.inf], np.nan).fillna(1.0)
 
-    # 位階判斷：以近60根高低區間或季線(MA60)判斷高檔 / 低檔
     ma60_ref = df_full.get("ma_60", s_close.rolling(60, min_periods=1).mean().bfill())
     hi60 = s_high.rolling(60, min_periods=1).max().bfill()
     lo60 = s_low.rolling(60, min_periods=1).min().bfill()
@@ -1785,7 +1784,6 @@ def build_bar_analysis_snapshot(
     prev_vr5 = prev_vol / prev_v5 if (idx_r > 0 and prev_v5 > 0) else v_ratio_5
     prev_vr20 = prev_vol / prev_v20 if (idx_r > 0 and prev_v20 > 0) else v_ratio_20
 
-    # 成交量右側解盤
     if v_ratio_5 >= 2.0 and c_close >= p_close:
         vol_comment = "【爆量攻擊】量增價漲多方強勢"
         vol_comment_col = "#FF3333"
@@ -1815,7 +1813,6 @@ def build_bar_analysis_snapshot(
         + [{"text": f"｜解盤:{vol_comment}", "color": vol_comment_col}]
     )
 
-    # KDJ 右側解盤
     kdj_comment_col = "#00E64D" if kdj_cls == "t-val-green" else "#FFFF00"
     kdj_comment_bold = False
     if kdj_sig == "中立觀望":
@@ -1858,7 +1855,6 @@ def build_bar_analysis_snapshot(
         },
     ]
 
-    # RSI 右側解盤
     r6_v = float(r["rsi_6"])
     r12_v = float(r["rsi_12"])
     rdiff_v = float(r["rsi_diff"])
@@ -1905,7 +1901,6 @@ def build_bar_analysis_snapshot(
         },
     ]
 
-    # W% 威廉指標右側解盤
     wr_v = float(r["w_r"])
     prev_wr = float(df["w_r"].iloc[idx_r - 1]) if idx_r > 0 else wr_v
     wr_comment_bold = False
@@ -1933,7 +1928,6 @@ def build_bar_analysis_snapshot(
         }
     ]
 
-    # MACD 右側解盤
     dif_v = float(r["macd_dif"])
     dem_v = float(r["macd_dem"])
     osc_v = float(r["macd_osc"])
@@ -2735,7 +2729,10 @@ if app_mode == "📈 個股籌碼圖表":
         p_max = float(df["high"].max())
         p_min = float(df["low"].min())
         p_range = p_max - p_min if p_max != p_min else 1.0
-        ax1.set_ylim(p_min - p_range * 0.12, p_max + p_range * 0.15)
+        # 預留頂部資訊列/均線文字與底部多空色塊/月份刻度的緩衝空間
+        y_top_pad = p_range * 0.22
+        y_bot_pad = p_range * 0.16
+        ax1.set_ylim(p_min - y_bot_pad, p_max + y_top_pad)
         ax1.set_xlim(x_min_bar, x_max_bar)
 
         high_idx = int(df["high"].values.argmax())
@@ -2743,31 +2740,55 @@ if app_mode == "📈 個股籌碼圖表":
         high_val = float(df["high"].iloc[high_idx])
         low_val = float(df["low"].iloc[low_idx])
 
+        # 左右邊界防呆（避免高低點靠近最左/最右邊緣時文字被裁切）
+        left_safe_x = x_min_bar + max(3.5, len(x) * 0.03)
+        right_safe_x = float(len(x) - 1) - max(3.5, len(x) * 0.03)
+        hi_text_x = float(np.clip(high_idx, left_safe_x, right_safe_x))
+        lo_text_x = float(np.clip(low_idx, left_safe_x, right_safe_x))
+
+        # 最高價防重疊：若高點接近上方資訊列/均線區，改放高點下方並做上下限夾制
+        y_hi_upper_limit = p_max + y_top_pad * 0.68
+        if high_val + p_range * 0.03 > y_hi_upper_limit:
+            hi_text_y = max(p_min + p_range * 0.08, high_val - p_range * 0.03)
+            hi_va = "top"
+        else:
+            hi_text_y = min(y_hi_upper_limit, high_val + p_range * 0.018)
+            hi_va = "bottom"
+
+        # 最低價防重疊：確保不壓到下方多空色塊與月份刻度區
+        y_lo_lower_limit = p_min - y_bot_pad * 0.55
+        if low_val - p_range * 0.03 < y_lo_lower_limit:
+            lo_text_y = min(p_max - p_range * 0.08, low_val + p_range * 0.03)
+            lo_va = "bottom"
+        else:
+            lo_text_y = max(y_lo_lower_limit, low_val - p_range * 0.018)
+            lo_va = "top"
+
         t_hi = ax1.text(
-            high_idx,
-            high_val + p_range * 0.015,
+            hi_text_x,
+            hi_text_y,
             f"▲高:{high_val:.2f}",
             color="#FF5555",
             fontsize=7.8,
             fontweight="bold",
             ha="center",
-            va="bottom",
-            zorder=6,
+            va=hi_va,
+            zorder=8,
         )
-        t_hi.set_path_effects(get_bright_effect("#000000", 2.4))
+        t_hi.set_path_effects(get_bright_effect("#000000", 2.6))
 
         t_lo = ax1.text(
-            low_idx,
-            low_val - p_range * 0.015,
+            lo_text_x,
+            lo_text_y,
             f"▼低:{low_val:.2f}",
             color="#00FF88",
             fontsize=7.8,
             fontweight="bold",
             ha="center",
-            va="top",
-            zorder=6,
+            va=lo_va,
+            zorder=8,
         )
-        t_lo.set_path_effects(get_bright_effect("#000000", 2.4))
+        t_lo.set_path_effects(get_bright_effect("#000000", 2.6))
 
     for count_days, idx_pos in deduct_indices.items():
         ax1.axvline(
