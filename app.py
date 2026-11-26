@@ -1781,23 +1781,12 @@ def build_bar_analysis_snapshot(
 
     if is_buy_s:
         wave_txt, wave_cls = "★ 波段買進訊號", "t-val-red"
-        wave_short = "多方(買進)"
     elif is_sell_s:
         wave_txt, wave_cls = "✖ 波段賣出訊號", "t-val-cyan"
-        wave_short = "空方(賣出)"
     elif red_d < green_d:
         wave_txt, wave_cls = "多方波段運行中", "t-val-red"
-        wave_short = "多方"
     else:
         wave_txt, wave_cls = "空方波段整理中", "t-val-green"
-        wave_short = "空方"
-
-    if ma5_v > ma20_v > ma60_v:
-        ma_short = "多方"
-    elif ma5_v < ma20_v < ma60_v:
-        ma_short = "空方"
-    else:
-        ma_short = "多方" if ma5_v >= ma20_v else "空方"
 
     prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
     prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
@@ -1836,17 +1825,30 @@ def build_bar_analysis_snapshot(
     )
 
     # KDJ 右側解盤
+    kdj_comment_col = "#00E64D" if kdj_cls == "t-val-green" else "#FFFF00"
+    kdj_comment_bold = False
     if kdj_sig == "中立觀望":
         if k_v > d_v and k_v >= 50:
             kdj_comment = "多頭區金叉續航，偏多操作"
+            kdj_comment_col = "#FFFFFF"
+            kdj_comment_bold = False
         elif k_v > d_v and k_v < 50:
             kdj_comment = "低檔黃金交叉醞釀反彈"
+            kdj_comment_col = "#FFFFFF"
+            kdj_comment_bold = False
         elif k_v < d_v and k_v <= 50:
             kdj_comment = "弱勢死叉整理，靜待止跌"
+            kdj_comment_col = "#00E64D"
+            kdj_comment_bold = False
         else:
             kdj_comment = "高檔鈍化拉回，留意獲利賣壓"
+            kdj_comment_col = "#00E64D"
+            kdj_comment_bold = False
     else:
         kdj_comment = kdj_sig
+        if kdj_cls == "t-val-red":
+            kdj_comment_col = "#FFFFFF"
+            kdj_comment_bold = False
 
     kdj_tokens = [
         {"text": "KD(9,3,3)", "color": "#FFFFFF"},
@@ -1858,7 +1860,11 @@ def build_bar_analysis_snapshot(
         {"text": f"{j_v:.2f}", "color": "#FFFFFF"},
         {"text": "乖離:", "color": "#FFFF00"},
         {"text": f"{kd_diff:.2f}{'▲' if kd_diff >= 0 else '▼'}", "color": "#FFFF00"},
-        {"text": f"｜解盤:{kdj_comment}", "color": "#FFFFFF"},
+        {
+            "text": f"｜解盤:{kdj_comment}",
+            "color": kdj_comment_col,
+            "bold": kdj_comment_bold,
+        },
     ]
 
     # RSI 右側解盤
@@ -1867,20 +1873,28 @@ def build_bar_analysis_snapshot(
     rdiff_v = float(r["rsi_diff"])
     prev_r6 = float(df["rsi_6"].iloc[idx_r - 1]) if idx_r > 0 else r6_v
     prev_r12 = float(df["rsi_12"].iloc[idx_r - 1]) if idx_r > 0 else r12_v
+    rsi_comment_bold = False
     if r6_v >= 80:
         rsi_comment = "【嚴重超買】短線過熱防拉回"
+        rsi_comment_col = "#00E64D"
     elif r6_v <= 20:
         rsi_comment = "【嚴重超賣】短線醞釀反彈契機"
+        rsi_comment_col = "#FFFFFF"
     elif prev_r6 <= prev_r12 and r6_v > r12_v:
         rsi_comment = "【RSI黃金交叉】短線動能轉強"
+        rsi_comment_col = "#FFFFFF"
     elif prev_r6 >= prev_r12 and r6_v < r12_v:
         rsi_comment = "【RSI死亡交叉】短線動能轉弱"
+        rsi_comment_col = "#00E64D"
     elif r6_v > r12_v and r6_v >= 50:
         rsi_comment = "【多頭強勢】站穩50軸多方控盤"
+        rsi_comment_col = "#FFFFFF"
     elif r6_v < r12_v and r6_v < 50:
         rsi_comment = "【空頭弱勢】50軸下偏空整理"
+        rsi_comment_col = "#00E64D"
     else:
         rsi_comment = "【多空拉鋸】均軸附近震盪整理"
+        rsi_comment_col = "#FFFF00"
 
     rsi_tokens = [
         {"text": "RSI(6,12)", "color": "#FFFFFF"},
@@ -1893,25 +1907,39 @@ def build_bar_analysis_snapshot(
             "text": f"{rdiff_v:.2f}{'▲' if rdiff_v >= 0 else '▼'}",
             "color": "#FFFF00",
         },
-        {"text": f"｜解盤:{rsi_comment}", "color": "#FFFFFF"},
+        {
+            "text": f"｜解盤:{rsi_comment}",
+            "color": rsi_comment_col,
+            "bold": rsi_comment_bold,
+        },
     ]
 
     # W% 威廉指標右側解盤
     wr_v = float(r["w_r"])
     prev_wr = float(df["w_r"].iloc[idx_r - 1]) if idx_r > 0 else wr_v
+    wr_comment_bold = False
     if wr_v >= -20:
         wr_comment = "【超買警戒】進入-20強勢區留意反轉"
+        wr_comment_col = "#00E64D"
     elif wr_v <= -80:
         wr_comment = "【超賣契機】跌入-80超賣區留意止跌反彈"
+        wr_comment_col = "#FFFFFF"
     elif wr_v > -50 and wr_v >= prev_wr:
         wr_comment = "【偏多上攻】站上-50中軸多方轉強"
+        wr_comment_col = "#FFFFFF"
     elif wr_v <= -50 and wr_v < prev_wr:
         wr_comment = "【偏空下探】跌落-50中軸空方主導"
+        wr_comment_col = "#00E64D"
     else:
         wr_comment = "【中軸震盪】-50附近多空換手"
+        wr_comment_col = "#FFFF00"
 
     wr_tokens = _trend_token("W%:", f"{wr_v:.2f}%", wr_v >= prev_wr, "#FFFFFF") + [
-        {"text": f"｜解盤:{wr_comment}", "color": "#FFFFFF"}
+        {
+            "text": f"｜解盤:{wr_comment}",
+            "color": wr_comment_col,
+            "bold": wr_comment_bold,
+        }
     ]
 
     # MACD 右側解盤
@@ -1922,27 +1950,34 @@ def build_bar_analysis_snapshot(
     prev_dem = float(df["macd_dem"].iloc[idx_r - 1]) if idx_r > 0 else dem_v
     prev_osc = float(df["macd_osc"].iloc[idx_r - 1]) if idx_r > 0 else osc_v
     osc_col = "#FF3333" if osc_v >= 0 else "#00E64D"
+    macd_comment_bold = False
 
     if prev_osc <= 0 and osc_v > 0:
         macd_comment = "【MACD黃金交叉】柱狀翻紅買盤啟動"
+        macd_comment_col = "#FFFFFF"
     elif prev_osc >= 0 and osc_v < 0:
         macd_comment = "【MACD死亡交叉】柱狀翻綠留意轉弱"
+        macd_comment_col = "#00E64D"
     elif dif_v > 0 and dem_v > 0 and osc_v > 0:
-        macd_comment = (
-            "【零軸上多頭】紅柱擴大主升續攻"
-            if osc_v >= prev_osc
-            else "【零軸上高檔】紅柱收斂防短線震盪"
-        )
+        if osc_v >= prev_osc:
+            macd_comment = "【零軸上多頭】紅柱擴大主升續攻"
+            macd_comment_col = "#FFFFFF"
+        else:
+            macd_comment = "【零軸上高檔】紅柱收斂防短線震盪"
+            macd_comment_col = "#FFFF00"
     elif dif_v < 0 and dem_v < 0 and osc_v < 0:
         macd_comment = (
             "【零軸下空頭】綠柱擴大弱勢探底"
             if osc_v <= prev_osc
             else "【零軸下止跌】綠柱縮短醞釀反彈"
         )
+        macd_comment_col = "#00E64D" if osc_v <= prev_osc else "#00FFFF"
     elif osc_v >= 0:
         macd_comment = "【多方修復】翻紅上攻測試零軸"
+        macd_comment_col = "#FFFFFF"
     else:
         macd_comment = "【空方整理】綠柱壓抑靜待轉折"
+        macd_comment_col = "#00E64D"
 
     macd_tokens = [
         {"text": "MACD(長)", "color": "#FFFFFF"},
@@ -1952,7 +1987,11 @@ def build_bar_analysis_snapshot(
         {"text": f"{dem_v:.2f}{'▲' if dem_v >= prev_dem else '▼'}", "color": "#00FFFF"},
         {"text": "MACD:", "color": osc_col},
         {"text": f"{osc_v:.2f}{'▲' if osc_v >= prev_osc else '▼'}", "color": osc_col},
-        {"text": f"｜解盤:{macd_comment}", "color": "#FFFFFF"},
+        {
+            "text": f"｜解盤:{macd_comment}",
+            "color": macd_comment_col,
+            "bold": macd_comment_bold,
+        },
     ]
 
     bias_v = float(r["bias_val"])
@@ -2120,9 +2159,9 @@ def build_bar_analysis_snapshot(
         },
         {"text": "｜", "color": "#888888"},
         {"text": "波段狀態:", "color": "#FFFF00"},
-        {"text": wave_short, "color": wave_hdr_col},
+        {"text": wave_txt, "color": wave_hdr_col},
         {"text": "均線狀態:", "color": "#FFFF00"},
-        {"text": ma_short, "color": ma_hdr_col},
+        {"text": f"{ma_status}({ma5_10_status})", "color": ma_hdr_col},
     ])
 
     return {
