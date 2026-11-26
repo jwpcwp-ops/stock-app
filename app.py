@@ -2073,7 +2073,7 @@ def build_bar_analysis_snapshot(
         ]
         sub3_tokens = [
             {"text": "波段 MTM(10,1)", "color": "#FFFFFF"},
-            {"text": "MTM:", "color": "#FFFF00"},
+            {"text":   "MTM:", "color": "#FFFF00"},
             {"text": f"{mtm_v:.2f}", "color": "#FFFF00"},
             {"text": "Avg:", "color": "#00FF66"},
             {"text": f"{mtm_avg_v:.2f}", "color": "#00FF66"},
