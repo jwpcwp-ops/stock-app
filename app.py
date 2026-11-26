@@ -2899,12 +2899,27 @@ if app_mode == "📈 個股籌碼圖表":
     def _style_axis(ax_obj, show_x=False):
         ax_obj.yaxis.tick_right()
         ax_obj.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
-        plt.setp(ax_obj.get_xticklabels(), visible=show_x)
         if show_x:
-            ax_obj.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
+            ax_obj.tick_params(
+                axis="x",
+                which="both",
+                bottom=True,
+                top=False,
+                labelbottom=True,
+                labelsize=7.5,
+                colors="#FFFFFF",
+            )
             for lbl in ax_obj.get_xticklabels():
                 lbl.set_color("#FFFFFF")
                 lbl.set_fontsize(7.5)
+        else:
+            ax_obj.tick_params(
+                axis="x",
+                which="both",
+                bottom=False,
+                top=False,
+                labelbottom=False,
+            )
         ax_obj.grid(
             True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
         )
@@ -3114,21 +3129,10 @@ if app_mode == "📈 個股籌碼圖表":
             spine.set_linewidth(1.0 if is_wave_mode else 1.2)
 
     if is_four_pane:
-        # 讓四子圖模式（波段、組合、組合1、組合2、組合3）的相鄰子圖上下框線緊密銜接成單一條分隔線
+        # 僅隱藏前三個子圖的 bottom 框線，保留每個子圖自身的 top 框線以 100% 無縫銜接
         ax1.spines["bottom"].set_visible(False)
-        ax_sub1.spines["top"].set_visible(False)
         ax_sub1.spines["bottom"].set_visible(False)
-        ax_sub2.spines["top"].set_visible(False)
         ax_sub2.spines["bottom"].set_visible(False)
-        ax_sub3.spines["top"].set_visible(False)
-
-        for sub_ax in [ax_sub1, ax_sub2, ax_sub3]:
-            y_lo_s, y_hi_s = sub_ax.get_ylim()
-            y_top_line = y_hi_s
-            sub_ax.axhline(
-                y_top_line, color="#888888", linestyle="-", linewidth=1.0, zorder=6
-            )
-            # 已移除指標欄位左上角亮光白點，避免組合／組合1／組合2／組合3出現光點干擾
 
         right_margin = 0.92 if is_wave_mode else 0.965
         plt.subplots_adjust(
@@ -3653,12 +3657,19 @@ if app_mode == "📈 個股籌碼圖表":
           }});
         }}
 
-        // 已將指標欄位亮光白點改為極低亮度淡化微點（或移除），避免在組合／組合1／組合2／組合3產生明顯白點
         function drawSoftGlowDot(cx, cy) {{
           ctx.save();
-          ctx.fillStyle = "rgba(148, 163, 184, 0.14)";
+          const grad = ctx.createRadialGradient(cx, cy, 0.5, cx, cy, 4.5);
+          grad.addColorStop(0, "rgba(255, 255, 255, 0.85)");
+          grad.addColorStop(0.55, "rgba(226, 232, 240, 0.35)");
+          grad.addColorStop(1, "rgba(255, 255, 255, 0.0)");
+          ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.arc(cx, cy, 1.1, 0, Math.PI * 2);
+          ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+          ctx.beginPath();
+          ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         }}
