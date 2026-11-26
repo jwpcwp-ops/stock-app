@@ -1698,7 +1698,20 @@ def build_bar_analysis_snapshot(
     else:
         ma_status = "均線交錯"
     ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
-    ma_dir_txt = "多方" if ma5_v > ma20_v else "空方"
+
+    # 對 5日 / 10日均線解盤
+    if c_close >= ma5_v and c_close >= ma10_v:
+        ma5_10_status = "站上5/10日均線" if ma5_v >= ma10_v else "站上雙均線(5<10)"
+        ma5_10_color = "#FF3333"
+    elif c_close < ma5_v and c_close < ma10_v:
+        ma5_10_status = "跌破5/10日均線" if ma5_v <= ma10_v else "跌破雙均線(5>10)"
+        ma5_10_color = "#00E64D"
+    elif c_close >= ma5_v:
+        ma5_10_status = "站上5日測10日線"
+        ma5_10_color = "#FFFF00"
+    else:
+        ma5_10_status = "破5日守10日均線"
+        ma5_10_color = "#00FFFF"
 
     bar_diff = c_close - p_close
     bar_chg_pct = (bar_diff / p_close * 100.0) if p_close > 0 else 0.0
@@ -1768,16 +1781,12 @@ def build_bar_analysis_snapshot(
 
     if is_buy_s:
         wave_txt, wave_cls = "★ 波段買進訊號", "t-val-red"
-        wave_dir_txt = "多方"
     elif is_sell_s:
         wave_txt, wave_cls = "✖ 波段賣出訊號", "t-val-cyan"
-        wave_dir_txt = "空方"
     elif red_d < green_d:
         wave_txt, wave_cls = "多方波段運行中", "t-val-red"
-        wave_dir_txt = "多方"
     else:
         wave_txt, wave_cls = "空方波段整理中", "t-val-green"
-        wave_dir_txt = "空方"
 
     prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
     prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
@@ -1806,8 +1815,8 @@ def build_bar_analysis_snapshot(
         vol_comment_col = "#00FFFF"
 
     vol_tokens = (
-        [{"text": "成交量:", "color": "#F2F4F8"}]
-        + _trend_token("", f"{int(c_vol)}", c_vol >= prev_vol, "#F2F4F8")
+        [{"text": "成交量:", "color": "#FFFFFF"}]
+        + _trend_token("", f"{int(c_vol)}", c_vol >= prev_vol, "#FFFFFF")
         + _trend_token("5日:", f"{int(vol_ma5_v)}", vol_ma5_v >= prev_v5, "#FFFF00")
         + _trend_token("值5:", f"{v_ratio_5:.2f}", v_ratio_5 >= prev_vr5, "#FFFF00")
         + _trend_token("20日:", f"{int(vol_ma20_v)}", vol_ma20_v >= prev_v20, "#FF9900")
@@ -1817,37 +1826,44 @@ def build_bar_analysis_snapshot(
 
     # KDJ 右側解盤
     kdj_comment_col = "#00E64D" if kdj_cls == "t-val-green" else "#FFFF00"
+    kdj_comment_bold = False
     if kdj_sig == "中立觀望":
         if k_v > d_v and k_v >= 50:
             kdj_comment = "多頭區金叉續航，偏多操作"
-            kdj_comment_col = "#F2F4F8"
+            kdj_comment_col = "#FFFFFF"
+            kdj_comment_bold = False
         elif k_v > d_v and k_v < 50:
             kdj_comment = "低檔黃金交叉醞釀反彈"
-            kdj_comment_col = "#F2F4F8"
+            kdj_comment_col = "#FFFFFF"
+            kdj_comment_bold = False
         elif k_v < d_v and k_v <= 50:
             kdj_comment = "弱勢死叉整理，靜待止跌"
             kdj_comment_col = "#00E64D"
+            kdj_comment_bold = False
         else:
             kdj_comment = "高檔鈍化拉回，留意獲利賣壓"
             kdj_comment_col = "#00E64D"
+            kdj_comment_bold = False
     else:
         kdj_comment = kdj_sig
         if kdj_cls == "t-val-red":
-            kdj_comment_col = "#F2F4F8"
+            kdj_comment_col = "#FFFFFF"
+            kdj_comment_bold = False
 
     kdj_tokens = [
-        {"text": "KD(9,3,3)", "color": "#F2F4F8"},
+        {"text": "KD(9,3,3)", "color": "#FFFFFF"},
         {"text": "K:", "color": "#FF00FF"},
         {"text": f"{k_v:.2f}", "color": "#FF00FF"},
         {"text": "D:", "color": "#00FFFF"},
         {"text": f"{d_v:.2f}", "color": "#00FFFF"},
-        {"text": "J:", "color": "#F2F4F8"},
-        {"text": f"{j_v:.2f}", "color": "#F2F4F8"},
+        {"text": "J:", "color": "#FFFFFF"},
+        {"text": f"{j_v:.2f}", "color": "#FFFFFF"},
         {"text": "乖離:", "color": "#FFFF00"},
         {"text": f"{kd_diff:.2f}{'▲' if kd_diff >= 0 else '▼'}", "color": "#FFFF00"},
         {
             "text": f"｜解盤:{kdj_comment}",
             "color": kdj_comment_col,
+            "bold": kdj_comment_bold,
         },
     ]
 
@@ -1857,21 +1873,22 @@ def build_bar_analysis_snapshot(
     rdiff_v = float(r["rsi_diff"])
     prev_r6 = float(df["rsi_6"].iloc[idx_r - 1]) if idx_r > 0 else r6_v
     prev_r12 = float(df["rsi_12"].iloc[idx_r - 1]) if idx_r > 0 else r12_v
+    rsi_comment_bold = False
     if r6_v >= 80:
         rsi_comment = "【嚴重超買】短線過熱防拉回"
         rsi_comment_col = "#00E64D"
     elif r6_v <= 20:
         rsi_comment = "【嚴重超賣】短線醞釀反彈契機"
-        rsi_comment_col = "#F2F4F8"
+        rsi_comment_col = "#FFFFFF"
     elif prev_r6 <= prev_r12 and r6_v > r12_v:
         rsi_comment = "【RSI黃金交叉】短線動能轉強"
-        rsi_comment_col = "#F2F4F8"
+        rsi_comment_col = "#FFFFFF"
     elif prev_r6 >= prev_r12 and r6_v < r12_v:
         rsi_comment = "【RSI死亡交叉】短線動能轉弱"
         rsi_comment_col = "#00E64D"
     elif r6_v > r12_v and r6_v >= 50:
         rsi_comment = "【多頭強勢】站穩50軸多方控盤"
-        rsi_comment_col = "#F2F4F8"
+        rsi_comment_col = "#FFFFFF"
     elif r6_v < r12_v and r6_v < 50:
         rsi_comment = "【空頭弱勢】50軸下偏空整理"
         rsi_comment_col = "#00E64D"
@@ -1880,7 +1897,7 @@ def build_bar_analysis_snapshot(
         rsi_comment_col = "#FFFF00"
 
     rsi_tokens = [
-        {"text": "RSI(6,12)", "color": "#F2F4F8"},
+        {"text": "RSI(6,12)", "color": "#FFFFFF"},
         {"text": "RSI6:", "color": "#FF00FF"},
         {"text": f"{r6_v:.2f}", "color": "#FF00FF"},
         {"text": "RSI12:", "color": "#00FFFF"},
@@ -1893,21 +1910,23 @@ def build_bar_analysis_snapshot(
         {
             "text": f"｜解盤:{rsi_comment}",
             "color": rsi_comment_col,
+            "bold": rsi_comment_bold,
         },
     ]
 
     # W% 威廉指標右側解盤
     wr_v = float(r["w_r"])
     prev_wr = float(df["w_r"].iloc[idx_r - 1]) if idx_r > 0 else wr_v
+    wr_comment_bold = False
     if wr_v >= -20:
         wr_comment = "【超買警戒】進入-20強勢區留意反轉"
         wr_comment_col = "#00E64D"
     elif wr_v <= -80:
         wr_comment = "【超賣契機】跌入-80超賣區留意止跌反彈"
-        wr_comment_col = "#F2F4F8"
+        wr_comment_col = "#FFFFFF"
     elif wr_v > -50 and wr_v >= prev_wr:
         wr_comment = "【偏多上攻】站上-50中軸多方轉強"
-        wr_comment_col = "#F2F4F8"
+        wr_comment_col = "#FFFFFF"
     elif wr_v <= -50 and wr_v < prev_wr:
         wr_comment = "【偏空下探】跌落-50中軸空方主導"
         wr_comment_col = "#00E64D"
@@ -1915,10 +1934,11 @@ def build_bar_analysis_snapshot(
         wr_comment = "【中軸震盪】-50附近多空換手"
         wr_comment_col = "#FFFF00"
 
-    wr_tokens = _trend_token("W%:", f"{wr_v:.2f}%", wr_v >= prev_wr, "#F2F4F8") + [
+    wr_tokens = _trend_token("W%:", f"{wr_v:.2f}%", wr_v >= prev_wr, "#FFFFFF") + [
         {
             "text": f"｜解盤:{wr_comment}",
             "color": wr_comment_col,
+            "bold": wr_comment_bold,
         }
     ]
 
@@ -1930,17 +1950,18 @@ def build_bar_analysis_snapshot(
     prev_dem = float(df["macd_dem"].iloc[idx_r - 1]) if idx_r > 0 else dem_v
     prev_osc = float(df["macd_osc"].iloc[idx_r - 1]) if idx_r > 0 else osc_v
     osc_col = "#FF3333" if osc_v >= 0 else "#00E64D"
+    macd_comment_bold = False
 
     if prev_osc <= 0 and osc_v > 0:
         macd_comment = "【MACD黃金交叉】柱狀翻紅買盤啟動"
-        macd_comment_col = "#F2F4F8"
+        macd_comment_col = "#FFFFFF"
     elif prev_osc >= 0 and osc_v < 0:
         macd_comment = "【MACD死亡交叉】柱狀翻綠留意轉弱"
         macd_comment_col = "#00E64D"
     elif dif_v > 0 and dem_v > 0 and osc_v > 0:
         if osc_v >= prev_osc:
             macd_comment = "【零軸上多頭】紅柱擴大主升續攻"
-            macd_comment_col = "#F2F4F8"
+            macd_comment_col = "#FFFFFF"
         else:
             macd_comment = "【零軸上高檔】紅柱收斂防短線震盪"
             macd_comment_col = "#FFFF00"
@@ -1953,13 +1974,13 @@ def build_bar_analysis_snapshot(
         macd_comment_col = "#00E64D" if osc_v <= prev_osc else "#00FFFF"
     elif osc_v >= 0:
         macd_comment = "【多方修復】翻紅上攻測試零軸"
-        macd_comment_col = "#F2F4F8"
+        macd_comment_col = "#FFFFFF"
     else:
         macd_comment = "【空方整理】綠柱壓抑靜待轉折"
         macd_comment_col = "#00E64D"
 
     macd_tokens = [
-        {"text": "MACD(長)", "color": "#F2F4F8"},
+        {"text": "MACD(長)", "color": "#FFFFFF"},
         {"text": "DIF:", "color": "#FF00FF"},
         {"text": f"{dif_v:.2f}{'▲' if dif_v >= prev_dif else '▼'}", "color": "#FF00FF"},
         {"text": "DEA:", "color": "#00FFFF"},
@@ -1969,13 +1990,14 @@ def build_bar_analysis_snapshot(
         {
             "text": f"｜解盤:{macd_comment}",
             "color": macd_comment_col,
+            "bold": macd_comment_bold,
         },
     ]
 
     bias_v = float(r["bias_val"])
     prev_bias = float(df["bias_val"].iloc[idx_r - 1]) if idx_r > 0 else bias_v
     bias_tokens = [
-        {"text": "BIAS(60):", "color": "#F2F4F8"},
+        {"text": "BIAS(60):", "color": "#FFFFFF"},
         {
             "text": f"{bias_v:.2f}%{'▲' if bias_v >= prev_bias else '▼'}",
             "color": "#FF3333" if bias_v >= 0 else "#00E64D",
@@ -1996,7 +2018,7 @@ def build_bar_analysis_snapshot(
     qt_int = int(round(qt_v))
     qt_ma_int = int(round(qt_ma_v))
     qt_tokens = [
-        {"text": "Q/T(每筆均量):", "color": "#F2F4F8"},
+        {"text": "Q/T(每筆均量):", "color": "#FFFFFF"},
         {
             "text": f"{qt_int}{'▲' if qt_v >= prev_qt else '▼'}",
             "color": "#FFFF00",
@@ -2006,12 +2028,12 @@ def build_bar_analysis_snapshot(
             "text": f"{qt_ma_int}{'▲' if qt_ma_v >= prev_qt_ma else '▼'}",
             "color": "#00FFFF",
         },
-        {"text": "倍數:", "color": "#F2F4F8"},
+        {"text": "倍數:", "color": "#FFFFFF"},
         {"text": f"{qt_rat_v:.2f}x", "color": qt_col_s},
         {"text": qt_lbl_s, "color": qt_col_s},
     ]
     qt_bar_tokens = [
-        {"text": "Q/T長條:", "color": "#F2F4F8"},
+        {"text": "Q/T長條:", "color": "#FFFFFF"},
         {
             "text": f"{qt_int}{'▲' if qt_v >= prev_qt else '▼'}",
             "color": "#FFFF00",
@@ -2021,14 +2043,14 @@ def build_bar_analysis_snapshot(
             "text": f"{qt_ma_int}{'▲' if qt_ma_v >= prev_qt_ma else '▼'}",
             "color": "#00FFFF",
         },
-        {"text": "倍數:", "color": "#F2F4F8"},
+        {"text": "倍數:", "color": "#FFFFFF"},
         {"text": f"{qt_rat_v:.2f}x", "color": qt_col_s},
     ]
 
     chip_tokens = [
-        {"text": "大戶:", "color": "#F2F4F8"},
+        {"text": "大戶:", "color": "#FFFFFF"},
         {"text": f"{b_val:.1f}%", "color": "#FF3333"},
-        {"text": "羊群:", "color": "#F2F4F8"},
+        {"text": "羊群:", "color": "#FFFFFF"},
         {"text": f"{s_val:.1f}%", "color": "#00E64D"},
     ]
 
@@ -2049,7 +2071,7 @@ def build_bar_analysis_snapshot(
         mtm_v = float(r["mtm_val"])
         mtm_avg_v = float(r["mtm_ma1"])
         ind_tokens = [
-            {"text": "波段 MACD(5,10,5)", "color": "#F2F4F8"},
+            {"text": "波段 MACD(5,10,5)", "color": "#FFFFFF"},
             {"text": "DIF:", "color": "#FFFF00"},
             {"text": f"{bdif_v:.2f}", "color": "#FFFF00"},
             {"text": "DEA:", "color": "#FF3333"},
@@ -2058,14 +2080,14 @@ def build_bar_analysis_snapshot(
             {"text": f"{bosc_v:.2f}", "color": "#FF3333" if bosc_v >= 0 else "#00E64D"},
         ]
         sub2_tokens = [
-            {"text": "波段 BIAS(20,反向):", "color": "#F2F4F8"},
+            {"text": "波段 BIAS(20,反向):", "color": "#FFFFFF"},
             {
                 "text": f"{bbias_rev_v:.2f}%",
                 "color": "#FF3333" if bbias_rev_v >= 0 else "#00E64D",
             },
         ]
         sub3_tokens = [
-            {"text": "波段 MTM(10,1)", "color": "#F2F4F8"},
+            {"text": "波段 MTM(10,1)", "color": "#FFFFFF"},
             {"text": "MTM:", "color": "#FFFF00"},
             {"text": f"{mtm_v:.2f}", "color": "#FFFF00"},
             {"text": "Avg:", "color": "#00FF66"},
@@ -2073,28 +2095,28 @@ def build_bar_analysis_snapshot(
         ]
 
     header_tokens = [
-        {"text": f"{c_date}", "color": "#F2F4F8"},
-        {"text": "開:", "color": "#F2F4F8"},
+        {"text": f"{c_date}", "color": "#FFFFFF"},
+        {"text": "開:", "color": "#FFFFFF"},
         {
             "text": f"{c_open:.2f}{'▲' if c_open >= p_open else '▼'}",
             "color": "#FF3333" if c_open >= p_open else "#00E64D",
         },
-        {"text": "高:", "color": "#F2F4F8"},
+        {"text": "高:", "color": "#FFFFFF"},
         {
             "text": f"{c_high:.2f}{'▲' if c_high >= p_high else '▼'}",
             "color": "#FF3333" if c_high >= p_high else "#00E64D",
         },
-        {"text": "低:", "color": "#F2F4F8"},
+        {"text": "低:", "color": "#FFFFFF"},
         {
             "text": f"{c_low:.2f}{'▲' if c_low >= p_low else '▼'}",
             "color": "#FF3333" if c_low >= p_low else "#00E64D",
         },
-        {"text": "收:", "color": "#F2F4F8"},
+        {"text": "收:", "color": "#FFFFFF"},
         {
             "text": f"{c_close:.2f}{'▲' if c_close >= p_close else '▼'}",
             "color": "#FF3333" if c_close >= p_close else "#00E64D",
         },
-        {"text": "量:", "color": "#F2F4F8"},
+        {"text": "量:", "color": "#FFFFFF"},
         {
             "text": (
                 f"{int(c_vol):,}{'張' if stock_id != '99991' else ''}"
@@ -2125,21 +2147,21 @@ def build_bar_analysis_snapshot(
             "color": "#FF3333" if chg_is_up else "#00E64D",
         },
         {"text": "｜", "color": "#888888"},
-        {"text": "大戶:", "color": "#F2F4F8"},
+        {"text": "大戶:", "color": "#FFFFFF"},
         {
             "text": f"{b_val:.1f}%{'▲' if b_val >= prev_b_val else '▼'}",
             "color": "#FF3333" if b_val >= prev_b_val else "#00E64D",
         },
-        {"text": "羊群:", "color": "#F2F4F8"},
+        {"text": "羊群:", "color": "#FFFFFF"},
         {
             "text": f"{s_val:.1f}%{'▲' if s_val >= prev_s_val else '▼'}",
             "color": "#00E64D" if s_val >= prev_s_val else "#FF3333",
         },
         {"text": "｜", "color": "#888888"},
         {"text": "波段狀態:", "color": "#FFFF00"},
-        {"text": wave_dir_txt, "color": wave_hdr_col},
+        {"text": wave_txt, "color": wave_hdr_col},
         {"text": "均線狀態:", "color": "#FFFF00"},
-        {"text": ma_dir_txt, "color": ma_hdr_col},
+        {"text": f"{ma_status}({ma5_10_status})", "color": ma_hdr_col},
     ])
 
     return {
@@ -2599,8 +2621,8 @@ if app_mode == "📈 個股籌碼圖表":
 
         with row_bar_cols[7]:
             st.markdown(
-                f"<div style='color:#00FFFF; font-size:11px; font-weight:600;"
-                f" text-align:right; line-height:24px; white-space:nowrap;'>K:{st.session_state.k_bars_count}</div>",
+                f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
+                f" text-align:right; line-height:22px; white-space:nowrap;'>K:{st.session_state.k_bars_count}</div>",
                 unsafe_allow_html=True,
             )
 
@@ -3192,7 +3214,7 @@ if app_mode == "📈 個股籌碼圖表":
         background: #000000;
         box-sizing: border-box;
         font-family: Arial, 'Microsoft JhengHei', sans-serif;
-        color: #F2F4F8;
+        color: #ffffff;
       }}
       #fx-chart-wrap {{
         position: relative;
@@ -3215,11 +3237,11 @@ if app_mode == "📈 個股籌碼圖表":
         background-color: #0b0b0b;
         border: 1px solid #cc0000;
         padding: 5px 8px;
-        color: #F2F4F8;
+        color: #ffffff;
         box-sizing: border-box;
       }}
       .terminal-title {{
-        color: #F2F4F8;
+        color: #ffffff;
         background-color: #0000aa;
         font-weight: bold;
         font-size: 12px;
@@ -3237,18 +3259,18 @@ if app_mode == "📈 個股籌碼圖表":
         text-align: center;
       }}
       .t-row {{
-        font-size: 12px;
-        line-height: 1.38;
-        margin-bottom: 2px;
+        font-size: 11px;
+        line-height: 1.3;
+        margin-bottom: 1px;
         display: flex;
         justify-content: space-between;
         gap: 4px;
       }}
-      .t-label {{ color: #ffff00; font-weight: 600; white-space: nowrap; }}
-      .t-val-red {{ color: #ff3333; font-weight: 600; }}
-      .t-val-green {{ color: #00e64d; font-weight: 600; }}
-      .t-val-cyan {{ color: #00ffff; font-weight: 600; }}
-      .t-val-white {{ color: #F2F4F8; font-weight: 600; }}
+      .t-label {{ color: #ffff00; font-weight: bold; white-space: nowrap; }}
+      .t-val-red {{ color: #ff3333; font-weight: bold; }}
+      .t-val-green {{ color: #00e64d; font-weight: bold; }}
+      .t-val-cyan {{ color: #00ffff; font-weight: bold; }}
+      .t-val-white {{ color: #ffffff; font-weight: bold; }}
     </style>
 
     <div class="fx-root">
@@ -3484,7 +3506,7 @@ if app_mode == "📈 個股籌碼圖表":
         ctx.save();
         ctx.font = fontStr;
         ctx.textBaseline = "top";
-        ctx.lineWidth = strokeW || 1.25;
+        ctx.lineWidth = strokeW || 1.4;
         ctx.strokeStyle = "#000000";
         ctx.strokeText(txt, xPos, yPos);
         ctx.fillStyle = color;
@@ -3548,27 +3570,24 @@ if app_mode == "📈 個股籌碼圖表":
         ctx.strokeRect(cardX, cardY, cardW, cardH);
 
         lines.forEach((ln, idxLine) => {{
-          let col = "#F2F4F8";
+          let col = "#FFFFFF";
           if (idxLine === 0) col = "#00FFFF";
           else if (idxLine === 1 || idxLine === 2) col = isUp ? "#FF4444" : "#00E64D";
-          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
+          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
         }});
         ctx.restore();
       }}
 
       function drawTokensRow(tokens, startX, yPos, fontStr, baseGap, maxRightX) {{
         let curX = startX;
-        ctx.save();
-        ctx.font = fontStr;
         (tokens || []).forEach((tk) => {{
           if (!tk || !tk.text) return;
           const w = ctx.measureText(tk.text).width;
           if (maxRightX && (curX + w) > maxRightX) return;
-          drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.25);
+          drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.4);
           const isLabel = tk.text.endsWith(":");
-          curX += w + (isLabel ? 6.5 : (baseGap || 11.5));
+          curX += w + (isLabel ? 8.0 : (baseGap || 12.0));
         }});
-        ctx.restore();
       }}
 
       function renderInPlaceOverlay(r, drawLines, lineX, lineY, b) {{
@@ -3598,57 +3617,52 @@ if app_mode == "📈 個股籌碼圖表":
 
         const s = r.snap || {{}};
         const headerX = plotLeft + b.width * 0.010;
-        const headerY = b.top + b.height * (ax1TopFrac + 0.012);
+        const headerY = b.top + b.height * (ax1TopFrac + 0.014);
+        const fontHeader = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
 
         const fontHeaderDyn = b.width < 1180
-          ? "11.5px Arial, 'Microsoft JhengHei', sans-serif"
-          : "12.5px Arial, 'Microsoft JhengHei', sans-serif";
-        ctx.save();
-        ctx.font = fontHeaderDyn;
+          ? "bold 10.2px Arial, 'Microsoft JhengHei', sans-serif"
+          : "bold 11.2px Arial, 'Microsoft JhengHei', sans-serif";
         const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
-        drawOutlinedText(prefixTitle, headerX, headerY, "#F2F4F8", fontHeaderDyn, 1.25);
-        let hx = headerX + ctx.measureText(prefixTitle).width + 7.5;
+        drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeaderDyn, 1.4);
+        let hx = headerX + ctx.measureText(prefixTitle).width + 8.0;
 
         if (s.header_tokens && s.header_tokens.length > 0) {{
           s.header_tokens.forEach((ht) => {{
             if (!ht || !ht.text) return;
-            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeaderDyn, 1.25);
+            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeaderDyn, 1.4);
             const isTag = ht.text.endsWith(":");
             const isPipe = ht.text === "｜";
-            hx += ctx.measureText(ht.text).width + (isPipe ? 4.5 : (isTag ? 2.5 : 6.8));
+            hx += ctx.measureText(ht.text).width + (isPipe ? 4.0 : (isTag ? 2.5 : 7.0));
           }});
         }} else {{
-          drawOutlinedText(s.header_text || "", hx, headerY, "#F2F4F8", fontHeaderDyn, 1.25);
-          hx += ctx.measureText(s.header_text || "").width + 7.5;
+          drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeaderDyn, 1.4);
+          hx += ctx.measureText(s.header_text || "").width + 8.0;
         }}
 
         const badgeTxt = s.trend_badge || "";
-        drawOutlinedText(badgeTxt, hx + 4.0, headerY, s.trend_badge_color || "#FF3333", fontHeaderDyn, 1.25);
-        hx += ctx.measureText(badgeTxt).width + 9.0;
-        drawOutlinedText(`逆序:${{r.rev_no}}`, hx, headerY, "#00FFFF", fontHeaderDyn, 1.25);
-        ctx.restore();
+        drawOutlinedText(badgeTxt, hx + 4.0, headerY, s.trend_badge_color || "#FF3333", fontHeaderDyn, 1.4);
+        hx += ctx.measureText(badgeTxt).width + 10.0;
+        drawOutlinedText(`逆序:${{r.rev_no}}`, hx, headerY, "#00FFFF", fontHeaderDyn, 1.4);
 
         if (r.ma_items && r.ma_items.length > 0) {{
-          const maY = headerY + 21;
+          const maY = headerY + 20;
           let curX = headerX;
-          const fontMa = "12.5px Arial, 'Microsoft JhengHei', sans-serif";
-          ctx.save();
-          ctx.font = fontMa;
+          const fontMa = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
           r.ma_items.forEach((m) => {{
-            drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.25);
-            curX += ctx.measureText(m.text).width + 15.0;
+            drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4);
+            curX += ctx.measureText(m.text).width + 16.0;
           }});
-          ctx.restore();
         }}
 
-        const fontSub = "12.5px Arial, 'Microsoft JhengHei', sans-serif";
+        const fontSub = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
         if (isFourPane) {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.012), fontSub, 11.5, maxTextRight);
-          drawTokensRow(s.sub2_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.012), fontSub, 11.5, maxTextRight);
-          drawTokensRow(s.sub3_tokens, headerX, b.top + b.height * (sub3TopFrac + 0.012), fontSub, 11.5, maxTextRight);
+          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.014), fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.sub2_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.014), fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.sub3_tokens, headerX, b.top + b.height * (sub3TopFrac + 0.014), fontSub, 12.0, maxTextRight);
         }} else {{
-          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.014), fontSub, 11.5, maxTextRight);
-          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.014), fontSub, 11.5, maxTextRight);
+          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, maxTextRight);
         }}
       }}
 
