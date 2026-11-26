@@ -42,7 +42,7 @@ MA_COLOR_MAP = {
     "分割": "#00FFFF",
 }
 
-FEIHU_BAR_STEPS = [6, 12, 24, 30, 50, 90, 130, 160, 240, 360, 540, 900]
+FEIHU_BAR_STEPS = [6, 11, 18, 29, 45, 69, 105, 159, 240, 361, 543, 816]
 
 MINUTE_PERIOD_LABELS = {
     "5分",
@@ -83,28 +83,20 @@ EXCEL_FILENAME = "大戶持股最新分析總表.xlsx"
 OUTPUT_CSV = "smart_selected_output.csv"
 
 # ---------------------------------------------------------
-# 2. 注入自訂 CSS（鎖定單屏高度、消除右側多餘滑動空間）
+# 2. 注入自訂 CSS
 # ---------------------------------------------------------
 st.markdown(
     """
     <style>
-        html, body, [data-testid="stAppViewContainer"], .main {
-            height: 100vh !important;
-            max-height: 100vh !important;
-            overflow: hidden !important;
-            scroll-behavior: auto !important;
-        }
         header[data-testid="stHeader"] { display: none !important; }
         footer { display: none !important; }
-
+        
         .block-container {
-            padding-top: 0.12rem !important;
+            padding-top: 0.15rem !important;
             padding-bottom: 0.0rem !important;
             padding-left: 0.25rem !important;
             padding-right: 0.25rem !important;
             max-width: 100% !important;
-            height: 100vh !important;
-            overflow: hidden !important;
         }
         .sub-header-14 {
             font-size: 16px !important;
@@ -123,7 +115,7 @@ st.markdown(
             flex-direction: row !important;
             gap: 3px !important;
             align-items: center !important;
-            margin-bottom: 3px !important;
+            margin-bottom: 4px !important;
         }
         .stButton button {
             font-size: 9.5px !important;
@@ -132,14 +124,14 @@ st.markdown(
             min-height: 22px !important;
             height: 22px !important;
         }
-
+        
         div[data-testid="stHorizontalBlock"] > div > div > .stButton > button {
             background-color: #1a1a1a !important;
             color: #00ffff !important;
             border: 1px solid #00ffff !important;
             font-weight: bold !important;
             border-radius: 4px !important;
-            height: 26px !important;
+            height: 28px !important;
             font-size: 11px !important;
         }
         div[data-testid="stHorizontalBlock"] > div > div > .stButton > button:hover {
@@ -170,8 +162,8 @@ st.markdown(
             margin-bottom: 0px !important;
         }
         [data-testid="stSelectbox"] div[data-baseweb="select"] {
-            min-height: 25px !important;
-            height: 25px !important;
+            min-height: 26px !important;
+            height: 26px !important;
             font-size: 10.5px !important;
             padding-left: 4px !important;
             padding-right: 4px !important;
@@ -194,9 +186,9 @@ st.markdown(
             overflow-x: auto !important;
         }
         [data-testid="stVerticalBlock"] {
-            gap: 3px !important;
+            gap: 4px !important;
         }
-
+        
         .stAlert {
             color: #F0B84B !important;
             background-color: #0b0d10 !important;
@@ -449,15 +441,18 @@ else:
 
 plt.rcParams["axes.unicode_minus"] = False
 
+
 def get_bright_effect(stroke_color="#000000", linewidth=2.5):
     return [
         path_effects.withStroke(linewidth=linewidth, foreground=stroke_color),
         path_effects.Normal(),
     ]
 
+
 def _clean_code(val):
     s = str(val).strip().replace(".0", "")
     return s.zfill(4) if s.isdigit() else s
+
 
 def _code_candidates(val):
     clean_id = str(val).strip().replace(".0", "")
@@ -465,11 +460,16 @@ def _code_candidates(val):
     if clean_id.isdigit():
         cands.extend([clean_id.zfill(4), str(int(clean_id))])
     return cands
+
+
 def _norm_col(c):
-    return "".join(str(c).replace("\n", "").replace("\r", "").split())
+    return "".join(str(c).replace("\r", "").replace("\n", "").split())
+
 
 def _pyramid_link(code_str):
     return f"https://norway.twsthr.info/StockHolders.aspx?stock={_clean_code(code_str)}"
+
+
 def _parse_pos_float(val):
     if val is None:
         return None
@@ -482,11 +482,13 @@ def _parse_pos_float(val):
     except Exception:
         return None
 
+
 def _build_ssl_context():
     try:
         return ssl.create_default_context(cafile=certifi.where())
     except Exception:
         return ssl.create_default_context()
+
 
 def _fetch_json_url(url, headers=None, timeout=8):
     req = urllib.request.Request(
@@ -501,6 +503,7 @@ def _fetch_json_url(url, headers=None, timeout=8):
         raw_txt = resp.read().decode("utf-8", errors="ignore")
         return json.loads(raw_txt)
 
+
 def _normalize_yf_df_index(df_in):
     if df_in is None or df_in.empty:
         return df_in
@@ -510,6 +513,7 @@ def _normalize_yf_df_index(df_in):
     else:
         out.index = pd.to_datetime(out.index).tz_localize(None)
     return out
+
 
 # ---------------------------------------------------------
 # 4. 股票清單與導航輔助
@@ -533,6 +537,7 @@ def load_stock_list():
         options = default_data["代碼"] + " " + default_data["名稱"]
         return options.tolist(), default_data
 
+
 stock_options, stock_df = load_stock_list()
 ID_TO_NAME = dict(
     zip(
@@ -541,6 +546,7 @@ ID_TO_NAME = dict(
     )
 )
 
+
 def find_stock_index_by_code(code_str):
     candidates = _code_candidates(code_str)
     for i, opt in enumerate(stock_options):
@@ -548,6 +554,7 @@ def find_stock_index_by_code(code_str):
         if opt_code in candidates:
             return i
     return -1
+
 
 def _jump_to_chart_with_code(picked_code, picked_name=""):
     clean_c = _clean_code(picked_code)
@@ -562,11 +569,8 @@ def _jump_to_chart_with_code(picked_code, picked_name=""):
     st.session_state.stock_select_version += 1
     st.session_state.default_indicator_override = "組合2"
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
-    try:
-        st.query_params["stock_idx"] = str(st.session_state.selected_index)
-    except Exception:
-        pass
     st.rerun()
+
 
 # ---------------------------------------------------------
 # 5. 本地快取、行情抓取與基本面查詢
@@ -589,6 +593,7 @@ def load_local_cache_cached():
             pass
     return cache_dict
 
+
 def extract_tdcc_arrays(cache_item):
     if not cache_item:
         return [], [], []
@@ -602,6 +607,7 @@ def extract_tdcc_arrays(cache_item):
     sheep_h = [float(x) for x in cache_item.get("sheep_holder", [])]
     w_dates = [str(x) for x in cache_item.get("w_dates", [])]
     return big_h, sheep_h, w_dates
+
 
 def get_holder_series_for_stock(stock_id, n_periods, cache_dict=None):
     if cache_dict is None:
@@ -645,6 +651,7 @@ def get_holder_series_for_stock(stock_id, n_periods, cache_dict=None):
     )
     return big_h, sheep_h, w_dates, False
 
+
 def _aggregate_minute_bars(df_src, group_size=2):
     if df_src is None or df_src.empty or group_size <= 1:
         return df_src
@@ -662,6 +669,7 @@ def _aggregate_minute_bars(df_src, group_size=2):
             "Volume": float(chunk["Volume"].fillna(0).sum()),
         })
     return pd.DataFrame(rows).set_index("idx") if rows else pd.DataFrame()
+
 
 def _period_yf_params(period_type, fetch_len):
     period_map = {
@@ -682,6 +690,7 @@ def _period_yf_params(period_type, fetch_len):
     if period_type in period_map:
         return period_map[period_type]
     return ("1d", "5y" if fetch_len > 350 else "3y", 1, fetch_len)
+
 
 @st.cache_data(ttl=300)
 def fetch_raw_history(stock_id, period_type, fetch_len):
@@ -778,6 +787,7 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
         })
     return records
 
+
 def _norm_y_m_d(date_val):
     if not date_val:
         return ""
@@ -798,6 +808,7 @@ def _norm_y_m_d(date_val):
             pass
     return s
 
+
 def _build_asof_table(events):
     rows = []
     for dt_v, num_v in events:
@@ -810,6 +821,7 @@ def _build_asof_table(events):
     rows.sort(key=lambda item: item[0])
     return [item[0] for item in rows], [item[1] for item in rows]
 
+
 def _lookup_asof_value(date_list, val_list, bar_date_str):
     if not date_list or not val_list:
         return None
@@ -821,6 +833,7 @@ def _lookup_asof_value(date_list, val_list, bar_date_str):
         else:
             break
     return chosen if chosen is not None else val_list[0]
+
 
 def _extract_eps_row_from_df(df_stmt):
     if df_stmt is None or not isinstance(df_stmt, pd.DataFrame) or df_stmt.empty:
@@ -861,6 +874,7 @@ def _extract_eps_row_from_df(df_stmt):
     except Exception:
         pass
     return row_s
+
 
 def _fetch_tpex_pe_yield(stock_id):
     clean_id = str(stock_id).strip().replace(".0", "")
@@ -954,6 +968,7 @@ def _fetch_tpex_pe_yield(stock_id):
             continue
     return pe_found, yld_found
 
+
 def _fetch_twse_pe_yield(stock_id):
     clean_id = str(stock_id).strip().replace(".0", "")
     if not clean_id or clean_id == "99991":
@@ -1007,6 +1022,7 @@ def _fetch_twse_pe_yield(stock_id):
         except Exception:
             continue
     return None, None
+
 
 @st.cache_data(ttl=1800)
 def fetch_stock_fundamentals(stock_id):
@@ -1342,6 +1358,7 @@ def fetch_stock_fundamentals(stock_id):
     })
     return result
 
+
 def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
     q_eps_v = _lookup_asof_value(
         fund_data.get("q_eps_dates", []),
@@ -1395,7 +1412,14 @@ def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
         "yield_str": yield_str,
     }
 
+
 def _compute_qt_series(df_full):
+    """
+    規劃計算 Q/T（每筆均量）：
+    - 若有真實成交筆數欄位 tx_count (>0)，直接計算每筆均量 = 成交量 / 成交筆數
+    - 若無成交筆數，則以「成交量 × (1 + 單根價格波幅權重)」推估每筆均量強度
+    - 同時算出均線 qt_ma 與放大倍數 qt_ratio，並判斷高低檔異常放大
+    """
     s_close = df_full["close"].astype(float)
     s_high = df_full["high"].astype(float)
     s_low = df_full["low"].astype(float)
@@ -1453,6 +1477,7 @@ def _compute_qt_series(df_full):
             qt_colors.append("#00FFFF")
 
     return qt_curve, qt_ma, qt_ratio, is_spike, qt_labels, qt_colors
+
 
 def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
     warmup_bars = 260
@@ -1625,6 +1650,7 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
 
     return df_show, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio
 
+
 def _trend_token(label, val_txt, is_up, label_color="#FFFF00", up_color="#FF3333", dn_color="#00E64D"):
     arrow = "▲" if is_up else "▼"
     col = up_color if is_up else dn_color
@@ -1633,6 +1659,7 @@ def _trend_token(label, val_txt, is_up, label_color="#FFFF00", up_color="#FF3333
         out.append({"text": label, "color": label_color})
     out.append({"text": f"{val_txt}{arrow}", "color": col})
     return out
+
 
 def build_bar_analysis_snapshot(
     df,
@@ -1659,7 +1686,6 @@ def build_bar_analysis_snapshot(
     p_vol = float(prev_r["vol"])
 
     ma5_v = float(r["ma_5"]) if "ma_5" in df.columns and pd.notna(r["ma_5"]) else 0.0
-    ma10_v = float(r["ma_10"]) if "ma_10" in df.columns and pd.notna(r["ma_10"]) else 0.0
     ma20_v = float(r["ma_20"]) if "ma_20" in df.columns and pd.notna(r["ma_20"]) else 0.0
     ma60_v = float(r["ma_60"]) if "ma_60" in df.columns and pd.notna(r["ma_60"]) else 0.0
 
@@ -1670,7 +1696,6 @@ def build_bar_analysis_snapshot(
     else:
         ma_status = "均線交錯"
     ma_cls = "t-val-red" if ma5_v > ma20_v else "t-val-green"
-    ma_dir_txt = "多方" if ma5_v > ma20_v else "空方"
 
     bar_diff = c_close - p_close
     bar_chg_pct = (bar_diff / p_close * 100.0) if p_close > 0 else 0.0
@@ -1695,24 +1720,38 @@ def build_bar_analysis_snapshot(
     is_dc = prev_k >= prev_d and k_v < d_v
 
     kdj_sig, kdj_cls = "中立觀望", "t-val-white"
+    kdj_right_txt, kdj_right_col = "解盤: KD中性震盪，留意高80低20", "#00FFFF"
     if k_v > 90:
         kdj_sig, kdj_cls = "【強力賣出】K>90超買", "t-val-green"
+        kdj_right_txt, kdj_right_col = "解盤: K>90高檔超買，防拉回", "#00E64D"
     elif j_v > 100:
         kdj_sig, kdj_cls = "【強力賣出】J>100超買", "t-val-green"
+        kdj_right_txt, kdj_right_col = "解盤: J>100短線過熱，留意轉弱", "#00E64D"
     elif kd_diff > 18:
         kdj_sig, kdj_cls = "【強力賣出】正乖離>+18", "t-val-green"
+        kdj_right_txt, kdj_right_col = "解盤: KD正乖離偏大，慎防回檔", "#00E64D"
     elif is_dc:
         kdj_sig, kdj_cls = "【賣出訊號】KD死叉", "t-val-green"
+        kdj_right_txt, kdj_right_col = "解盤: K向下穿D死叉，短線偏空", "#00E64D"
     elif k_v < 9:
         kdj_sig, kdj_cls = "【強力買進】K<9超賣", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: K<9低檔超賣，留意反彈契機", "#FF3333"
     elif k_v < 9 and d_v < 9:
         kdj_sig, kdj_cls = "【強力買進】KD雙跌破9", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: KD雙破9極度超賣，關注止跌", "#FF3333"
     elif j_v < 0:
         kdj_sig, kdj_cls = "【強力買進】J<0超賣", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: J<0低檔超賣，留意築底反彈", "#FF3333"
     elif kd_diff < -18:
         kdj_sig, kdj_cls = "【強力買進】負乖離<-18", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: KD負乖離過大，醞釀反彈", "#FF3333"
     elif is_gc:
         kdj_sig, kdj_cls = "【買進訊號】KD金交叉", "t-val-red"
+        kdj_right_txt, kdj_right_col = "解盤: K向上穿D金叉，短多轉強", "#FF3333"
+    elif k_v >= 80:
+        kdj_right_txt, kdj_right_col = "解盤: KD進入80高檔區，留意鈍化", "#FFFF00"
+    elif k_v <= 20:
+        kdj_right_txt, kdj_right_col = "解盤: KD進入20低檔區，觀察止跌", "#FFFF00"
 
     vol_ma5_v = (
         float(r["vol_ma5"])
@@ -1729,6 +1768,15 @@ def build_bar_analysis_snapshot(
     vol_status = "量能平穩" if v_ratio_5 < 1.5 else "量能顯著放大"
     vol_cls = "t-val-white" if v_ratio_5 < 1.5 else "t-val-red"
 
+    if v_ratio_5 >= 1.5 and c_close >= p_close:
+        vol_right_txt, vol_right_col = f"解盤: 帶量上攻({v_ratio_5:.2f}x)，買盤積極", "#FF3333"
+    elif v_ratio_5 >= 1.5 and c_close < p_close:
+        vol_right_txt, vol_right_col = f"解盤: 爆量收黑({v_ratio_5:.2f}x)，留意調節賣壓", "#00E64D"
+    elif v_ratio_5 < 0.7:
+        vol_right_txt, vol_right_col = f"解盤: 量能萎縮({v_ratio_5:.2f}x)，觀望氣氛濃", "#FFFF00"
+    else:
+        vol_right_txt, vol_right_col = f"解盤: 量能溫和({v_ratio_5:.2f}x)，延續既有節奏", "#00FFFF"
+
     is_bull = c_close >= ma60_v
     trend_txt = "多方主力掌控" if is_bull else "空方賣壓佔優"
     trend_cls = "t-val-red" if is_bull else "t-val-green"
@@ -1740,41 +1788,18 @@ def build_bar_analysis_snapshot(
 
     if is_buy_s:
         wave_txt, wave_cls = "★ 波段買進訊號", "t-val-red"
-        wave_dir_txt = "多方"
     elif is_sell_s:
         wave_txt, wave_cls = "✖ 波段賣出訊號", "t-val-cyan"
-        wave_dir_txt = "空方"
     elif red_d < green_d:
         wave_txt, wave_cls = "多方波段運行中", "t-val-red"
-        wave_dir_txt = "多方"
     else:
         wave_txt, wave_cls = "空方波段整理中", "t-val-green"
-        wave_dir_txt = "空方"
 
     prev_vol = float(df["vol"].iloc[idx_r - 1]) if idx_r > 0 else c_vol
     prev_v5 = float(df["vol_ma5"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma5_v
     prev_v20 = float(df["vol_ma20"].iloc[idx_r - 1]) if idx_r > 0 else vol_ma20_v
     prev_vr5 = prev_vol / prev_v5 if (idx_r > 0 and prev_v5 > 0) else v_ratio_5
     prev_vr20 = prev_vol / prev_v20 if (idx_r > 0 and prev_v20 > 0) else v_ratio_20
-
-    if v_ratio_5 >= 2.0 and c_close >= p_close:
-        vol_comment = "【爆量攻擊】量增價漲多方強勢"
-        vol_comment_col = "#FF3333"
-    elif v_ratio_5 >= 2.0 and c_close < p_close:
-        vol_comment = "【爆量下殺】高檔出量留意調節"
-        vol_comment_col = "#00E64D"
-    elif v_ratio_5 >= 1.4 and c_close >= p_close:
-        vol_comment = "【溫和放量】買盤承接轉強"
-        vol_comment_col = "#FF3333"
-    elif v_ratio_5 >= 1.4 and c_close < p_close:
-        vol_comment = "【放量走弱】賣壓湧現偏空"
-        vol_comment_col = "#00E64D"
-    elif v_ratio_5 <= 0.65:
-        vol_comment = "【量縮整理】觀望氣氛濃等待表態"
-        vol_comment_col = "#FFFF00"
-    else:
-        vol_comment = "【量能溫和】籌碼換手穩定"
-        vol_comment_col = "#00FFFF"
 
     vol_tokens = (
         [{"text": "成交量:", "color": "#FFFFFF"}]
@@ -1783,33 +1808,7 @@ def build_bar_analysis_snapshot(
         + _trend_token("值5:", f"{v_ratio_5:.2f}", v_ratio_5 >= prev_vr5, "#FFFF00")
         + _trend_token("20日:", f"{int(vol_ma20_v)}", vol_ma20_v >= prev_v20, "#FF9900")
         + _trend_token("20日值:", f"{v_ratio_20:.2f}", v_ratio_20 >= prev_vr20, "#FF9900")
-        + [{"text": f"｜解盤:{vol_comment}", "color": vol_comment_col}]
     )
-
-    kdj_comment_col = "#00E64D" if kdj_cls == "t-val-green" else "#FFFF00"
-    kdj_comment_bold = False
-    if kdj_sig == "中立觀望":
-        if k_v > d_v and k_v >= 50:
-            kdj_comment = "多頭區金叉續航，偏多操作"
-            kdj_comment_col = "#FFFFFF"
-            kdj_comment_bold = False
-        elif k_v > d_v and k_v < 50:
-            kdj_comment = "低檔黃金交叉醞釀反彈"
-            kdj_comment_col = "#FFFFFF"
-            kdj_comment_bold = False
-        elif k_v < d_v and k_v <= 50:
-            kdj_comment = "弱勢死叉整理，靜待止跌"
-            kdj_comment_col = "#00E64D"
-            kdj_comment_bold = False
-        else:
-            kdj_comment = "高檔鈍化拉回，留意獲利賣壓"
-            kdj_comment_col = "#00E64D"
-            kdj_comment_bold = False
-    else:
-        kdj_comment = kdj_sig
-        if kdj_cls == "t-val-red":
-            kdj_comment_col = "#FFFFFF"
-            kdj_comment_bold = False
 
     kdj_tokens = [
         {"text": "KD(9,3,3)", "color": "#FFFFFF"},
@@ -1821,41 +1820,11 @@ def build_bar_analysis_snapshot(
         {"text": f"{j_v:.2f}", "color": "#FFFFFF"},
         {"text": "乖離:", "color": "#FFFF00"},
         {"text": f"{kd_diff:.2f}{'▲' if kd_diff >= 0 else '▼'}", "color": "#FFFF00"},
-        {
-            "text": f"｜解盤:{kdj_comment}",
-            "color": kdj_comment_col,
-            "bold": kdj_comment_bold,
-        },
     ]
 
     r6_v = float(r["rsi_6"])
     r12_v = float(r["rsi_12"])
     rdiff_v = float(r["rsi_diff"])
-    prev_r6 = float(df["rsi_6"].iloc[idx_r - 1]) if idx_r > 0 else r6_v
-    prev_r12 = float(df["rsi_12"].iloc[idx_r - 1]) if idx_r > 0 else r12_v
-    rsi_comment_bold = False
-    if r6_v >= 80:
-        rsi_comment = "【嚴重超買】短線過熱防拉回"
-        rsi_comment_col = "#00E64D"
-    elif r6_v <= 20:
-        rsi_comment = "【嚴重超賣】短線醞釀反彈契機"
-        rsi_comment_col = "#FFFFFF"
-    elif prev_r6 <= prev_r12 and r6_v > r12_v:
-        rsi_comment = "【RSI黃金交叉】短線動能轉強"
-        rsi_comment_col = "#FFFFFF"
-    elif prev_r6 >= prev_r12 and r6_v < r12_v:
-        rsi_comment = "【RSI死亡交叉】短線動能轉弱"
-        rsi_comment_col = "#00E64D"
-    elif r6_v > r12_v and r6_v >= 50:
-        rsi_comment = "【多頭強勢】站穩50軸多方控盤"
-        rsi_comment_col = "#FFFFFF"
-    elif r6_v < r12_v and r6_v < 50:
-        rsi_comment = "【空頭弱勢】50軸下偏空整理"
-        rsi_comment_col = "#00E64D"
-    else:
-        rsi_comment = "【多空拉鋸】均軸附近震盪整理"
-        rsi_comment_col = "#FFFF00"
-
     rsi_tokens = [
         {"text": "RSI(6,12)", "color": "#FFFFFF"},
         {"text": "RSI6:", "color": "#FF00FF"},
@@ -1867,39 +1836,11 @@ def build_bar_analysis_snapshot(
             "text": f"{rdiff_v:.2f}{'▲' if rdiff_v >= 0 else '▼'}",
             "color": "#FFFF00",
         },
-        {
-            "text": f"｜解盤:{rsi_comment}",
-            "color": rsi_comment_col,
-            "bold": rsi_comment_bold,
-        },
     ]
 
     wr_v = float(r["w_r"])
     prev_wr = float(df["w_r"].iloc[idx_r - 1]) if idx_r > 0 else wr_v
-    wr_comment_bold = False
-    if wr_v >= -20:
-        wr_comment = "【超買警戒】進入-20強勢區留意反轉"
-        wr_comment_col = "#00E64D"
-    elif wr_v <= -80:
-        wr_comment = "【超賣契機】跌入-80超賣區留意止跌反彈"
-        wr_comment_col = "#FFFFFF"
-    elif wr_v > -50 and wr_v >= prev_wr:
-        wr_comment = "【偏多上攻】站上-50中軸多方轉強"
-        wr_comment_col = "#FFFFFF"
-    elif wr_v <= -50 and wr_v < prev_wr:
-        wr_comment = "【偏空下探】跌落-50中軸空方主導"
-        wr_comment_col = "#00E64D"
-    else:
-        wr_comment = "【中軸震盪】-50附近多空換手"
-        wr_comment_col = "#FFFF00"
-
-    wr_tokens = _trend_token("W%:", f"{wr_v:.2f}%", wr_v >= prev_wr, "#FFFFFF") + [
-        {
-            "text": f"｜解盤:{wr_comment}",
-            "color": wr_comment_col,
-            "bold": wr_comment_bold,
-        }
-    ]
+    wr_tokens = _trend_token("W%:", f"{wr_v:.2f}%", wr_v >= prev_wr, "#FFFFFF")
 
     dif_v = float(r["macd_dif"])
     dem_v = float(r["macd_dem"])
@@ -1908,35 +1849,6 @@ def build_bar_analysis_snapshot(
     prev_dem = float(df["macd_dem"].iloc[idx_r - 1]) if idx_r > 0 else dem_v
     prev_osc = float(df["macd_osc"].iloc[idx_r - 1]) if idx_r > 0 else osc_v
     osc_col = "#FF3333" if osc_v >= 0 else "#00E64D"
-    macd_comment_bold = False
-
-    if prev_osc <= 0 and osc_v > 0:
-        macd_comment = "【MACD黃金交叉】柱狀翻紅買盤啟動"
-        macd_comment_col = "#FFFFFF"
-    elif prev_osc >= 0 and osc_v < 0:
-        macd_comment = "【MACD死亡交叉】柱狀翻綠留意轉弱"
-        macd_comment_col = "#00E64D"
-    elif dif_v > 0 and dem_v > 0 and osc_v > 0:
-        if osc_v >= prev_osc:
-            macd_comment = "【零軸上多頭】紅柱擴大主升續攻"
-            macd_comment_col = "#FFFFFF"
-        else:
-            macd_comment = "【零軸上高檔】紅柱收斂防短線震盪"
-            macd_comment_col = "#FFFF00"
-    elif dif_v < 0 and dem_v < 0 and osc_v < 0:
-        macd_comment = (
-            "【零軸下空頭】綠柱擴大弱勢探底"
-            if osc_v <= prev_osc
-            else "【零軸下止跌】綠柱縮短醞釀反彈"
-        )
-        macd_comment_col = "#00E64D" if osc_v <= prev_osc else "#00FFFF"
-    elif osc_v >= 0:
-        macd_comment = "【多方修復】翻紅上攻測試零軸"
-        macd_comment_col = "#FFFFFF"
-    else:
-        macd_comment = "【空方整理】綠柱壓抑靜待轉折"
-        macd_comment_col = "#00E64D"
-
     macd_tokens = [
         {"text": "MACD(長)", "color": "#FFFFFF"},
         {"text": "DIF:", "color": "#FF00FF"},
@@ -1945,11 +1857,6 @@ def build_bar_analysis_snapshot(
         {"text": f"{dem_v:.2f}{'▲' if dem_v >= prev_dem else '▼'}", "color": "#00FFFF"},
         {"text": "MACD:", "color": osc_col},
         {"text": f"{osc_v:.2f}{'▲' if osc_v >= prev_osc else '▼'}", "color": osc_col},
-        {
-            "text": f"｜解盤:{macd_comment}",
-            "color": macd_comment_col,
-            "bold": macd_comment_bold,
-        },
     ]
 
     bias_v = float(r["bias_val"])
@@ -2029,7 +1936,7 @@ def build_bar_analysis_snapshot(
         mtm_v = float(r["mtm_val"])
         mtm_avg_v = float(r["mtm_ma1"])
         ind_tokens = [
-            {"text": "波段 MACD(5,10,5)   ", "color": "#FFFFFF"},
+            {"text": "波段 MACD(5,10,5)", "color": "#FFFFFF"},
             {"text": "DIF:", "color": "#FFFF00"},
             {"text": f"{bdif_v:.2f}", "color": "#FFFF00"},
             {"text": "DEA:", "color": "#FF3333"},
@@ -2038,15 +1945,15 @@ def build_bar_analysis_snapshot(
             {"text": f"{bosc_v:.2f}", "color": "#FF3333" if bosc_v >= 0 else "#00E64D"},
         ]
         sub2_tokens = [
-            {"text": "波段 BIAS(20,):  ", "color": "#FFFFFF"},
+            {"text": "波段 BIAS(20,反向):", "color": "#FFFFFF"},
             {
                 "text": f"{bbias_rev_v:.2f}%",
                 "color": "#FF3333" if bbias_rev_v >= 0 else "#00E64D",
             },
         ]
         sub3_tokens = [
-            {"text": "波段 MTM(10,1)  ", "color": "#FFFFFF"},
-            {"text": "MTM: ", "color": "#FFFF00"},
+            {"text": "波段 MTM(10,1)", "color": "#FFFFFF"},
+            {"text": "MTM:", "color": "#FFFF00"},
             {"text": f"{mtm_v:.2f}", "color": "#FFFF00"},
             {"text": "Avg:", "color": "#00FF66"},
             {"text": f"{mtm_avg_v:.2f}", "color": "#00FF66"},
@@ -2088,39 +1995,39 @@ def build_bar_analysis_snapshot(
     chg_pct = (chg_pts / p_close * 100.0) if p_close > 0 else 0.0
     amp_pct = ((c_high - c_low) / p_close * 100.0) if p_close > 0 else 0.0
     chg_is_up = chg_pts >= 0
-
-    prev_b_val = float(b_slice[idx_r - 1]) if (idx_r > 0 and len(b_slice) > idx_r - 1) else b_val
-    prev_s_val = float(s_slice[idx_r - 1]) if (idx_r > 0 and len(s_slice) > idx_r - 1) else s_val
-    wave_hdr_col = "#FF3333" if wave_cls == "t-val-red" else ("#00FFFF" if wave_cls == "t-val-cyan" else "#00E64D")
-    ma_hdr_col = "#FF3333" if ma_cls == "t-val-red" else "#00E64D"
+    wave_col = (
+        "#FF3333"
+        if ("多" in wave_txt or "買" in wave_txt)
+        else ("#00FFFF" if "賣" in wave_txt else "#00E64D")
+    )
 
     header_tokens.extend([
-        {"text": "｜", "color": "#888888"},
+        {"text": "|", "color": "#888888"},
         {"text": f"振:{amp_pct:.2f}%", "color": "#FFFF00"},
         {
             "text": (
-                f"{'漲' if chg_is_up else '跌'}({abs(chg_pts):.2f}){chg_pct:+.2f}%"
+                f"{'漲' if chg_is_up else '跌'}:{abs(chg_pts):.2f}({chg_pct:+.2f}%)"
                 f"{'▲' if chg_is_up else '▼'}"
             ),
             "color": "#FF3333" if chg_is_up else "#00E64D",
         },
-        {"text": "｜", "color": "#888888"},
-        {"text": "大戶:", "color": "#FFFFFF"},
-        {
-            "text": f"{b_val:.1f}%{'▲' if b_val >= prev_b_val else '▼'}",
-            "color": "#FF3333" if b_val >= prev_b_val else "#00E64D",
-        },
-        {"text": "羊群:", "color": "#FFFFFF"},
-        {
-            "text": f"{s_val:.1f}%{'▲' if s_val >= prev_s_val else '▼'}",
-            "color": "#00E64D" if s_val >= prev_s_val else "#FF3333",
-        },
-        {"text": "｜", "color": "#888888"},
-        {"text": "波段狀態: ", "color": "#FFFF00"},
-        {"text": wave_dir_txt, "color": wave_hdr_col},
-        {"text": "均線狀態: ", "color": "#FFFF00"},
-        {"text": ma_dir_txt, "color": ma_hdr_col},
     ])
+
+    if stock_id != "99991":
+        header_tokens.extend([
+            {"text": "|", "color": "#888888"},
+            {"text": "大戶:", "color": "#FFFFFF"},
+            {"text": f"{b_val:.1f}%", "color": "#FF3333"},
+            {"text": "羊群:", "color": "#FFFFFF"},
+            {"text": f"{s_val:.1f}%", "color": "#00E64D"},
+            {"text": "|", "color": "#888888"},
+            {"text": wave_txt, "color": wave_col},
+        ])
+    else:
+        header_tokens.extend([
+            {"text": "|", "color": "#888888"},
+            {"text": wave_txt, "color": wave_col},
+        ])
 
     return {
         "header_text": (
@@ -2135,6 +2042,8 @@ def build_bar_analysis_snapshot(
         "sub2_tokens": sub2_tokens,
         "sub3_tokens": sub3_tokens,
         "vol_tokens": vol_tokens,
+        "kdj_right_note": {"text": kdj_right_txt, "color": kdj_right_col},
+        "vol_right_note": {"text": vol_right_txt, "color": vol_right_col},
         "ma_status": ma_status,
         "ma_cls": ma_cls,
         "ma5": f"{ma5_v:.1f}",
@@ -2161,6 +2070,7 @@ def build_bar_analysis_snapshot(
         "red_days": f"{red_d}日",
         "green_days": f"{green_d}日",
     }
+
 
 # ---------------------------------------------------------
 # 6. 策略選股與籌碼過濾輔助函式
@@ -2197,6 +2107,7 @@ def _try_read_csv_with_data():
         except Exception:
             continue
     return None
+
 
 def _filter_chip_candidates(is_golden, th_val):
     results_list = []
@@ -2345,8 +2256,9 @@ def _filter_chip_candidates(is_golden, th_val):
     results_list.sort(key=lambda x: x["近1週大戶變動"], reverse=is_golden)
     return results_list[:10]
 
+
 # ---------------------------------------------------------
-# 7. Session State 初始化與換股/鍵盤橋接輔助
+# 7. Session State 初始化
 # ---------------------------------------------------------
 DEFAULTS = {
     "selected_index": 0,
@@ -2359,8 +2271,6 @@ DEFAULTS = {
     "ruler_mode_active": False,
     "show_qt_guide": False,
     "chip_1w_threshold_val": 0.00,
-    "auto_flip_active": False,
-    "auto_flip_interval": 10,
     "ma_active_map": {
         "5": False,
         "10": False,
@@ -2376,6 +2286,7 @@ for _k, _v in DEFAULTS.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v.copy() if isinstance(_v, dict) else _v
 
+
 def step_feihu_bars(current_bars, direction):
     if direction < 0:
         smaller = [v for v in FEIHU_BAR_STEPS if v < current_bars]
@@ -2383,144 +2294,11 @@ def step_feihu_bars(current_bars, direction):
     larger = [v for v in FEIHU_BAR_STEPS if v > current_bars]
     return larger[0] if larger else FEIHU_BAR_STEPS[-1]
 
-def step_stock_index(delta: int, total_count: int = None):
-    n_stocks = len(stock_options) if total_count is None else int(total_count)
-    if n_stocks <= 0:
-        return
-    cur_idx = int(st.session_state.get("selected_index", 0)) % n_stocks
-    next_idx = (cur_idx + delta) % n_stocks
-    st.session_state.selected_index = next_idx
-    st.session_state.stock_select_version = (
-        int(st.session_state.get("stock_select_version", 0)) + 1
-    )
-    try:
-        st.query_params["stock_idx"] = str(next_idx)
-    except Exception:
-        pass
-    st.rerun()
-
-def mount_keyboard_and_auto_flip(total_count: int, auto_active: bool, interval_sec: int):
-    if total_count <= 1:
-        return
-
-    try:
-        qp_val = st.query_params.get("stock_idx", None)
-        if qp_val is not None:
-            qp_idx = int(str(qp_val).strip()) % total_count
-            cur_idx = int(st.session_state.get("selected_index", 0)) % total_count
-            if qp_idx != cur_idx:
-                st.session_state.selected_index = qp_idx
-                st.session_state.stock_select_version = (
-                    int(st.session_state.get("stock_select_version", 0)) + 1
-                )
-                st.rerun()
-    except Exception:
-        pass
-
-    components.html(
-        f"""
-        <script>
-        (function() {{
-          const autoActive = {str(bool(auto_active)).lower()};
-          const intervalMs = {int(max(1, interval_sec)) * 1000};
-          let lastStepTs = 0;
-
-          function getDocs() {{
-            const docs = [document];
-            try {{
-              if (window.parent && window.parent.document && window.parent.document !== document) {{
-                docs.push(window.parent.document);
-              }}
-            }} catch (e) {{}}
-            return docs;
-          }}
-
-          function clickNativeBtn(btnText) {{
-            const now = Date.now();
-            if (now - lastStepTs < 250) return;
-            lastStepTs = now;
-            const docs = getDocs();
-            for (const d of docs) {{
-              const btns = Array.from(d.querySelectorAll("button"));
-              const target = btns.find((b) => (b.innerText || "").trim() === btnText);
-              if (target) {{
-                target.click();
-                return true;
-              }}
-            }}
-            return false;
-          }}
-
-          function isTypingOrChartFocus(el) {{
-            if (!el) return false;
-            const tag = (el.tagName || "").toUpperCase();
-            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-            if (el.isContentEditable) return true;
-            if (el.id === "fx-chart-wrap") return true;
-            if (el.closest && el.closest('[data-baseweb="select"], [role="combobox"], [role="listbox"]')) {{
-              return true;
-            }}
-            return false;
-          }}
-
-          function handleKey(e) {{
-            const active = document.activeElement || (window.parent && window.parent.document && window.parent.document.activeElement);
-            if (isTypingOrChartFocus(active) || isTypingOrChartFocus(e.target)) return;
-
-            if (e.key === "PageUp" || e.key === "ArrowUp") {{
-              e.preventDefault();
-              e.stopPropagation();
-              clickNativeBtn("PgUp");
-            }} else if (e.key === "PageDown" || e.key === "ArrowDown") {{
-              e.preventDefault();
-              e.stopPropagation();
-              clickNativeBtn("PgDn");
-            }} else if ((e.key === " " || e.key === "Escape") && autoActive) {{
-              e.preventDefault();
-              e.stopPropagation();
-              const docs = getDocs();
-              for (const d of docs) {{
-                const stopBtn = Array.from(d.querySelectorAll("button")).find((b) => (b.innerText || "").includes("停住"));
-                if (stopBtn) {{
-                  stopBtn.click();
-                  break;
-                }}
-              }}
-            }}
-          }}
-
-          if (!window.__fxKeyBound) {{
-            window.__fxKeyBound = handleKey;
-            window.addEventListener("keydown", handleKey, true);
-            document.addEventListener("keydown", handleKey, true);
-            try {{
-              if (window.parent && window.parent.document) {{
-                window.parent.document.addEventListener("keydown", handleKey, true);
-              }}
-            }} catch (e) {{}}
-          }}
-
-          if (window.__fxAutoFlipTimer) {{
-            clearInterval(window.__fxAutoFlipTimer);
-            window.__fxAutoFlipTimer = null;
-          }}
-
-          if (autoActive) {{
-            window.__fxAutoFlipTimer = setInterval(function() {{
-              clickNativeBtn("PgDn");
-            }}, intervalMs);
-          }}
-        }})();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
 
 # ---------------------------------------------------------
-# 8. 頂部導航列（含股票選單、PgUp / PgDn、10秒自動翻閱停住按鈕）
+# 8. 頂部導航列
 # ---------------------------------------------------------
-top_cols = st.columns([2.0, 0.38, 0.38, 0.95, 1.0, 1.6, 1.6, 1.3, 1.6])
+top_cols = st.columns([2.2, 1.2, 1.8, 1.8, 1.5, 1.8])
 
 with top_cols[0]:
     if st.session_state.selected_index >= len(stock_options):
@@ -2541,30 +2319,6 @@ with top_cols[0]:
     stock_name = stock_parts[1] if len(stock_parts) > 1 else ""
 
 with top_cols[1]:
-    if st.button("PgUp", key="top_pgup_btn", use_container_width=True, help="上一檔 (PageUp / ↑)"):
-        st.session_state.auto_flip_active = False
-        step_stock_index(-1, len(stock_options))
-
-with top_cols[2]:
-    if st.button("PgDn", key="top_pgdn_btn", use_container_width=True, help="下一檔 (PageDown / ↓)"):
-        step_stock_index(+1, len(stock_options))
-
-with top_cols[3]:
-    flip_on = bool(st.session_state.auto_flip_active)
-    flip_label = "⏸ 停住(10s)" if flip_on else "▶ 10s翻閱"
-    if st.button(flip_label, key="top_auto_flip_btn", use_container_width=True, help="每10秒自動切下一檔，看到滿意股點一下即停住"):
-        st.session_state.auto_flip_active = not flip_on
-        st.rerun()
-    if flip_on:
-        st.markdown(
-            "<style>div.st-key-top_auto_flip_btn button {"
-            " background-color:#FFFF00 !important; color:#000000 !important;"
-            " border:1px solid #FFFFFF !important; font-weight:bold !important;"
-            " }</style>",
-            unsafe_allow_html=True,
-        )
-
-with top_cols[4]:
     actual_chart_period = st.selectbox(
         "週期",
         ["日線", "5分", "10分", "15分", "30分", "60分", "週線", "月線"],
@@ -2574,23 +2328,16 @@ with top_cols[4]:
     )
 
 nav_items = [
-    ("📈 個股籌碼圖表", "top_go_chart", 5),
-    ("⚡ 9大策略選股", "top_go_strat", 6),
-    ("📋 大戶總表", "top_go_table", 7),
-    ("📊 基本面與圖表", "top_go_fund", 8),
+    ("📈 個股籌碼圖表", "top_go_chart", 2),
+    ("⚡ 9大策略選股", "top_go_strat", 3),
+    ("📋 大戶總表", "top_go_table", 4),
+    ("📊 基本面與圖表", "top_go_fund", 5),
 ]
 for nav_label, nav_key, col_idx in nav_items:
     with top_cols[col_idx]:
         if st.button(nav_label, use_container_width=True, key=nav_key):
-            st.session_state.auto_flip_active = False
             st.session_state.app_mode_state = nav_label
             st.rerun()
-
-mount_keyboard_and_auto_flip(
-    len(stock_options),
-    st.session_state.auto_flip_active,
-    st.session_state.auto_flip_interval,
-)
 
 app_mode = st.session_state.app_mode_state
 
@@ -2755,8 +2502,7 @@ if app_mode == "📈 個股籌碼圖表":
                 <div>• <span class="qt-bull-tag">低檔突然 Q/T 異常放大</span>：股價處於相對低檔或季線下，若 Q/T 突然放大（≥ {QT_SPIKE_RATIO:.2f} 倍均線），<b>可能財團大戶已進場</b>。</div>
                 <div>• <span class="qt-bear-tag">高檔突然 Q/T 異常放大</span>：股價處於相對高檔或季線上高區，若 Q/T 突然放大（≥ {QT_SPIKE_RATIO:.2f} 倍均線），<b>可能財團大戶已溜走</b>。</div>
             </div>
-            """
-            ,
+            """,
             unsafe_allow_html=True,
         )
 
@@ -2808,12 +2554,11 @@ if app_mode == "📈 個股籌碼圖表":
         or is_combo2_mode
         or is_combo3_mode
     )
-    fig = plt.figure(figsize=(10.0, 4.10))
+    fig = plt.figure(figsize=(10.0, 4.65))
 
     if is_four_pane:
-        wave_hspace = 0.0 if is_wave_mode else 0.08
         gs = fig.add_gridspec(
-            4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=wave_hspace
+            4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=0.08
         )
         ax1 = fig.add_subplot(gs[0])
         ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
@@ -2866,9 +2611,7 @@ if app_mode == "📈 個股籌碼圖表":
         p_max = float(df["high"].max())
         p_min = float(df["low"].min())
         p_range = p_max - p_min if p_max != p_min else 1.0
-        y_top_pad = p_range * 0.22
-        y_bot_pad = p_range * 0.16
-        ax1.set_ylim(p_min - y_bot_pad, p_max + y_top_pad)
+        ax1.set_ylim(p_min - p_range * 0.12, p_max + p_range * 0.15)
         ax1.set_xlim(x_min_bar, x_max_bar)
 
         high_idx = int(df["high"].values.argmax())
@@ -2876,52 +2619,31 @@ if app_mode == "📈 個股籌碼圖表":
         high_val = float(df["high"].iloc[high_idx])
         low_val = float(df["low"].iloc[low_idx])
 
-        left_safe_x = x_min_bar + max(3.5, len(x) * 0.03)
-        right_safe_x = float(len(x) - 1) - max(3.5, len(x) * 0.03)
-        hi_text_x = float(np.clip(high_idx, left_safe_x, right_safe_x))
-        lo_text_x = float(np.clip(low_idx, left_safe_x, right_safe_x))
-
-        y_hi_upper_limit = p_max + y_top_pad * 0.68
-        if high_val + p_range * 0.03 > y_hi_upper_limit:
-            hi_text_y = max(p_min + p_range * 0.08, high_val - p_range * 0.03)
-            hi_va = "top"
-        else:
-            hi_text_y = min(y_hi_upper_limit, high_val + p_range * 0.018)
-            hi_va = "bottom"
-
-        y_lo_lower_limit = p_min - y_bot_pad * 0.55
-        if low_val - p_range * 0.03 < y_lo_lower_limit:
-            lo_text_y = min(p_max - p_range * 0.08, low_val + p_range * 0.03)
-            lo_va = "bottom"
-        else:
-            lo_text_y = max(y_lo_lower_limit, low_val - p_range * 0.018)
-            lo_va = "top"
-
         t_hi = ax1.text(
-            hi_text_x,
-            hi_text_y,
+            high_idx,
+            high_val + p_range * 0.015,
             f"▲高:{high_val:.2f}",
             color="#FF5555",
             fontsize=7.8,
             fontweight="bold",
             ha="center",
-            va=hi_va,
-            zorder=8,
+            va="bottom",
+            zorder=6,
         )
-        t_hi.set_path_effects(get_bright_effect("#000000", 2.6))
+        t_hi.set_path_effects(get_bright_effect("#000000", 2.4))
 
         t_lo = ax1.text(
-            lo_text_x,
-            lo_text_y,
+            low_idx,
+            low_val - p_range * 0.015,
             f"▼低:{low_val:.2f}",
             color="#00FF88",
             fontsize=7.8,
             fontweight="bold",
             ha="center",
-            va=lo_va,
-            zorder=8,
+            va="top",
+            zorder=6,
         )
-        t_lo.set_path_effects(get_bright_effect("#000000", 2.6))
+        t_lo.set_path_effects(get_bright_effect("#000000", 2.4))
 
     for count_days, idx_pos in deduct_indices.items():
         ax1.axvline(
@@ -3030,62 +2752,42 @@ if app_mode == "📈 個股籌碼圖表":
     )
 
     if not df.empty:
-        month_start_marks = []
-        seen_ym = set()
+        month_marks, prev_ym = [], None
         for idx_m, dt_str in enumerate(df["date"].astype(str)):
-            date_part = dt_str.split(" ")[0]
-            parts = date_part.split("/")
+            parts = dt_str.split(" ")[0].split("/")
             if len(parts) >= 2:
                 ym = f"{parts[0]}/{parts[1]}"
-                if ym not in seen_ym:
-                    seen_ym.add(ym)
+                if ym != prev_ym:
+                    prev_ym = ym
                     try:
-                        m_num = str(int(parts[1]))
-                        month_start_marks.append((idx_m, m_num))
+                        month_marks.append((idx_m, str(int(parts[1]))))
                     except Exception:
                         pass
-
-        step_m = max(1, int(np.ceil(len(month_start_marks) / 14.0)))
-        for m_i, (m_idx, m_lbl) in enumerate(month_start_marks):
+        step_m = max(1, int(np.ceil(len(month_marks) / 14.0)))
+        for m_i, (m_idx, m_lbl) in enumerate(month_marks):
             if m_i % step_m == 0:
                 t_m = ax1.text(
                     m_idx,
                     ymin_lim + band_height * 0.50,
                     m_lbl,
-                    color="#E2E8F0",
-                    fontsize=6.8,
-                    fontweight="normal",
+                    color="#FFFFFF",
+                    fontsize=7.2,
+                    fontweight="bold",
                     ha="center",
                     va="center",
-                    alpha=0.85,
                     zorder=7,
                 )
-                t_m.set_path_effects(get_bright_effect("#000000", 1.2))
+                t_m.set_path_effects(get_bright_effect("#000000", 2.0))
 
     def _style_axis(ax_obj, show_x=False):
         ax_obj.yaxis.tick_right()
         ax_obj.tick_params(axis="y", labelsize=6.5, pad=1.0, colors="#FFFFFF")
+        plt.setp(ax_obj.get_xticklabels(), visible=show_x)
         if show_x:
-            ax_obj.tick_params(
-                axis="x",
-                which="both",
-                bottom=True,
-                top=False,
-                labelbottom=True,
-                labelsize=7.5,
-                colors="#FFFFFF",
-            )
+            ax_obj.tick_params(axis="x", labelsize=7.5, colors="#FFFFFF")
             for lbl in ax_obj.get_xticklabels():
                 lbl.set_color("#FFFFFF")
                 lbl.set_fontsize(7.5)
-        else:
-            ax_obj.tick_params(
-                axis="x",
-                which="both",
-                bottom=False,
-                top=False,
-                labelbottom=False,
-            )
         ax_obj.grid(
             True, which="both", linestyle="--", color=GRID_COLOR, alpha=0.5
         )
@@ -3159,6 +2861,15 @@ if app_mode == "📈 個股籌碼圖表":
             label="QT_MA5",
             zorder=3,
         )
+        if "qt_spike" in df.columns:
+            spike_mask = df["qt_spike"].astype(bool).values
+            if np.any(spike_mask):
+                sx = x[spike_mask]
+                sy = qt_vals[spike_mask]
+                sc = df.loc[spike_mask, "qt_color"].tolist()
+                ax_qt.scatter(
+                    sx, sy, s=16, c=sc, edgecolors="#FFFFFF", linewidths=0.4, zorder=5
+                )
 
     def _plot_chip_axis(ax_chip):
         ax_chip.set_facecolor(PANEL_BG)
@@ -3291,21 +3002,11 @@ if app_mode == "📈 個股籌碼圖表":
         for spine in ax.spines.values():
             spine.set_visible(True)
             spine.set_color("#777777")
-            spine.set_linewidth(1.0 if is_wave_mode else 1.2)
+            spine.set_linewidth(1.2)
 
-    if is_four_pane:
-        ax1.spines["bottom"].set_visible(False)
-        ax_sub1.spines["bottom"].set_visible(False)
-        ax_sub2.spines["bottom"].set_visible(False)
-
-        right_margin = 0.92 if is_wave_mode else 0.965
-        plt.subplots_adjust(
-            left=0.008, right=right_margin, top=0.98, bottom=0.08, hspace=0.0
-        )
-    else:
-        plt.subplots_adjust(
-            left=0.008, right=0.965, top=0.98, bottom=0.08, hspace=0.10
-        )
+    plt.subplots_adjust(
+        left=0.008, right=0.965, top=0.98, bottom=0.08, hspace=0.10
+    )
 
     fig.canvas.draw()
     ax1_bbox = ax1.get_position()
@@ -3402,7 +3103,7 @@ if app_mode == "📈 個股籌碼圖表":
       .terminal-panel {{
         background-color: #0b0b0b;
         border: 1px solid #cc0000;
-        padding: 4px 7px;
+        padding: 5px 8px;
         color: #ffffff;
         box-sizing: border-box;
       }}
@@ -3410,23 +3111,23 @@ if app_mode == "📈 個股籌碼圖表":
         color: #ffffff;
         background-color: #0000aa;
         font-weight: bold;
-        font-size: 11.5px;
-        padding: 1px 4px;
-        margin-bottom: 2px;
+        font-size: 12px;
+        padding: 2px 5px;
+        margin-bottom: 3px;
         text-align: center;
       }}
       .terminal-title-ruler {{
         color: #000000;
         background-color: #ffff00;
         font-weight: bold;
-        font-size: 11.5px;
-        padding: 1px 4px;
-        margin-bottom: 2px;
+        font-size: 12px;
+        padding: 2px 5px;
+        margin-bottom: 3px;
         text-align: center;
       }}
       .t-row {{
-        font-size: 10.5px;
-        line-height: 1.25;
+        font-size: 11px;
+        line-height: 1.3;
         margin-bottom: 1px;
         display: flex;
         justify-content: space-between;
@@ -3506,6 +3207,7 @@ if app_mode == "📈 個股籌碼圖表":
 
       const stockCode = {json.dumps(stock_id)};
       const stockName = {json.dumps(stock_name)};
+      const isComboMode = {str(is_combo_mode).lower()};
       const isFourPane = {str(is_four_pane).lower()};
       const rulerBtnActive = {str(ruler_mode_active).lower()};
       const totalBars = rows.length;
@@ -3668,15 +3370,27 @@ if app_mode == "📈 個股籌碼圖表":
         return plotLeft + fracIdx * plotW;
       }}
 
-      function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW) {{
+      function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW, alignMode) {{
         ctx.save();
         ctx.font = fontStr;
         ctx.textBaseline = "top";
+        ctx.textAlign = alignMode || "left";
         ctx.lineWidth = strokeW || 1.4;
         ctx.strokeStyle = "#000000";
         ctx.strokeText(txt, xPos, yPos);
         ctx.fillStyle = color;
         ctx.fillText(txt, xPos, yPos);
+        ctx.restore();
+      }}
+
+      function drawRightPaneNote(noteObj, yPos, rightEdgeX, leftMinX, fontStr) {{
+        if (!noteObj || !noteObj.text) return;
+        ctx.save();
+        ctx.font = fontStr;
+        const txtW = ctx.measureText(noteObj.text).width;
+        if (rightEdgeX - txtW >= leftMinX) {{
+          drawOutlinedText(noteObj.text, rightEdgeX, yPos, noteObj.color || "#00FFFF", fontStr, 1.4, "right");
+        }}
         ctx.restore();
       }}
 
@@ -3739,7 +3453,7 @@ if app_mode == "📈 個股籌碼圖表":
           let col = "#FFFFFF";
           if (idxLine === 0) col = "#00FFFF";
           else if (idxLine === 1 || idxLine === 2) col = isUp ? "#FF4444" : "#00E64D";
-          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
+          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2, "left");
         }});
         ctx.restore();
       }}
@@ -3748,12 +3462,16 @@ if app_mode == "📈 個股籌碼圖表":
         let curX = startX;
         (tokens || []).forEach((tk) => {{
           if (!tk || !tk.text) return;
+          ctx.save();
+          ctx.font = fontStr;
           const w = ctx.measureText(tk.text).width;
+          ctx.restore();
           if (maxRightX && (curX + w) > maxRightX) return;
-          drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.4);
+          drawOutlinedText(tk.text, curX, yPos, tk.color, fontStr, 1.4, "left");
           const isLabel = tk.text.endsWith(":");
           curX += w + (isLabel ? 8.0 : (baseGap || 12.0));
         }});
+        return curX;
       }}
 
       function renderInPlaceOverlay(r, drawLines, lineX, lineY, b) {{
@@ -3763,7 +3481,7 @@ if app_mode == "📈 個股籌碼圖表":
 
         const plotLeft = b.left + b.width * axX0;
         const plotRight = b.left + b.width * axX1;
-        const maxTextRight = plotRight - 10;
+        const rightNoteEdge = plotRight - 10;
 
         if (crosshairEnabled && drawLines) {{
           ctx.save();
@@ -3784,78 +3502,63 @@ if app_mode == "📈 個股籌碼圖表":
         const s = r.snap || {{}};
         const headerX = plotLeft + b.width * 0.010;
         const headerY = b.top + b.height * (ax1TopFrac + 0.014);
+        const fontHeader = "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif";
 
-        const fontHeaderDyn = b.width < 1180
-          ? "bold 10.2px Arial, 'Microsoft JhengHei', sans-serif"
-          : "bold 11.2px Arial, 'Microsoft JhengHei', sans-serif";
         const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
-        drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeaderDyn, 1.4);
-        let hx = headerX + ctx.measureText(prefixTitle).width + 8.0;
+        drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeader, 1.4, "left");
+        ctx.save();
+        ctx.font = fontHeader;
+        let hx = headerX + ctx.measureText(prefixTitle).width + 16.0;
+        ctx.restore();
 
         if (s.header_tokens && s.header_tokens.length > 0) {{
           s.header_tokens.forEach((ht) => {{
             if (!ht || !ht.text) return;
-            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeaderDyn, 1.4);
+            drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4, "left");
             const isTag = ht.text.endsWith(":");
-            const isPipe = ht.text === "｜";
-            hx += ctx.measureText(ht.text).width + (isPipe ? 4.0 : (isTag ? 2.5 : 7.0));
+            const isPipe = ht.text === "|";
+            ctx.save();
+            ctx.font = fontHeader;
+            hx += ctx.measureText(ht.text).width + (isTag ? 3.0 : (isPipe ? 6.0 : 8.5));
+            ctx.restore();
           }});
         }} else {{
-          drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeaderDyn, 1.4);
-          hx += ctx.measureText(s.header_text || "").width + 8.0;
+          drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4, "left");
         }}
 
-        const badgeTxt = s.trend_badge || "";
-        drawOutlinedText(badgeTxt, hx + 4.0, headerY, s.trend_badge_color || "#FF3333", fontHeaderDyn, 1.4);
-        hx += ctx.measureText(badgeTxt).width + 10.0;
-        drawOutlinedText(`逆序:${{r.rev_no}}`, hx, headerY, "#00FFFF", fontHeaderDyn, 1.4);
+        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.825, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
+        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.910, headerY, "#00FFFF", fontHeader, 1.4, "left");
 
         if (r.ma_items && r.ma_items.length > 0) {{
           const maY = headerY + 20;
           let curX = headerX;
           const fontMa = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
           r.ma_items.forEach((m) => {{
-            drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4);
+            drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4, "left");
+            ctx.save();
+            ctx.font = fontMa;
             curX += ctx.measureText(m.text).width + 16.0;
+            ctx.restore();
           }});
         }}
 
-        function drawSoftGlowDot(cx, cy) {{
-          ctx.save();
-          const grad = ctx.createRadialGradient(cx, cy, 0.5, cx, cy, 4.5);
-          grad.addColorStop(0, "rgba(255, 255, 255, 0.85)");
-          grad.addColorStop(0.55, "rgba(226, 232, 240, 0.35)");
-          grad.addColorStop(1, "rgba(255, 255, 255, 0.0)");
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-          ctx.beginPath();
-          ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }}
-
         const fontSub = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
-        const dotX = plotLeft + b.width * 0.004;
         if (isFourPane) {{
           const y1 = b.top + b.height * (sub1TopFrac + 0.014);
           const y2 = b.top + b.height * (sub2TopFrac + 0.014);
           const y3 = b.top + b.height * (sub3TopFrac + 0.014);
-          drawSoftGlowDot(dotX, y1 + 6);
-          drawSoftGlowDot(dotX, y2 + 6);
-          drawSoftGlowDot(dotX, y3 + 6);
-          drawTokensRow(s.ind_tokens, headerX, y1, fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.sub2_tokens, headerX, y2, fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.sub3_tokens, headerX, y3, fontSub, 12.0, maxTextRight);
+
+          const endX1 = drawTokensRow(s.ind_tokens, headerX, y1, fontSub, 12.0, rightNoteEdge);
+          drawTokensRow(s.sub2_tokens, headerX, y2, fontSub, 12.0, rightNoteEdge);
+          const endX3 = drawTokensRow(s.sub3_tokens, headerX, y3, fontSub, 12.0, rightNoteEdge);
+
+          if (isComboMode) {{
+            drawRightPaneNote(s.kdj_right_note, y1, rightNoteEdge, endX1 + 12, fontSub);
+            drawRightPaneNote(s.vol_right_note, y3, rightNoteEdge, endX3 + 12, fontSub);
+          }}
         }} else {{
-          const y1 = b.top + b.height * (sub1TopFrac + 0.016);
-          const y2 = b.top + b.height * (sub2TopFrac + 0.016);
-          drawSoftGlowDot(dotX, y1 + 6);
-          drawSoftGlowDot(dotX, y2 + 6);
-          drawTokensRow(s.ind_tokens, headerX, y1, fontSub, 12.0, maxTextRight);
-          drawTokensRow(s.vol_tokens, headerX, y2, fontSub, 12.0, maxTextRight);
+          drawTokensRow(s.ind_tokens, headerX, b.top + b.height * (sub1TopFrac + 0.016), fontSub, 12.0, rightNoteEdge);
+          drawTokensRow(s.vol_tokens, headerX, b.top + b.height * (sub2TopFrac + 0.016), fontSub, 12.0, rightNoteEdge);
         }}
       }}
 
@@ -3972,7 +3675,7 @@ if app_mode == "📈 個股籌碼圖表":
     }})();
     </script>
     """
-    components.html(unified_interactive_html, height=580, scrolling=False)
+    components.html(unified_interactive_html, height=675, scrolling=False)
 
 # =========================================================
 # 分頁二：⚡ 9大策略選股
