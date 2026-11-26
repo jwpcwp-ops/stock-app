@@ -441,18 +441,15 @@ else:
 
 plt.rcParams["axes.unicode_minus"] = False
 
-
 def get_bright_effect(stroke_color="#000000", linewidth=2.5):
     return [
         path_effects.withStroke(linewidth=linewidth, foreground=stroke_color),
         path_effects.Normal(),
     ]
 
-
 def _clean_code(val):
     s = str(val).strip().replace(".0", "")
     return s.zfill(4) if s.isdigit() else s
-
 
 def _code_candidates(val):
     clean_id = str(val).strip().replace(".0", "")
@@ -461,14 +458,11 @@ def _code_candidates(val):
         cands.extend([clean_id.zfill(4), str(int(clean_id))])
     return cands
 
-
 def _norm_col(c):
     return "".join(str(c).replace("\r", "").replace("\n", "").split())
 
-
 def _pyramid_link(code_str):
     return f"https://norway.twsthr.info/StockHolders.aspx?stock={_clean_code(code_str)}"
-
 
 def _parse_pos_float(val):
     if val is None:
@@ -482,13 +476,11 @@ def _parse_pos_float(val):
     except Exception:
         return None
 
-
 def _build_ssl_context():
     try:
         return ssl.create_default_context(cafile=certifi.where())
     except Exception:
         return ssl.create_default_context()
-
 
 def _fetch_json_url(url, headers=None, timeout=8):
     req = urllib.request.Request(
@@ -503,7 +495,6 @@ def _fetch_json_url(url, headers=None, timeout=8):
         raw_txt = resp.read().decode("utf-8", errors="ignore")
         return json.loads(raw_txt)
 
-
 def _normalize_yf_df_index(df_in):
     if df_in is None or df_in.empty:
         return df_in
@@ -513,7 +504,6 @@ def _normalize_yf_df_index(df_in):
     else:
         out.index = pd.to_datetime(out.index).tz_localize(None)
     return out
-
 
 # ---------------------------------------------------------
 # 4. 股票清單與導航輔助
@@ -537,7 +527,6 @@ def load_stock_list():
         options = default_data["代碼"] + " " + default_data["名稱"]
         return options.tolist(), default_data
 
-
 stock_options, stock_df = load_stock_list()
 ID_TO_NAME = dict(
     zip(
@@ -546,7 +535,6 @@ ID_TO_NAME = dict(
     )
 )
 
-
 def find_stock_index_by_code(code_str):
     candidates = _code_candidates(code_str)
     for i, opt in enumerate(stock_options):
@@ -554,7 +542,6 @@ def find_stock_index_by_code(code_str):
         if opt_code in candidates:
             return i
     return -1
-
 
 def _jump_to_chart_with_code(picked_code, picked_name=""):
     clean_c = _clean_code(picked_code)
@@ -570,7 +557,6 @@ def _jump_to_chart_with_code(picked_code, picked_name=""):
     st.session_state.default_indicator_override = "組合2"
     st.session_state.app_mode_state = "📈 個股籌碼圖表"
     st.rerun()
-
 
 # ---------------------------------------------------------
 # 5. 本地快取、行情抓取與基本面查詢
@@ -593,7 +579,6 @@ def load_local_cache_cached():
             pass
     return cache_dict
 
-
 def extract_tdcc_arrays(cache_item):
     if not cache_item:
         return [], [], []
@@ -607,7 +592,6 @@ def extract_tdcc_arrays(cache_item):
     sheep_h = [float(x) for x in cache_item.get("sheep_holder", [])]
     w_dates = [str(x) for x in cache_item.get("w_dates", [])]
     return big_h, sheep_h, w_dates
-
 
 def get_holder_series_for_stock(stock_id, n_periods, cache_dict=None):
     if cache_dict is None:
@@ -651,7 +635,6 @@ def get_holder_series_for_stock(stock_id, n_periods, cache_dict=None):
     )
     return big_h, sheep_h, w_dates, False
 
-
 def _aggregate_minute_bars(df_src, group_size=2):
     if df_src is None or df_src.empty or group_size <= 1:
         return df_src
@@ -669,7 +652,6 @@ def _aggregate_minute_bars(df_src, group_size=2):
             "Volume": float(chunk["Volume"].fillna(0).sum()),
         })
     return pd.DataFrame(rows).set_index("idx") if rows else pd.DataFrame()
-
 
 def _period_yf_params(period_type, fetch_len):
     period_map = {
@@ -690,7 +672,6 @@ def _period_yf_params(period_type, fetch_len):
     if period_type in period_map:
         return period_map[period_type]
     return ("1d", "5y" if fetch_len > 350 else "3y", 1, fetch_len)
-
 
 @st.cache_data(ttl=300)
 def fetch_raw_history(stock_id, period_type, fetch_len):
@@ -787,7 +768,6 @@ def fetch_raw_history(stock_id, period_type, fetch_len):
         })
     return records
 
-
 def _norm_y_m_d(date_val):
     if not date_val:
         return ""
@@ -808,7 +788,6 @@ def _norm_y_m_d(date_val):
             pass
     return s
 
-
 def _build_asof_table(events):
     rows = []
     for dt_v, num_v in events:
@@ -821,7 +800,6 @@ def _build_asof_table(events):
     rows.sort(key=lambda item: item[0])
     return [item[0] for item in rows], [item[1] for item in rows]
 
-
 def _lookup_asof_value(date_list, val_list, bar_date_str):
     if not date_list or not val_list:
         return None
@@ -833,7 +811,6 @@ def _lookup_asof_value(date_list, val_list, bar_date_str):
         else:
             break
     return chosen if chosen is not None else val_list[0]
-
 
 def _extract_eps_row_from_df(df_stmt):
     if df_stmt is None or not isinstance(df_stmt, pd.DataFrame) or df_stmt.empty:
@@ -874,7 +851,6 @@ def _extract_eps_row_from_df(df_stmt):
     except Exception:
         pass
     return row_s
-
 
 def _fetch_tpex_pe_yield(stock_id):
     clean_id = str(stock_id).strip().replace(".0", "")
@@ -968,7 +944,6 @@ def _fetch_tpex_pe_yield(stock_id):
             continue
     return pe_found, yld_found
 
-
 def _fetch_twse_pe_yield(stock_id):
     clean_id = str(stock_id).strip().replace(".0", "")
     if not clean_id or clean_id == "99991":
@@ -1022,7 +997,6 @@ def _fetch_twse_pe_yield(stock_id):
         except Exception:
             continue
     return None, None
-
 
 @st.cache_data(ttl=1800)
 def fetch_stock_fundamentals(stock_id):
@@ -1358,7 +1332,6 @@ def fetch_stock_fundamentals(stock_id):
     })
     return result
 
-
 def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
     q_eps_v = _lookup_asof_value(
         fund_data.get("q_eps_dates", []),
@@ -1411,7 +1384,6 @@ def build_bar_fundamental_snap(fund_data, bar_date_str, bar_close_val):
         "eps_4q_str": eps_4q_str,
         "yield_str": yield_str,
     }
-
 
 def _compute_qt_series(df_full):
     """
@@ -1477,7 +1449,6 @@ def _compute_qt_series(df_full):
             qt_colors.append("#00FFFF")
 
     return qt_curve, qt_ma, qt_ratio, is_spike, qt_labels, qt_colors
-
 
 def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
     warmup_bars = 260
@@ -1650,7 +1621,6 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
 
     return df_show, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio
 
-
 def _trend_token(label, val_txt, is_up, label_color="#FFFF00", up_color="#FF3333", dn_color="#00E64D"):
     arrow = "▲" if is_up else "▼"
     col = up_color if is_up else dn_color
@@ -1659,7 +1629,6 @@ def _trend_token(label, val_txt, is_up, label_color="#FFFF00", up_color="#FF3333
         out.append({"text": label, "color": label_color})
     out.append({"text": f"{val_txt}{arrow}", "color": col})
     return out
-
 
 def build_bar_analysis_snapshot(
     df,
@@ -2189,7 +2158,6 @@ def build_bar_analysis_snapshot(
         "green_days": f"{green_d}日",
     }
 
-
 # ---------------------------------------------------------
 # 6. 策略選股與籌碼過濾輔助函式
 # ---------------------------------------------------------
@@ -2225,7 +2193,6 @@ def _try_read_csv_with_data():
         except Exception:
             continue
     return None
-
 
 def _filter_chip_candidates(is_golden, th_val):
     results_list = []
@@ -2374,7 +2341,6 @@ def _filter_chip_candidates(is_golden, th_val):
     results_list.sort(key=lambda x: x["近1週大戶變動"], reverse=is_golden)
     return results_list[:10]
 
-
 # ---------------------------------------------------------
 # 7. Session State 初始化
 # ---------------------------------------------------------
@@ -2404,14 +2370,12 @@ for _k, _v in DEFAULTS.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v.copy() if isinstance(_v, dict) else _v
 
-
 def step_feihu_bars(current_bars, direction):
     if direction < 0:
         smaller = [v for v in FEIHU_BAR_STEPS if v < current_bars]
         return smaller[-1] if smaller else FEIHU_BAR_STEPS[0]
     larger = [v for v in FEIHU_BAR_STEPS if v > current_bars]
     return larger[0] if larger else FEIHU_BAR_STEPS[-1]
-
 
 # ---------------------------------------------------------
 # 8. 頂部導航列
@@ -2620,7 +2584,8 @@ if app_mode == "📈 個股籌碼圖表":
                 <div>• <span class="qt-bull-tag">低檔突然 Q/T 異常放大</span>：股價處於相對低檔或季線下，若 Q/T 突然放大（≥ {QT_SPIKE_RATIO:.2f} 倍均線），<b>可能財團大戶已進場</b>。</div>
                 <div>• <span class="qt-bear-tag">高檔突然 Q/T 異常放大</span>：股價處於相對高檔或季線上高區，若 Q/T 突然放大（≥ {QT_SPIKE_RATIO:.2f} 倍均線），<b>可能財團大戶已溜走</b>。</div>
             </div>
-            """,
+            """
+            ,
             unsafe_allow_html=True,
         )
 
