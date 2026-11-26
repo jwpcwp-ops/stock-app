@@ -1991,20 +1991,42 @@ def build_bar_analysis_snapshot(
         },
     ]
 
-    if stock_id == "99991":
-        chg_pts = c_close - p_close
-        chg_pct = (chg_pts / p_close * 100) if p_close > 0 else 0.0
-        amp_pct = ((c_high - c_low) / p_close * 100) if p_close > 0 else 0.0
-        chg_is_up = chg_pts >= 0
+    chg_pts = c_close - p_close
+    chg_pct = (chg_pts / p_close * 100.0) if p_close > 0 else 0.0
+    amp_pct = ((c_high - c_low) / p_close * 100.0) if p_close > 0 else 0.0
+    chg_is_up = chg_pts >= 0
+    wave_col = (
+        "#FF3333"
+        if ("多" in wave_txt or "買" in wave_txt)
+        else ("#00FFFF" if "賣" in wave_txt else "#00E64D")
+    )
+
+    header_tokens.extend([
+        {"text": "|", "color": "#888888"},
+        {"text": f"振:{amp_pct:.2f}%", "color": "#FFFF00"},
+        {
+            "text": (
+                f"{'漲' if chg_is_up else '跌'}:{abs(chg_pts):.2f}({chg_pct:+.2f}%)"
+                f"{'▲' if chg_is_up else '▼'}"
+            ),
+            "color": "#FF3333" if chg_is_up else "#00E64D",
+        },
+    ])
+
+    if stock_id != "99991":
         header_tokens.extend([
-            {"text": f"振:{amp_pct:.2f}%", "color": "#FFFF00"},
-            {
-                "text": (
-                    f"{'漲' if chg_is_up else '跌'}({abs(chg_pts):.2f}){chg_pct:.2f}%"
-                    f"{'▲' if chg_is_up else '▼'}"
-                ),
-                "color": "#FF3333" if chg_is_up else "#00E64D",
-            },
+            {"text": "|", "color": "#888888"},
+            {"text": "大戶:", "color": "#FFFFFF"},
+            {"text": f"{b_val:.1f}%", "color": "#FF3333"},
+            {"text": "羊群:", "color": "#FFFFFF"},
+            {"text": f"{s_val:.1f}%", "color": "#00E64D"},
+            {"text": "|", "color": "#888888"},
+            {"text": wave_txt, "color": wave_col},
+        ])
+    else:
+        header_tokens.extend([
+            {"text": "|", "color": "#888888"},
+            {"text": wave_txt, "color": wave_col},
         ])
 
     return {
@@ -3494,17 +3516,18 @@ if app_mode == "📈 個股籌碼圖表":
             if (!ht || !ht.text) return;
             drawOutlinedText(ht.text, hx, headerY, ht.color, fontHeader, 1.4, "left");
             const isTag = ht.text.endsWith(":");
+            const isPipe = ht.text === "|";
             ctx.save();
             ctx.font = fontHeader;
-            hx += ctx.measureText(ht.text).width + (isTag ? 4.5 : 14.0);
+            hx += ctx.measureText(ht.text).width + (isTag ? 3.0 : (isPipe ? 6.0 : 8.5));
             ctx.restore();
           }});
         }} else {{
           drawOutlinedText(s.header_text || "", hx, headerY, "#FFFFFF", fontHeader, 1.4, "left");
         }}
 
-        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.72, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
-        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.815, headerY, "#00FFFF", fontHeader, 1.4, "left");
+        drawOutlinedText(s.trend_badge || "", plotLeft + b.width * 0.825, headerY, s.trend_badge_color || "#FF3333", fontHeader, 1.4, "left");
+        drawOutlinedText(`逆序:${{r.rev_no}}`, plotLeft + b.width * 0.910, headerY, "#00FFFF", fontHeader, 1.4, "left");
 
         if (r.ma_items && r.ma_items.length > 0) {{
           const maY = headerY + 20;
