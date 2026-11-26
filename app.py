@@ -3150,8 +3150,8 @@ if app_mode == "📈 個股籌碼圖表":
             spine.set_color("#777777")
             spine.set_linewidth(1.0 if is_wave_mode else 1.2)
 
-    if is_wave_mode:
-        # 讓相鄰子圖的上下框線緊密銜接成單一條分隔線
+    if is_four_pane:
+        # 讓四子圖模式（波段、組合、組合1、組合2、組合3）的相鄰子圖上下框線緊密銜接成單一條分隔線
         ax1.spines["bottom"].set_visible(False)
         ax_sub1.spines["top"].set_visible(False)
         ax_sub1.spines["bottom"].set_visible(False)
@@ -3165,8 +3165,9 @@ if app_mode == "📈 個股籌碼圖表":
                 y_top_line, color="#888888", linestyle="-", linewidth=1.0, zorder=6
             )
 
+        right_margin = 0.92 if is_wave_mode else 0.965
         plt.subplots_adjust(
-            left=0.008, right=0.92, top=0.98, bottom=0.08, hspace=0.0
+            left=0.008, right=right_margin, top=0.98, bottom=0.08, hspace=0.0
         )
     else:
         plt.subplots_adjust(
