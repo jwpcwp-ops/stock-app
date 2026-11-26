@@ -465,15 +465,11 @@ def _code_candidates(val):
     if clean_id.isdigit():
         cands.extend([clean_id.zfill(4), str(int(clean_id))])
     return cands
-
 def _norm_col(c):
-    return "".join(str(c).replace("
-", "").replace("
-", "").split())
+    return "".join(str(c).replace("\n", "").replace("\r", "").split())
 
 def _pyramid_link(code_str):
     return f"https://norway.twsthr.info/StockHolders.aspx?stock={_clean_code(code_str)}"
-
 def _parse_pos_float(val):
     if val is None:
         return None
