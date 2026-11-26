@@ -2065,7 +2065,7 @@ def build_bar_analysis_snapshot(
             {"text": f"{bosc_v:.2f}", "color": "#FF3333" if bosc_v >= 0 else "#00E64D"},
         ]
         sub2_tokens = [
-            {"text": "波段 BIAS(20,反向):", "color": "#FFFFFF"},
+            {"text": "波段 BIAS(20):", "color": "#FFFFFF"},
             {
                 "text": f"{bbias_rev_v:.2f}%",
                 "color": "#FF3333" if bbias_rev_v >= 0 else "#00E64D",
