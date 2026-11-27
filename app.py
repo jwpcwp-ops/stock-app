@@ -550,6 +550,7 @@ def find_stock_index_by_code(code_str):
     return -1
 
 def _jump_to_chart_with_code(picked_code, picked_name=""):
+    st.session_state.k_pan_offset = 0
     clean_c = _clean_code(picked_code)
     matched_idx = find_stock_index_by_code(clean_c)
     if matched_idx != -1:
@@ -1454,7 +1455,7 @@ def _compute_qt_series(df_full):
 
     return qt_curve, qt_ma, qt_ratio, is_spike, qt_labels, qt_colors
 
-def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
+def get_continuous_stock_df(stock_id, target_days=250, period_type="日線", pan_offset=0):
     warmup_bars = 260
     fetch_len = target_days + warmup_bars
     raw_records = fetch_raw_history(stock_id, period_type, fetch_len)
@@ -1607,7 +1608,14 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
     )
     df_full["long_trend"] = (ema15 / ema30 - 1) * 100 > 0
 
-    df_show = df_full.tail(target_days).reset_index(drop=True)
+    pan_shift = max(0, int(pan_offset or 0))
+    total_avail = len(df_full)
+    if pan_shift > 0 and total_avail > target_days:
+        end_idx = max(target_days, total_avail - pan_shift)
+        start_idx = max(0, end_idx - target_days)
+        df_show = df_full.iloc[start_idx:end_idx].reset_index(drop=True)
+    else:
+        df_show = df_full.tail(target_days).reset_index(drop=True)
 
     cur_vol = float(df_show["vol"].iloc[-1]) if not df_show.empty else 0.0
     val_20ma = (
@@ -2373,6 +2381,7 @@ DEFAULTS = {
     "chip_1w_threshold_val": 0.00,
     "auto_flip_active": False,
     "auto_flip_interval": 10,
+    "k_pan_offset": 0,
     "ma_active_map": {
         "5": False,
         "10": False,
@@ -2402,6 +2411,7 @@ def step_stock_index(delta: int, total_count: int = None):
     cur_idx = int(st.session_state.get("selected_index", 0)) % n_stocks
     next_idx = (cur_idx + delta) % n_stocks
     st.session_state.selected_index = next_idx
+    st.session_state.k_pan_offset = 0
     st.session_state.stock_select_version = (
         int(st.session_state.get("stock_select_version", 0)) + 1
     )
@@ -2689,7 +2699,9 @@ if app_mode == "📈 個股籌碼圖表":
         )
 
     with third_row_cols[2]:
-        row_bar_cols = st.columns([0.52, 0.52, 0.52, 0.50, 0.50, 0.80, 0.56])
+        pan_cur = int(st.session_state.get("k_pan_offset", 0))
+        pan_step = max(5, int(st.session_state.k_bars_count) // 6)
+        row_bar_cols = st.columns([0.46, 0.46, 0.46, 0.44, 0.44, 0.44, 0.44, 0.56, 0.72, 0.58])
         for p_idx, p_val in enumerate([120, 250, 500]):
             with row_bar_cols[p_idx]:
                 is_cur = st.session_state.k_bars_count == p_val
@@ -2697,6 +2709,7 @@ if app_mode == "📈 個股籌碼圖表":
                     str(p_val), key=f"btn_preset_{p_val}", use_container_width=True
                 ):
                     st.session_state.k_bars_count = p_val
+                    st.session_state.k_pan_offset = 0
                     st.rerun()
                 if is_cur:
                     st.markdown(
@@ -2708,20 +2721,44 @@ if app_mode == "📈 個股籌碼圖表":
                     )
 
         with row_bar_cols[3]:
-            if st.button("↓縮", key="btn_zoom_in_bars", use_container_width=True):
+            if st.button("↓縮", key="btn_zoom_in_bars", use_container_width=True, help="縮小顯示K線根數"):
                 st.session_state.k_bars_count = step_feihu_bars(
                     st.session_state.k_bars_count, -1
                 )
                 st.rerun()
 
         with row_bar_cols[4]:
-            if st.button("↑擴", key="btn_zoom_out_bars", use_container_width=True):
+            if st.button("↑擴", key="btn_zoom_out_bars", use_container_width=True, help="放大顯示K線根數"):
                 st.session_state.k_bars_count = step_feihu_bars(
                     st.session_state.k_bars_count, +1
                 )
                 st.rerun()
 
         with row_bar_cols[5]:
+            if st.button("←平", key="btn_pan_left", use_container_width=True, help="向左平移查看較早K線（亦可於圖表按 Shift+左/右 或拖曳）"):
+                st.session_state.k_pan_offset = pan_cur + pan_step
+                st.rerun()
+
+        with row_bar_cols[6]:
+            if st.button("平→", key="btn_pan_right", use_container_width=True, help="向右平移靠近最新K線"):
+                st.session_state.k_pan_offset = max(0, pan_cur - pan_step)
+                st.rerun()
+
+        with row_bar_cols[7]:
+            is_latest = pan_cur <= 0
+            if st.button("最新", key="btn_pan_reset", use_container_width=True, help="回到最新K線"):
+                st.session_state.k_pan_offset = 0
+                st.rerun()
+            if not is_latest:
+                st.markdown(
+                    "<style>div.st-key-btn_pan_reset button {"
+                    " background-color:#FFFF00 !important; color:#000000"
+                    " !important; border:1px solid #FFFFFF !important;"
+                    " font-weight:bold !important; }}</style>",
+                    unsafe_allow_html=True,
+                )
+
+        with row_bar_cols[8]:
             qt_guide_on = bool(st.session_state.show_qt_guide)
             qt_btn_lbl = "💡 關閉說明" if qt_guide_on else "💡 Q/T 說明"
             if st.button(qt_btn_lbl, key="btn_toggle_qt_guide", use_container_width=True):
@@ -2736,10 +2773,11 @@ if app_mode == "📈 個股籌碼圖表":
                     unsafe_allow_html=True,
                 )
 
-        with row_bar_cols[6]:
+        with row_bar_cols[9]:
+            pan_badge = f" (-{pan_cur})" if pan_cur > 0 else ""
             st.markdown(
                 f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
-                f" text-align:right; line-height:22px; white-space:nowrap;'>K線 : {st.session_state.k_bars_count}</div>",#寫上K線天數語法
+                f" text-align:right; line-height:22px; white-space:nowrap;'>K線:{st.session_state.k_bars_count}{pan_badge}</div>",
                 unsafe_allow_html=True,
             )
 
@@ -2760,9 +2798,13 @@ if app_mode == "📈 個股籌碼圖表":
     k_days_choice = int(st.session_state.k_bars_count)
     ma_map = st.session_state.ma_active_map
 
+    pan_offset_choice = int(st.session_state.get("k_pan_offset", 0))
     df, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
         get_continuous_stock_df(
-            stock_id, target_days=k_days_choice, period_type=actual_chart_period
+            stock_id,
+            target_days=k_days_choice,
+            period_type=actual_chart_period,
+            pan_offset=pan_offset_choice,
         )
     )
 
@@ -4188,6 +4230,12 @@ if app_mode == "📈 個股籌碼圖表":
       window.addEventListener("resize", initDefault);
       setTimeout(initDefault, 80);
 
+      let leftMouseDownActive = false;
+      let leftMouseStartX = 0;
+      let leftMouseStartY = 0;
+      let leftMouseDragged = false;
+      let leftDragAccumSteps = 0;
+
       canvas.addEventListener("mousedown", function(e) {{
         if (e.button !== 0) return;
         wrap.focus();
@@ -4214,6 +4262,48 @@ if app_mode == "📈 個股籌碼圖表":
           return;
         }}
 
+        leftMouseDownActive = true;
+        leftMouseStartX = e.clientX;
+        leftMouseStartY = e.clientY;
+        leftMouseDragged = false;
+        leftDragAccumSteps = 0;
+      }});
+
+      window.addEventListener("mousemove", function(e) {{
+        if (!leftMouseDownActive) return;
+        const dx = e.clientX - leftMouseStartX;
+        const dy = e.clientY - leftMouseStartY;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {{
+          leftMouseDragged = true;
+        }}
+        if (!leftMouseDragged) return;
+
+        const b = getImgBounds();
+        const plotW = Math.max(100, b.width * (axX1 - axX0));
+        const pxPerBar = plotW / Math.max(10, totalBars);
+        const stepBars = Math.max(5, Math.round(totalBars / 8));
+        const steps = Math.trunc(dx / (pxPerBar * stepBars));
+        if (steps !== leftDragAccumSteps) {{
+          const diffSteps = steps - leftDragAccumSteps;
+          leftDragAccumSteps = steps;
+          if (diffSteps > 0) {{
+            for (let i = 0; i < diffSteps; i++) triggerPanStep(-1);
+          }} else if (diffSteps < 0) {{
+            for (let i = 0; i < Math.abs(diffSteps); i++) triggerPanStep(+1);
+          }}
+        }}
+      }});
+
+      window.addEventListener("mouseup", function(e) {{
+        if (!leftMouseDownActive || e.button !== 0) return;
+        const wasDragged = leftMouseDragged;
+        leftMouseDownActive = false;
+        leftMouseDragged = false;
+        leftDragAccumSteps = 0;
+        if (wasDragged) return;
+
+        const b = getImgBounds();
+        const idx = clientXToBarIdx(e.clientX, b);
         const wRect = wrap.getBoundingClientRect();
         const clickY = e.clientY - wRect.top;
         const clickPrice = yToPrice(clickY, b);
@@ -4348,6 +4438,57 @@ if app_mode == "📈 個股籌碼圖表":
         }}
       }}
 
+      let isPanDragging = false;
+      let panDragStartX = 0;
+      let panLastStepDelta = 0;
+
+      function triggerPanStep(dir) {{
+        const targetBtnText = dir < 0 ? "←平" : "平→";
+        try {{
+          const parentDoc = window.parent && window.parent.document;
+          if (parentDoc) {{
+            const btns = Array.from(parentDoc.querySelectorAll("button"));
+            const matchBtn = btns.find((b) => (b.innerText || "").trim() === targetBtnText);
+            if (matchBtn) matchBtn.click();
+          }}
+        }} catch (err) {{
+          console.log("平移觸發:", err);
+        }}
+      }}
+
+      canvas.addEventListener("mousedown", function(e) {{
+        if (e.button === 1 || (e.button === 0 && (e.altKey || e.ctrlKey || e.metaKey))) {{
+          e.preventDefault();
+          isPanDragging = true;
+          panDragStartX = e.clientX;
+          panLastStepDelta = 0;
+        }}
+      }}, true);
+
+      window.addEventListener("mousemove", function(e) {{
+        if (!isPanDragging) return;
+        const b = getImgBounds();
+        const plotW = Math.max(100, b.width * (axX1 - axX0));
+        const pxPerBar = plotW / Math.max(10, totalBars);
+        const dx = e.clientX - panDragStartX;
+        const stepBars = Math.max(5, Math.round(totalBars / 8));
+        const steps = Math.trunc(dx / (pxPerBar * stepBars));
+        if (steps !== panLastStepDelta) {{
+          const diffSteps = steps - panLastStepDelta;
+          panLastStepDelta = steps;
+          if (diffSteps > 0) {{
+            for (let i = 0; i < diffSteps; i++) triggerPanStep(-1);
+          }} else if (diffSteps < 0) {{
+            for (let i = 0; i < Math.abs(diffSteps); i++) triggerPanStep(+1);
+          }}
+        }}
+      }});
+
+      window.addEventListener("mouseup", function() {{
+        isPanDragging = false;
+        panLastStepDelta = 0;
+      }});
+
       wrap.addEventListener("keydown", function(e) {{
         if (e.key === "Escape") {{
           rulerStartIdx = null;
@@ -4363,6 +4504,12 @@ if app_mode == "📈 個股籌碼圖表":
         }} else if (e.key === "ArrowDown") {{
           e.preventDefault();
           triggerFeihuStep(-1);
+        }} else if (e.key === "ArrowLeft" && e.shiftKey) {{
+          e.preventDefault();
+          triggerPanStep(-1);
+        }} else if (e.key === "ArrowRight" && e.shiftKey) {{
+          e.preventDefault();
+          triggerPanStep(+1);
         }}
       }});
     }})();
