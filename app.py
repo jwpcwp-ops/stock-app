@@ -3459,20 +3459,20 @@ if app_mode == "📈 個股籌碼圖表":
     <style>
       .v-hud-box {{
         position: absolute;
-        top: 6px;
+        top: 22px;
         left: 6px;
-        background: rgba(12, 14, 18, 0.94);
-        border: 1.5px solid #00FFFF;
-        border-radius: 6px;
-        padding: 5px 7px;
-        font-size: 11px;
-        line-height: 1.25;
+        background: rgba(10, 13, 18, 0.88);
+        border: 1px solid rgba(0, 255, 255, 0.78);
+        border-radius: 5px;
+        padding: 4px 6px;
+        font-size: 10px;
+        line-height: 1.18;
         font-variant-numeric: tabular-nums;
         pointer-events: none;
         user-select: none;
-        box-shadow: 0 0 8px rgba(0, 255, 255, 0.35), 0 4px 12px rgba(0, 0, 0, 0.85);
-        min-width: 118px;
-        max-width: 145px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.82);
+        min-width: 94px;
+        max-width: 112px;
         z-index: 15;
         display: block;
       }}
@@ -3481,53 +3481,53 @@ if app_mode == "📈 個股籌碼圖表":
       }}
       .v-hud-date {{
         font-weight: 800;
-        font-size: 11px;
+        font-size: 10px;
         color: #FFFFFF;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         padding-bottom: 2px;
-        margin-bottom: 3px;
-        letter-spacing: 0.2px;
+        margin-bottom: 2px;
+        letter-spacing: 0.1px;
         text-align: left;
       }}
       .v-hud-row {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 4px;
+        gap: 3px;
         white-space: nowrap;
       }}
       .v-hud-label {{
-        color: #E2E8F0;
-        font-size: 10.5px;
+        color: #CBD5E1;
+        font-size: 9.5px;
         font-weight: 700;
       }}
       .v-hud-val {{
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 800;
         text-align: right;
         flex: 0 0 auto;
       }}
       #vhMeasure {{
-        font-size: 10.5px;
+        font-size: 9.5px;
       }}
       @media (max-width: 768px) {{
         .v-hud-box {{
-          padding: 4px 6px;
-          font-size: 10px;
-          line-height: 1.2;
-          min-width: 106px;
-          max-width: 132px;
-          border-width: 1px;
+          padding: 3px 5px;
+          font-size: 9px;
+          line-height: 1.14;
+          min-width: 84px;
+          max-width: 100px;
+          border-radius: 4px;
         }}
         .v-hud-date {{
-          font-size: 10px;
-          margin-bottom: 2px;
-          padding-bottom: 2px;
+          font-size: 9px;
+          margin-bottom: 1.5px;
+          padding-bottom: 1.5px;
         }}
         .v-hud-label,
         .v-hud-val,
         #vhMeasure {{
-          font-size: 10px;
+          font-size: 9px;
         }}
       }}
       .v-hud-measure-row {{
@@ -3544,22 +3544,22 @@ if app_mode == "📈 個股籌碼圖表":
     <div class="fx-root">
       <div id="fx-chart-wrap" tabindex="0">
         <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block; margin:0 auto;" />
-        <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
+        <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair; touch-action:none;"></canvas>
         <div class="v-hud-box v-hud-hidden" id="vHudBox">
           <div class="v-hud-date" id="vhDate">{init_snap.get("v_date_str", "2026/11/27")}</div>
-          <div class="v-hud-row"><span class="v-hud-label">開盤 ：</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最高 ：</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最低 ：</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">收盤 ：</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">漲跌 ：</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">振幅 ：</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">大戶 ：</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">羊群 ：</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">波段 ：</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">均線 ：</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">季線 ：</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">逆序 ：</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
-          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">量測 ：</span><span class="v-hud-val v-accent" id="vhMeasure">點圖定起點</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">開</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">高</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">低</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">收</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">跌</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">振</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">大</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">羊</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">波</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">均</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">季</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">序</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
+          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">測</span><span class="v-hud-val v-accent" id="vhMeasure">點圖定起點</span></div>
         </div>
       </div>
 
@@ -3757,20 +3757,20 @@ if app_mode == "📈 個股籌碼圖表":
           return;
         }}
         setVerticalHudVisible(true);
-        const wrapW = wrap.clientWidth || 800;
-        const wrapH = wrap.clientHeight || 520;
-        const boxW = hudEl.offsetWidth || 196;
-        const boxH = hudEl.offsetHeight || 340;
+        const b = getImgBounds();
+        const plotLeft = b.left + b.width * axX0 + 4;
+        const plotRight = b.left + b.width * axX1 - 6;
+        const boxW = hudEl.offsetWidth || 96;
+        const topDockY = Math.round(b.top + b.height * (ax1TopFrac + 0.045));
 
-        let nextLeft = cursorX + 10;
-        if (nextLeft + boxW > wrapW - 38) {{
-          nextLeft = Math.max(4, cursorX - boxW - 10);
-        }}
-        let nextTop = (cursorY && Number.isFinite(cursorY)) ? (cursorY - boxH * 0.35) : 4;
-        nextTop = Math.max(4, Math.min(wrapH - boxH - 12, nextTop));
+        // 智慧靠邊避讓：手指在左半邊時卡片停右上角，手指在右半邊時停左上角，絕不遮擋手指與K棒
+        const midX = (plotLeft + plotRight) * 0.5;
+        const nextLeft = (cursorX < midX)
+          ? Math.max(plotLeft, plotRight - boxW)
+          : plotLeft;
 
         hudEl.style.left = `${{Math.round(nextLeft)}}px`;
-        hudEl.style.top = `${{Math.round(nextTop)}}px`;
+        hudEl.style.top = `${{topDockY}}px`;
       }}
 
       function updateVerticalHudBox(r, hoverPrice, cursorX, cursorY) {{
@@ -4140,8 +4140,7 @@ if app_mode == "📈 個股籌碼圖表":
             drawHorizontalPriceBadge(hoverPrice, lineX, lineY, plotLeft, plotRight, b);
           }}
 
-          const curIdx = clientXToBarIdx(lineX + wrap.getBoundingClientRect().left, b);
-          drawVerticalBarCard(curIdx, lineX, lineY, hoverPrice, plotLeft, plotRight, b);
+          // 已由右上/左上智慧避讓精簡浮動查價卡 #vHudBox 顯示
         }}
 
         drawRulerOverlay(b);
@@ -4360,6 +4359,81 @@ if app_mode == "📈 個股籌碼圖表":
           syncAnalysisPanel(latest);
         }}
       }});
+
+      let touchMovedFlag = false;
+      let touchStartX = 0;
+      let touchStartY = 0;
+
+      function getTouchPos(e) {{
+        const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+        return t ? {{ x: t.clientX, y: t.clientY }} : null;
+      }}
+
+      canvas.addEventListener("touchstart", function(e) {{
+        const pos = getTouchPos(e);
+        if (!pos) return;
+        e.preventDefault();
+        wrap.focus();
+        touchMovedFlag = false;
+        touchStartX = pos.x;
+        touchStartY = pos.y;
+
+        const b = getImgBounds();
+        const idx = clientXToBarIdx(pos.x, b);
+        const wRect = wrap.getBoundingClientRect();
+        const tapY = pos.y - wRect.top;
+        const tapPrice = yToPrice(tapY, b);
+
+        if (rulerArmed) {{
+          if (rulerStartIdx === null || rulerEndIdx !== null) {{
+            rulerStartIdx = idx;
+            rulerEndIdx = null;
+          }} else {{
+            rulerEndIdx = idx;
+          }}
+          rulerPreviewIdx = idx;
+        }} else if (overlayHiddenByClick) {{
+          overlayHiddenByClick = false;
+          lockedAnchorPrice = (tapPrice !== null && Number.isFinite(tapPrice)) ? tapPrice : Number(rows[idx].close);
+          lockedAnchorIdx = idx;
+        }}
+        crosshairEnabled = true;
+        onHover(pos.x, pos.y);
+      }}, {{ passive: false }});
+
+      canvas.addEventListener("touchmove", function(e) {{
+        const pos = getTouchPos(e);
+        if (!pos) return;
+        e.preventDefault();
+        if (Math.abs(pos.x - touchStartX) > 4 || Math.abs(pos.y - touchStartY) > 4) {{
+          touchMovedFlag = true;
+        }}
+        overlayHiddenByClick = false;
+        crosshairEnabled = true;
+        onHover(pos.x, pos.y);
+      }}, {{ passive: false }});
+
+      canvas.addEventListener("touchend", function(e) {{
+        const pos = getTouchPos(e);
+        if (!pos) return;
+        if (!touchMovedFlag && !rulerArmed) {{
+          // 純輕點（未左右拖曳）可切換顯示/隱藏查價卡
+          const b = getImgBounds();
+          const idx = clientXToBarIdx(pos.x, b);
+          if (!overlayHiddenByClick && lockedAnchorIdx !== null && lockedAnchorIdx === idx) {{
+            overlayHiddenByClick = true;
+            lockedAnchorPrice = null;
+            lockedAnchorIdx = null;
+            currentHoverPrice = null;
+            renderInPlaceOverlay(rows[idx], false, 0, 0, b);
+            syncAnalysisPanel(rows[idx]);
+            setVerticalHudVisible(false);
+            return;
+          }}
+          lockedAnchorIdx = idx;
+        }}
+        onHover(pos.x, pos.y);
+      }}, {{ passive: true }});
 
       function triggerFeihuStep(dir) {{
         const curBars = totalBars;
