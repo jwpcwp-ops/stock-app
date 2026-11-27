@@ -3315,9 +3315,13 @@ if app_mode == "📈 個股籌碼圖表":
 
     ax_x0, ax_x1 = float(ax1_bbox.x0), float(ax1_bbox.x1)
     ax1_top_frac = float(1.0 - ax1_bbox.y1)
+    ax1_bot_frac = float(1.0 - ax1_bbox.y0)
     sub1_top_frac = float(1.0 - ax_sub1_bbox.y1)
     sub2_top_frac = float(1.0 - ax_sub2_bbox.y1)
     sub3_top_frac = float(1.0 - ax_sub3_bbox.y1) if ax_sub3_bbox is not None else 0.0
+    ax1_y_min, ax1_y_max = ax1.get_ylim()
+    p_min_plot = float(ax1_y_min)
+    p_max_plot = float(ax1_y_max)
 
     buf = BytesIO()
     fig.savefig(buf, format="png", dpi=150, facecolor=BG_COLOR, edgecolor="none")
@@ -3514,7 +3518,12 @@ if app_mode == "📈 個股籌碼圖表":
       const axX0 = {ax_x0};
       const axX1 = {ax_x1};
       const ax1TopFrac = {ax1_top_frac};
+      const ax1BotFrac = {ax1_bot_frac};
+      const pMinPlot = {p_min_plot};
+      const pMaxPlot = {p_max_plot};
       const sub1TopFrac = {sub1_top_frac};
+      const FONT_REG = "11.5px Arial, 'Microsoft JhengHei', sans-serif";
+      const FONT_SM = "11px Arial, 'Microsoft JhengHei', sans-serif";
       const sub2TopFrac = {sub2_top_frac};
       const sub3TopFrac = {sub3_top_frac};
 
@@ -3670,13 +3679,144 @@ if app_mode == "📈 個股籌碼圖表":
 
       function drawOutlinedText(txt, xPos, yPos, color, fontStr, strokeW) {{
         ctx.save();
-        ctx.font = fontStr;
+        ctx.font = (fontStr || FONT_REG).replace(/^bold\s+/i, "");
         ctx.textBaseline = "top";
-        ctx.lineWidth = strokeW || 1.4;
-        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 1.0;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
         ctx.strokeText(txt, xPos, yPos);
         ctx.fillStyle = color;
         ctx.fillText(txt, xPos, yPos);
+        ctx.restore();
+      }}
+
+      function drawSharpText(txt, xPos, yPos, color, fontStr, align) {{
+        ctx.save();
+        ctx.font = (fontStr || FONT_SM).replace(/^bold\s+/i, "");
+        ctx.textAlign = align || "left";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 1.0;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
+        ctx.strokeText(txt, xPos, yPos);
+        ctx.fillStyle = color;
+        ctx.fillText(txt, xPos, yPos);
+        ctx.restore();
+      }}
+
+      function yToPrice(yPos, b) {{
+        const kTop = b.top + b.height * ax1TopFrac;
+        const kBot = b.top + b.height * ax1BotFrac;
+        if (kBot <= kTop || pMaxPlot <= pMinPlot) return null;
+        if (yPos < kTop || yPos > kBot) return null;
+        const ratio = (yPos - kTop) / (kBot - kTop);
+        return pMaxPlot - ratio * (pMaxPlot - pMinPlot);
+      }}
+
+      function drawHorizontalPriceBadge(priceVal, lineX, lineY, plotLeft, plotRight, b) {{
+        const priceTxt = priceVal.toFixed(2);
+        ctx.save();
+        ctx.font = FONT_SM;
+        ctx.textBaseline = "middle";
+
+        // 1. 右側 Y 軸即時價位牌
+        const badgeW = Math.max(48, ctx.measureText(priceTxt).width + 10);
+        const badgeH = 17;
+        const badgeX = plotRight + 2;
+        const badgeY = Math.max(
+          b.top + b.height * ax1TopFrac,
+          Math.min(b.top + b.height * ax1BotFrac - badgeH, lineY - badgeH / 2)
+        );
+        ctx.fillStyle = "#00ffff";
+        ctx.fillRect(badgeX, badgeY, badgeW, badgeH);
+        ctx.fillStyle = "#000000";
+        ctx.textAlign = "center";
+        ctx.fillText(priceTxt, badgeX + badgeW / 2, badgeY + badgeH / 2 + 0.5);
+
+        // 2. 水平線旁即時價位標籤
+        const tagTxt = `價 ${{priceTxt}}`;
+        const tagW = ctx.measureText(tagTxt).width + 10;
+        const tagH = 16;
+        let tagX = lineX + 10;
+        if (tagX + tagW > plotRight - 6) {{
+          tagX = Math.max(plotLeft + 6, lineX - tagW - 10);
+        }}
+        let tagY = lineY - tagH - 4;
+        if (tagY < b.top + b.height * ax1TopFrac + 2) {{
+          tagY = lineY + 4;
+        }}
+        ctx.fillStyle = "rgba(10, 14, 22, 0.90)";
+        ctx.strokeStyle = "#00ffff";
+        ctx.lineWidth = 1;
+        ctx.fillRect(tagX, tagY, tagW, tagH);
+        ctx.strokeRect(tagX, tagY, tagW, tagH);
+        ctx.fillStyle = "#ffff00";
+        ctx.textAlign = "left";
+        ctx.fillText(tagTxt, tagX + 5, tagY + tagH / 2 + 0.5);
+        ctx.restore();
+      }}
+
+      function drawVerticalBarCard(barIdx, lineX, lineY, hoverPrice, plotLeft, plotRight, b) {{
+        if (barIdx < 0 || barIdx >= totalBars) return;
+        const r = rows[barIdx];
+        const prevR = barIdx > 0 ? rows[barIdx - 1] : r;
+        const closeVal = Number(r.close);
+        const prevClose = Number(prevR.close);
+        const highVal = Number(r.high);
+        const lowVal = Number(r.low);
+        const diffPts = closeVal - prevClose;
+        const diffPct = prevClose > 0 ? (diffPts / prevClose) * 100 : 0;
+        const ampPct = prevClose > 0 ? ((highVal - lowVal) / prevClose) * 100 : 0;
+        const isUp = diffPts >= 0;
+        const chgCol = isUp ? "#ff4444" : "#00e64d";
+        const sgn = isUp ? "+" : "";
+
+        const s = r.snap || {{}};
+        const line1 = `${{r.date}}  收 ${{closeVal.toFixed(2)}}`;
+        const line2 = `漲跌 ${{sgn}}${{diffPts.toFixed(2)}} (${{sgn}}${{diffPct.toFixed(2)}}%)`;
+        const line3 = `高 ${{highVal.toFixed(2)}}  低 ${{lowVal.toFixed(2)}}  振 ${{ampPct.toFixed(2)}}%`;
+
+        let line4 = `量 ${{Number(r.vol || 0).toLocaleString()}}  大戶 ${{s.big_str || "--"}}`;
+        if (hoverPrice !== null && Number.isFinite(hoverPrice) && closeVal > 0) {{
+          const vsClosePts = hoverPrice - closeVal;
+          const vsClosePct = (vsClosePts / closeVal) * 100;
+          const vSgn = vsClosePts >= 0 ? "+" : "";
+          line4 = `距收盤 ${{vSgn}}${{vsClosePts.toFixed(2)}} (${{vSgn}}${{vsClosePct.toFixed(2)}}%)`;
+        }}
+
+        ctx.save();
+        ctx.font = FONT_SM;
+        const maxW = Math.max(
+          ctx.measureText(line1).width,
+          ctx.measureText(line2).width,
+          ctx.measureText(line3).width,
+          ctx.measureText(line4).width
+        );
+        const cardW = Math.ceil(maxW + 16);
+        const cardH = 74;
+
+        let cardX = lineX + 12;
+        if (cardX + cardW > plotRight - 8) {{
+          cardX = Math.max(plotLeft + 8, lineX - cardW - 12);
+        }}
+
+        const kTop = b.top + b.height * ax1TopFrac + 24;
+        const kBot = b.top + b.height * ax1BotFrac - cardH - 6;
+        let cardY = lineY ? (lineY - cardH / 2) : kTop;
+        if (kBot > kTop) {{
+          cardY = Math.max(kTop, Math.min(kBot, cardY));
+        }} else {{
+          cardY = kTop;
+        }}
+
+        ctx.fillStyle = "rgba(10, 14, 22, 0.90)";
+        ctx.strokeStyle = isUp ? "rgba(255, 68, 68, 0.85)" : "rgba(0, 230, 77, 0.85)";
+        ctx.lineWidth = 1;
+        ctx.fillRect(cardX, cardY, cardW, cardH);
+        ctx.strokeRect(cardX, cardY, cardW, cardH);
+
+        drawSharpText(line1, cardX + 8, cardY + 10, "#ffffff", FONT_SM, "left");
+        drawSharpText(line2, cardX + 8, cardY + 27, chgCol, FONT_SM, "left");
+        drawSharpText(line3, cardX + 8, cardY + 44, "#00ffff", FONT_SM, "left");
+        drawSharpText(line4, cardX + 8, cardY + 61, "#ffff00", FONT_SM, "left");
         ctx.restore();
       }}
 
@@ -3739,7 +3879,7 @@ if app_mode == "📈 個股籌碼圖表":
           let col = "#FFFFFF";
           if (idxLine === 0) col = "#00FFFF";
           else if (idxLine === 1 || idxLine === 2) col = isUp ? "#FF4444" : "#00E64D";
-          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "bold 11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
+          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
         }});
         ctx.restore();
       }}
@@ -3777,6 +3917,14 @@ if app_mode == "📈 個股籌碼圖表":
           ctx.lineTo(plotRight, lineY);
           ctx.stroke();
           ctx.restore();
+
+          const hoverPrice = yToPrice(lineY, b);
+          if (hoverPrice !== null && Number.isFinite(hoverPrice)) {{
+            drawHorizontalPriceBadge(hoverPrice, lineX, lineY, plotLeft, plotRight, b);
+          }}
+
+          const curIdx = clientXToBarIdx(lineX + wrap.getBoundingClientRect().left, b);
+          drawVerticalBarCard(curIdx, lineX, lineY, hoverPrice, plotLeft, plotRight, b);
         }}
 
         drawRulerOverlay(b);
@@ -3786,8 +3934,8 @@ if app_mode == "📈 個股籌碼圖表":
         const headerY = b.top + b.height * (ax1TopFrac + 0.014);
 
         const fontHeaderDyn = b.width < 1180
-          ? "bold 10.2px Arial, 'Microsoft JhengHei', sans-serif"
-          : "bold 11.2px Arial, 'Microsoft JhengHei', sans-serif";
+          ? "10.2px Arial, 'Microsoft JhengHei', sans-serif"
+          : "11.2px Arial, 'Microsoft JhengHei', sans-serif";
         const prefixTitle = `[${{stockCode}}] ${{stockName}}`;
         drawOutlinedText(prefixTitle, headerX, headerY, "#FFFFFF", fontHeaderDyn, 1.4);
         let hx = headerX + ctx.measureText(prefixTitle).width + 8.0;
@@ -3813,7 +3961,7 @@ if app_mode == "📈 個股籌碼圖表":
         if (r.ma_items && r.ma_items.length > 0) {{
           const maY = headerY + 20;
           let curX = headerX;
-          const fontMa = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
+          const fontMa = "12px Arial, 'Microsoft JhengHei', sans-serif";
           r.ma_items.forEach((m) => {{
             drawOutlinedText(m.text, curX, maY, m.color, fontMa, 1.4);
             curX += ctx.measureText(m.text).width + 16.0;
@@ -3837,7 +3985,7 @@ if app_mode == "📈 個股籌碼圖表":
           ctx.restore();
         }}
 
-        const fontSub = "bold 12px Arial, 'Microsoft JhengHei', sans-serif";
+        const fontSub = "12px Arial, 'Microsoft JhengHei', sans-serif";
         const dotX = plotLeft + b.width * 0.004;
         if (isFourPane) {{
           const y1 = b.top + b.height * (sub1TopFrac + 0.014);
