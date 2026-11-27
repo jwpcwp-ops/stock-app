@@ -3507,9 +3507,6 @@ if app_mode == "📈 個股籌碼圖表":
         text-align: right;
         flex: 0 0 auto;
       }}
-      #vhMeasure {{
-        font-size: 9.5px;
-      }}
       @media (max-width: 768px) {{
         .v-hud-box {{
           padding: 3px 5px;
@@ -3525,8 +3522,7 @@ if app_mode == "📈 個股籌碼圖表":
           padding-bottom: 1.5px;
         }}
         .v-hud-label,
-        .v-hud-val,
-        #vhMeasure {{
+        .v-hud-val {{
           font-size: 9px;
         }}
       }}
@@ -3559,7 +3555,6 @@ if app_mode == "📈 個股籌碼圖表":
           <div class="v-hud-row"><span class="v-hud-label">均</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
           <div class="v-hud-row"><span class="v-hud-label">季</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
           <div class="v-hud-row"><span class="v-hud-label">序</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
-          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">測</span><span class="v-hud-val v-accent" id="vhMeasure">點圖定起點</span></div>
         </div>
       </div>
 
@@ -3808,30 +3803,6 @@ if app_mode == "📈 個股籌碼圖表":
           ? hoverPrice
           : Number(r.close);
 
-        if (lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice) && Number.isFinite(targetPrice) && basePrice > 0) {{
-          const diff = targetPrice - basePrice;
-          const pct = (diff / basePrice) * 100;
-          const sgn = diff >= 0 ? "+" : "";
-          const psgn = pct >= 0 ? "+" : "";
-          setEl(
-            "vhMeasure",
-            `${{sgn}}${{diff.toFixed(2)}} (${{psgn}}${{pct.toFixed(2)}}%)`,
-            "v-hud-val " + (diff >= 0 ? "v-up" : "v-down")
-          );
-        }} else if (Number.isFinite(targetPrice) && Number(r.close) > 0) {{
-          const diff = targetPrice - Number(r.close);
-          const pct = (diff / Number(r.close)) * 100;
-          const sgn = diff >= 0 ? "+" : "";
-          const psgn = pct >= 0 ? "+" : "";
-          setEl(
-            "vhMeasure",
-            `${{sgn}}${{diff.toFixed(2)}} (${{psgn}}${{pct.toFixed(2)}}%)`,
-            "v-hud-val " + (diff >= 0 ? "v-up" : "v-down")
-          );
-        }} else {{
-          setEl("vhMeasure", "點圖定起點", "v-hud-val v-accent");
-        }}
-
         positionVerticalHudBox(cursorX, cursorY);
       }}
 
@@ -4037,70 +4008,6 @@ if app_mode == "📈 個股籌碼圖表":
         ctx.restore();
       }}
 
-      function drawRulerOverlay(b) {{
-        const targetB = (rulerEndIdx !== null) ? rulerEndIdx : rulerPreviewIdx;
-        if (rulerStartIdx === null || targetB === null) return;
-        const st = calcRangeStats(rulerStartIdx, targetB);
-        if (!st) return;
-
-        const plotLeft = b.left + b.width * axX0;
-        const plotRight = b.left + b.width * axX1;
-        const plotW = Math.max(10, plotRight - plotLeft);
-        const topY = b.top + b.height * ax1TopFrac;
-        const botY = b.top + b.height * (isFourPane ? 0.92 : 0.90);
-
-        const xA = barIdxToX(st.i1, plotLeft, plotW);
-        const xB = barIdxToX(st.i2, plotLeft, plotW);
-        const boxX = Math.min(xA, xB);
-        const boxW = Math.max(2, Math.abs(xB - xA));
-        const isUp = st.diffPts >= 0;
-
-        ctx.save();
-        ctx.fillStyle = isUp ? "rgba(255, 51, 51, 0.14)" : "rgba(0, 230, 77, 0.14)";
-        ctx.fillRect(boxX, topY, boxW, Math.max(10, botY - topY));
-
-        ctx.strokeStyle = "#FFFF00";
-        ctx.lineWidth = 1.2;
-        ctx.setLineDash([5, 3]);
-        [xA, xB].forEach((vx) => {{
-          ctx.beginPath();
-          ctx.moveTo(vx, topY);
-          ctx.lineTo(vx, botY);
-          ctx.stroke();
-        }});
-        ctx.setLineDash([]);
-
-        const sign = isUp ? "+" : "";
-        const pctSign = st.diffPct >= 0 ? "+" : "";
-        const ampSign = isUp ? "+" : "-";
-        const lines = [
-          `【尺規測距】${{st.startDate}} → ${{st.endDate}} (${{st.barCount}}K)`,
-          `區間漲跌: ${{sign}}${{st.diffPts.toFixed(2)}} (${{pctSign}}${{st.diffPct.toFixed(2)}}%)  收: ${{st.startClose.toFixed(2)}} → ${{st.endClose.toFixed(2)}}`,
-          `區間高低: ${{st.maxH.toFixed(2)}} / ${{st.minL.toFixed(2)}}  振幅: ${{ampSign}}${{st.ampPct.toFixed(2)}}%`,
-          `累積量: ${{st.sumVol.toLocaleString()}}  均量: ${{st.avgVol.toLocaleString()}}`
-        ];
-
-        const cardW = 355, cardH = 74;
-        let cardX = Math.max(xA, xB) + 10;
-        if (cardX + cardW > plotRight - 6) cardX = Math.min(xA, xB) - cardW - 10;
-        if (cardX < plotLeft + 6) cardX = plotLeft + 10;
-        const cardY = topY + 46;
-
-        ctx.fillStyle = "rgba(12, 16, 24, 0.92)";
-        ctx.strokeStyle = isUp ? "#FF5555" : "#00E64D";
-        ctx.lineWidth = 1.4;
-        ctx.fillRect(cardX, cardY, cardW, cardH);
-        ctx.strokeRect(cardX, cardY, cardW, cardH);
-
-        lines.forEach((ln, idxLine) => {{
-          let col = "#FFFFFF";
-          if (idxLine === 0) col = "#00FFFF";
-          else if (idxLine === 1 || idxLine === 2) col = isUp ? "#FF4444" : "#00E64D";
-          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
-        }});
-        ctx.restore();
-      }}
-
       function drawTokensRow(tokens, startX, yPos, fontStr, baseGap, maxRightX) {{
         let curX = startX;
         (tokens || []).forEach((tk) => {{
@@ -4143,7 +4050,6 @@ if app_mode == "📈 個股籌碼圖表":
           // 已由右上/左上智慧避讓精簡浮動查價卡 #vHudBox 顯示
         }}
 
-        drawRulerOverlay(b);
 
         if (!overlayHiddenByClick && lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice) && pMaxPlot > pMinPlot) {{
           const kTop = b.top + b.height * ax1TopFrac;
