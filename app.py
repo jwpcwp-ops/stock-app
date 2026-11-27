@@ -2808,12 +2808,12 @@ if app_mode == "📈 個股籌碼圖表":
         or is_combo2_mode
         or is_combo3_mode
     )
-    fig = plt.figure(figsize=(10.0, 4.10))
+    fig = plt.figure(figsize=(10.0, 4.95))
 
     if is_four_pane:
-        wave_hspace = 0.0 if is_wave_mode else 0.08
+        wave_hspace = 0.0 if is_wave_mode else 0.06
         gs = fig.add_gridspec(
-            4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=wave_hspace
+            4, 1, height_ratios=[2.95, 0.85, 0.85, 0.85], hspace=wave_hspace
         )
         ax1 = fig.add_subplot(gs[0])
         ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
@@ -2821,7 +2821,7 @@ if app_mode == "📈 個股籌碼圖表":
         ax_sub3 = fig.add_subplot(gs[3], sharex=ax1)
         axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
     else:
-        gs = fig.add_gridspec(3, 1, height_ratios=[2.85, 1.15, 1.25], hspace=0.10)
+        gs = fig.add_gridspec(3, 1, height_ratios=[3.60, 1.15, 1.25], hspace=0.08)
         ax1 = fig.add_subplot(gs[0])
         ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
         ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
@@ -3300,11 +3300,11 @@ if app_mode == "📈 個股籌碼圖表":
 
         right_margin = 0.92 if is_wave_mode else 0.965
         plt.subplots_adjust(
-            left=0.008, right=right_margin, top=0.98, bottom=0.08, hspace=0.0
+            left=0.008, right=right_margin, top=0.992, bottom=0.042, hspace=0.0
         )
     else:
         plt.subplots_adjust(
-            left=0.008, right=0.965, top=0.98, bottom=0.08, hspace=0.10
+            left=0.008, right=0.965, top=0.992, bottom=0.042, hspace=0.08
         )
 
     fig.canvas.draw()
@@ -4120,7 +4120,7 @@ if app_mode == "📈 個股籌碼圖表":
     }})();
     </script>
     """
-    components.html(unified_interactive_html, height=580, scrolling=False)
+    components.html(unified_interactive_html, height=690, scrolling=False)
 
 # =========================================================
 # 分頁二：⚡ 9大策略選股
