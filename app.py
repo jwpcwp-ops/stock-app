@@ -2160,19 +2160,6 @@ def build_bar_analysis_snapshot(
         "wave_cls": wave_cls,
         "red_days": f"{red_d}日",
         "green_days": f"{green_d}日",
-        "v_date_str": c_date,
-        "v_open_str": f"{c_open:.2f}",
-        "v_high_str": f"{c_high:.2f}",
-        "v_low_str": f"{c_low:.2f}",
-        "v_close_str": f"{c_close:.2f}",
-        "v_change_str": f"{bar_diff:+.2f}",
-        "v_amp_str": f"{abs(bar_amp_pct):.2f}%",
-        "v_big_str": f"{b_val:.1f}%",
-        "v_sheep_str": f"{s_val:.1f}%",
-        "v_swing_str": wave_dir_txt,
-        "v_ma_str": ma_dir_txt,
-        "v_qma_str": "多頭" if is_bull else "空頭",
-        "v_rev_str": str(len(df) - idx_r),
     }
 
 # ---------------------------------------------------------
@@ -2821,12 +2808,12 @@ if app_mode == "📈 個股籌碼圖表":
         or is_combo2_mode
         or is_combo3_mode
     )
-    fig = plt.figure(figsize=(10.0, 4.95))
+    fig = plt.figure(figsize=(10.0, 4.10))
 
     if is_four_pane:
-        wave_hspace = 0.0 if is_wave_mode else 0.06
+        wave_hspace = 0.0 if is_wave_mode else 0.08
         gs = fig.add_gridspec(
-            4, 1, height_ratios=[2.95, 0.85, 0.85, 0.85], hspace=wave_hspace
+            4, 1, height_ratios=[2.2, 0.85, 0.85, 0.85], hspace=wave_hspace
         )
         ax1 = fig.add_subplot(gs[0])
         ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
@@ -2834,7 +2821,7 @@ if app_mode == "📈 個股籌碼圖表":
         ax_sub3 = fig.add_subplot(gs[3], sharex=ax1)
         axes = [ax1, ax_sub1, ax_sub2, ax_sub3]
     else:
-        gs = fig.add_gridspec(3, 1, height_ratios=[3.60, 1.15, 1.25], hspace=0.08)
+        gs = fig.add_gridspec(3, 1, height_ratios=[2.85, 1.15, 1.25], hspace=0.10)
         ax1 = fig.add_subplot(gs[0])
         ax_sub1 = fig.add_subplot(gs[1], sharex=ax1)
         ax_sub2 = fig.add_subplot(gs[2], sharex=ax1)
@@ -3313,11 +3300,11 @@ if app_mode == "📈 個股籌碼圖表":
 
         right_margin = 0.92 if is_wave_mode else 0.965
         plt.subplots_adjust(
-            left=0.008, right=right_margin, top=0.992, bottom=0.042, hspace=0.0
+            left=0.008, right=right_margin, top=0.98, bottom=0.08, hspace=0.0
         )
     else:
         plt.subplots_adjust(
-            left=0.008, right=0.965, top=0.992, bottom=0.042, hspace=0.08
+            left=0.008, right=0.965, top=0.98, bottom=0.08, hspace=0.10
         )
 
     fig.canvas.draw()
@@ -3456,78 +3443,10 @@ if app_mode == "📈 個股籌碼圖表":
       .t-val-white {{ color: #ffffff; font-weight: bold; }}
     </style>
 
-    <style>
-      .v-hud-box {{
-        position: absolute;
-        top: 6px;
-        left: 6px;
-        background: rgba(14, 16, 20, 0.90);
-        border: 0.6px solid rgba(255, 255, 255, 0.24);
-        border-radius: 5px;
-        padding: 6px 8px;
-        font-size: 11px;
-        line-height: 1.38;
-        font-variant-numeric: tabular-nums;
-        pointer-events: none;
-        user-select: none;
-        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
-        min-width: 122px;
-        z-index: 12;
-      }}
-      .v-hud-date {{
-        font-weight: 700;
-        color: #FFFFFF;
-        border-bottom: 0.5px solid rgba(255, 255, 255, 0.16);
-        padding-bottom: 2px;
-        margin-bottom: 2px;
-        letter-spacing: 0.3px;
-      }}
-      .v-hud-row {{
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 6px;
-        white-space: nowrap;
-      }}
-      .v-hud-label {{
-        color: #D0D7DE;
-        font-weight: 600;
-      }}
-      .v-hud-val {{
-        font-weight: 700;
-        text-align: right;
-      }}
-      .v-hud-measure-row {{
-        margin-top: 2px;
-        padding-top: 2px;
-        border-top: 0.5px dashed rgba(255, 255, 255, 0.22);
-      }}
-      .v-up {{ color: #FF4444; }}
-      .v-down {{ color: #00E64D; }}
-      .v-accent {{ color: #FFD54F; }}
-      .v-cyan {{ color: #00FFFF; }}
-      .v-white {{ color: #FFFFFF; }}
-    </style>
     <div class="fx-root">
       <div id="fx-chart-wrap" tabindex="0">
         <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block; margin:0 auto;" />
         <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
-        <div class="v-hud-box" id="vHudBox">
-          <div class="v-hud-date" id="vhDate">{init_snap.get("v_date_str", "2026/11/27")}</div>
-          <div class="v-hud-row"><span class="v-hud-label">開盤：</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最高：</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最低：</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">收盤：</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">漲跌：</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">振幅：</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">大戶：</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">羊群：</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">波段：</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">均線：</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">季線：</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">逆序：</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
-          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">量測：</span><span class="v-hud-val v-accent" id="vhMeasure">點圖定起點</span></div>
-        </div>
       </div>
 
       <div id="fx-side-wrap">
@@ -3613,9 +3532,6 @@ if app_mode == "📈 個股籌碼圖表":
       let rulerStartIdx = null;
       let rulerEndIdx = null;
       let rulerPreviewIdx = null;
-      let lockedAnchorPrice = null;
-      let lockedAnchorIdx = null;
-      let currentHoverPrice = null;
 
       function setEl(id, text, cls) {{
         const el = document.getElementById(id);
@@ -3703,69 +3619,8 @@ if app_mode == "📈 個股籌碼圖表":
         }}
       }}
 
-      function updateVerticalHudBox(r, hoverPrice) {{
-        if (!r || !r.snap) return;
-        const s = r.snap;
-        setEl("vhDate", s.v_date_str || r.date || "", "v-hud-date");
-        setEl("vhOpen", s.v_open_str || "--", "v-hud-val v-up");
-        setEl("vhHigh", s.v_high_str || "--", "v-hud-val v-up");
-        setEl("vhLow", s.v_low_str || "--", "v-hud-val v-down");
-        setEl("vhClose", s.v_close_str || "--", "v-hud-val v-up");
-
-        const chgStr = s.v_change_str || "--";
-        const chgIsNeg = String(chgStr).startsWith("-");
-        setEl("vhChange", chgStr, "v-hud-val " + (chgIsNeg ? "v-down" : "v-up"));
-
-        setEl("vhAmp", s.v_amp_str || "--", "v-hud-val v-accent");
-        setEl("vhBig", s.v_big_str || "--", "v-hud-val v-up");
-        setEl("vhSheep", s.v_sheep_str || "--", "v-hud-val v-down");
-
-        const swingTxt = s.v_swing_str || "--";
-        setEl("vhSwing", swingTxt, "v-hud-val " + (swingTxt.includes("多") ? "v-up" : "v-down"));
-
-        const maTxt = s.v_ma_str || "--";
-        setEl("vhMa", maTxt, "v-hud-val " + (maTxt.includes("多") ? "v-up" : "v-down"));
-
-        const qmaTxt = s.v_qma_str || "--";
-        setEl("vhQma", qmaTxt, "v-hud-val " + (qmaTxt.includes("多") ? "v-up" : "v-down"));
-
-        setEl("vhRev", s.v_rev_str || "1", "v-hud-val v-cyan");
-
-        const basePrice = (lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice))
-          ? lockedAnchorPrice
-          : Number(r.close);
-        const targetPrice = (hoverPrice !== null && Number.isFinite(hoverPrice))
-          ? hoverPrice
-          : Number(r.close);
-
-        if (lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice) && Number.isFinite(targetPrice) && basePrice > 0) {{
-          const diff = targetPrice - basePrice;
-          const pct = (diff / basePrice) * 100;
-          const sgn = diff >= 0 ? "+" : "";
-          const psgn = pct >= 0 ? "+" : "";
-          setEl(
-            "vhMeasure",
-            `${{sgn}}${{diff.toFixed(2)}} (${{psgn}}${{pct.toFixed(2)}}%)`,
-            "v-hud-val " + (diff >= 0 ? "v-up" : "v-down")
-          );
-        }} else if (Number.isFinite(targetPrice) && Number(r.close) > 0) {{
-          const diff = targetPrice - Number(r.close);
-          const pct = (diff / Number(r.close)) * 100;
-          const sgn = diff >= 0 ? "+" : "";
-          const psgn = pct >= 0 ? "+" : "";
-          setEl(
-            "vhMeasure",
-            `${{sgn}}${{diff.toFixed(2)}} (${{psgn}}${{pct.toFixed(2)}}%)`,
-            "v-hud-val " + (diff >= 0 ? "v-up" : "v-down")
-          );
-        }} else {{
-          setEl("vhMeasure", "點圖定起點", "v-hud-val v-accent");
-        }}
-      }}
-
       function syncAnalysisPanel(r) {{
         if (!r || !r.snap) return;
-        updateVerticalHudBox(r, currentHoverPrice);
         const s = r.snap;
         setEl("p-ma-status", s.ma_status, s.ma_cls);
         setEl("p-ma5", s.ma5);
@@ -4074,36 +3929,6 @@ if app_mode == "📈 個股籌碼圖表":
 
         drawRulerOverlay(b);
 
-        if (lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice) && pMaxPlot > pMinPlot) {{
-          const kTop = b.top + b.height * ax1TopFrac;
-          const kBot = b.top + b.height * ax1BotFrac;
-          if (kBot > kTop) {{
-            const ratio = (pMaxPlot - lockedAnchorPrice) / (pMaxPlot - pMinPlot);
-            const ancY = kTop + ratio * (kBot - kTop);
-            ctx.save();
-            ctx.strokeStyle = "#FFD54F";
-            ctx.lineWidth = 1.2;
-            ctx.setLineDash([5, 3]);
-            ctx.beginPath();
-            ctx.moveTo(plotLeft, ancY);
-            ctx.lineTo(plotRight, ancY);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            const ancLbl = `起點 ${{lockedAnchorPrice.toFixed(2)}}`;
-            ctx.font = FONT_SM;
-            const lw = ctx.measureText(ancLbl).width + 10;
-            const lh = 16;
-            ctx.fillStyle = "#FFD54F";
-            ctx.fillRect(plotLeft + 132, Math.max(kTop + 2, ancY - lh - 2), lw, lh);
-            ctx.fillStyle = "#000000";
-            ctx.textAlign = "left";
-            ctx.textBaseline = "middle";
-            ctx.fillText(ancLbl, plotLeft + 137, Math.max(kTop + 2, ancY - lh - 2) + lh / 2 + 0.5);
-            ctx.restore();
-          }}
-        }}
-
         const s = r.snap || {{}};
         const headerX = plotLeft + b.width * 0.010;
         const headerY = b.top + b.height * (ax1TopFrac + 0.014);
@@ -4197,8 +4022,6 @@ if app_mode == "📈 個股籌碼圖表":
 
         const lineX = barIdxToX(idx, plotLeft, plotW);
         const lineY = clientY ? (clientY - wRect.top) : (b.top + b.height * 0.35);
-        const hp = yToPrice(lineY, b);
-        currentHoverPrice = (hp !== null && Number.isFinite(hp)) ? hp : Number(r.close);
 
         renderInPlaceOverlay(r, crosshairEnabled, lineX, lineY, b);
         syncAnalysisPanel(r);
@@ -4243,18 +4066,7 @@ if app_mode == "📈 個股籌碼圖表":
           return;
         }}
 
-        const wRect = wrap.getBoundingClientRect();
-        const clickY = e.clientY - wRect.top;
-        const clickPrice = yToPrice(clickY, b);
-        if (lockedAnchorPrice === null) {{
-          lockedAnchorPrice = (clickPrice !== null && Number.isFinite(clickPrice)) ? clickPrice : Number(rows[idx].close);
-          lockedAnchorIdx = idx;
-          crosshairEnabled = true;
-        }} else {{
-          lockedAnchorPrice = null;
-          lockedAnchorIdx = null;
-          crosshairEnabled = !crosshairEnabled;
-        }}
+        crosshairEnabled = !crosshairEnabled;
         onHover(e.clientX, e.clientY);
       }});
 
@@ -4296,9 +4108,6 @@ if app_mode == "📈 個股籌碼圖表":
           rulerStartIdx = null;
           rulerEndIdx = null;
           rulerPreviewIdx = null;
-          lockedAnchorPrice = null;
-          lockedAnchorIdx = null;
-          currentHoverPrice = null;
           initDefault();
         }} else if (e.key === "ArrowUp") {{
           e.preventDefault();
@@ -4311,7 +4120,7 @@ if app_mode == "📈 個股籌碼圖表":
     }})();
     </script>
     """
-    components.html(unified_interactive_html, height=690, scrolling=False)
+    components.html(unified_interactive_html, height=580, scrolling=False)
 
 # =========================================================
 # 分頁二：⚡ 9大策略選股
