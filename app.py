@@ -2742,7 +2742,7 @@ if app_mode == "📈 個股籌碼圖表":
         with row_bar_cols[7]:
             st.markdown(
                 f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
-                f" text-align:right; line-height:22px; white-space:nowrap;'>K線天: {st.session_state.k_bars_count}</div>",#寫上K線天數語法
+                f" text-align:right; line-height:22px; white-space:nowrap;'>K線 : {st.session_state.k_bars_count}</div>",#寫上K線天數語法
                 unsafe_allow_html=True,
             )
 
