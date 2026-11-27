@@ -3461,17 +3461,18 @@ if app_mode == "📈 個股籌碼圖表":
         position: absolute;
         top: 6px;
         left: 6px;
-        background: rgba(12, 14, 18, 0.96);
-        border: 2px solid #00FFFF;
-        border-radius: 8px;
-        padding: 9px 12px;
-        font-size: 14px;
-        line-height: 1.44;
+        background: rgba(12, 14, 18, 0.94);
+        border: 1.5px solid #00FFFF;
+        border-radius: 6px;
+        padding: 5px 7px;
+        font-size: 11px;
+        line-height: 1.25;
         font-variant-numeric: tabular-nums;
         pointer-events: none;
         user-select: none;
-        box-shadow: 0 0 12px rgba(0, 255, 255, 0.45), 0 6px 18px rgba(0, 0, 0, 0.85);
-        min-width: 196px;
+        box-shadow: 0 0 8px rgba(0, 255, 255, 0.35), 0 4px 12px rgba(0, 0, 0, 0.85);
+        min-width: 118px;
+        max-width: 145px;
         z-index: 15;
         display: block;
       }}
@@ -3480,34 +3481,54 @@ if app_mode == "📈 個股籌碼圖表":
       }}
       .v-hud-date {{
         font-weight: 800;
-        font-size: 15px;
+        font-size: 11px;
         color: #FFFFFF;
         border-bottom: 1px solid rgba(255, 255, 255, 0.22);
-        padding-bottom: 4px;
-        margin-bottom: 5px;
-        letter-spacing: 0.3px;
+        padding-bottom: 2px;
+        margin-bottom: 3px;
+        letter-spacing: 0.2px;
         text-align: left;
       }}
       .v-hud-row {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 8px;
+        gap: 4px;
         white-space: nowrap;
       }}
       .v-hud-label {{
         color: #E2E8F0;
-        font-size: 14px;
+        font-size: 10.5px;
         font-weight: 700;
       }}
       .v-hud-val {{
-        font-size: 15.5px;
+        font-size: 11px;
         font-weight: 800;
         text-align: right;
         flex: 0 0 auto;
       }}
       #vhMeasure {{
-        font-size: 14px;
+        font-size: 10.5px;
+      }}
+      @media (max-width: 768px) {{
+        .v-hud-box {{
+          padding: 4px 6px;
+          font-size: 10px;
+          line-height: 1.2;
+          min-width: 106px;
+          max-width: 132px;
+          border-width: 1px;
+        }}
+        .v-hud-date {{
+          font-size: 10px;
+          margin-bottom: 2px;
+          padding-bottom: 2px;
+        }}
+        .v-hud-label,
+        .v-hud-val,
+        #vhMeasure {{
+          font-size: 10px;
+        }}
       }}
       .v-hud-measure-row {{
         margin-top: 2px;
@@ -3741,12 +3762,12 @@ if app_mode == "📈 個股籌碼圖表":
         const boxW = hudEl.offsetWidth || 196;
         const boxH = hudEl.offsetHeight || 340;
 
-        let nextLeft = cursorX + 16;
-        if (nextLeft + boxW > wrapW - 58) {{
-          nextLeft = Math.max(6, cursorX - boxW - 16);
+        let nextLeft = cursorX + 10;
+        if (nextLeft + boxW > wrapW - 38) {{
+          nextLeft = Math.max(4, cursorX - boxW - 10);
         }}
-        let nextTop = (cursorY && Number.isFinite(cursorY)) ? (cursorY - boxH * 0.35) : 6;
-        nextTop = Math.max(6, Math.min(wrapH - boxH - 22, nextTop));
+        let nextTop = (cursorY && Number.isFinite(cursorY)) ? (cursorY - boxH * 0.35) : 4;
+        nextTop = Math.max(4, Math.min(wrapH - boxH - 12, nextTop));
 
         hudEl.style.left = `${{Math.round(nextLeft)}}px`;
         hudEl.style.top = `${{Math.round(nextTop)}}px`;
