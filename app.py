@@ -42,7 +42,7 @@ MA_COLOR_MAP = {
     "分割": "#00FFFF",
 }
 
-FEIHU_BAR_STEPS = [6, 12, 24, 30, 50, 90, 130, 160, 240, 360, 540, 900]
+FEIHU_BAR_STEPS = [25, 50, 90, 150, 200, 250, 300, 500, 900]#擴大範圍天數
 
 MINUTE_PERIOD_LABELS = {
     "5分",
@@ -2552,7 +2552,7 @@ with top_cols[2]:
 with top_cols[3]:
     flip_on = bool(st.session_state.auto_flip_active)
     flip_label = "⏸ 停住(10s)" if flip_on else "▶ 10s翻閱"
-    if st.button(flip_label, key="top_auto_flip_btn", use_container_width=True, help="每10秒自動切下一檔，看到滿意股點一下即停住"):
+    if st.button(flip_label, key="top_auto_flip_btn", use_container_width=True, help="每10秒自動切下一檔，點一下即停住"):
         st.session_state.auto_flip_active = not flip_on
         st.rerun()
     if flip_on:
@@ -2750,7 +2750,7 @@ if app_mode == "📈 個股籌碼圖表":
         st.markdown(
             f"""
             <div class="qt-guide-box">
-                <div class="qt-guide-title">📌 Q/T（每筆均量）運作與研判說明（組合 2 曲線版）</div>
+                <div class="qt-guide-title">📌 Q/T（每筆均量）說明（組合 2 曲線版）</div>
                 <div>• <b>Q/T 是什麼</b>：代表「每筆均量」（單筆成交規模）。若資料含成交筆數則以 <code>量 ÷ 筆數</code> 計算；若無成交筆數，則以 <code>成交量 × 量價波幅權重</code> 推估單筆規模，並搭配 <code>QT_MA5</code> 均線與 <code>{QT_SPIKE_RATIO:.2f}x</code> 放大門檻。</div>
                 <div>• <span class="qt-bull-tag">低檔突然 Q/T 異常放大</span>：股價處於相對低檔或季線下，若 Q/T 突然放大（≥ {QT_SPIKE_RATIO:.2f} 倍均線），<b>可能財團大戶已進場</b>。</div>
                 <div>• <span class="qt-bear-tag">高檔突然 Q/T 異常放大</span>：股價處於相對高檔或季線上高區，若 Q/T 突然放大（≥ {QT_SPIKE_RATIO:.2f} 倍均線），<b>可能財團大戶已溜走</b>。</div>
