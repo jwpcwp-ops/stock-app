@@ -2353,7 +2353,7 @@ DEFAULTS = {
     "stock_select_version": 0,
     "selected_synth_strat": "主力底部吃貨",
     "app_mode_state": "📈 個股籌碼圖表",
-    "k_bars_count": 250,
+    "k_bars_count": 150,  # 開啟時預設顯示的K線天數
     "screened_results": [],
     "default_indicator_override": None,
     "ruler_mode_active": False,
@@ -2742,7 +2742,7 @@ if app_mode == "📈 個股籌碼圖表":
         with row_bar_cols[7]:
             st.markdown(
                 f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
-                f" text-align:right; line-height:22px; white-space:nowrap;'>K:{st.session_state.k_bars_count}</div>",
+                f" text-align:right; line-height:22px; white-space:nowrap;'>K線**天 {st.session_state.k_bars_count}</div>",#寫上K線天數語法
                 unsafe_allow_html=True,
             )
 
