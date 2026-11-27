@@ -3461,27 +3461,30 @@ if app_mode == "📈 個股籌碼圖表":
         position: absolute;
         top: 6px;
         left: 6px;
-        background: rgba(12, 14, 18, 0.94);
-        border: 1px solid rgba(255, 255, 255, 0.28);
+        background: rgba(12, 14, 18, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.30);
         border-radius: 6px;
-        padding: 7px 9px;
-        font-size: 12px;
-        line-height: 1.45;
+        padding: 8px 11px;
+        font-size: 13.5px;
+        line-height: 1.48;
         font-variant-numeric: tabular-nums;
         pointer-events: none;
         user-select: none;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.65);
-        min-width: 138px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.72);
+        min-width: 162px;
         z-index: 15;
         display: block;
       }}
+      .v-hud-box.v-hud-hidden {{
+        display: none !important;
+      }}
       .v-hud-date {{
         font-weight: 800;
-        font-size: 12.5px;
+        font-size: 14.5px;
         color: #FFFFFF;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.20);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.22);
         padding-bottom: 3px;
-        margin-bottom: 3px;
+        margin-bottom: 4px;
         letter-spacing: 0.3px;
         text-align: center;
       }}
@@ -3489,18 +3492,22 @@ if app_mode == "📈 個股籌碼圖表":
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
         white-space: nowrap;
       }}
       .v-hud-label {{
         color: #E2E8F0;
+        font-size: 13.5px;
         font-weight: 700;
       }}
       .v-hud-val {{
-        font-size: 13px;
+        font-size: 15.5px;
         font-weight: 800;
         text-align: center;
         flex: 1 1 auto;
+      }}
+      #vhMeasure {{
+        font-size: 14px;
       }}
       .v-hud-measure-row {{
         margin-top: 2px;
@@ -3614,6 +3621,7 @@ if app_mode == "📈 個股籌碼圖表":
       const sub3TopFrac = {sub3_top_frac};
 
       let crosshairEnabled = true;
+      let overlayHiddenByClick = false;
       let rulerArmed = rulerBtnActive;
       let rulerStartIdx = null;
       let rulerEndIdx = null;
@@ -3621,6 +3629,8 @@ if app_mode == "📈 個股籌碼圖表":
       let lockedAnchorPrice = null;
       let lockedAnchorIdx = null;
       let currentHoverPrice = null;
+      let lastPointerClientX = null;
+      let lastPointerClientY = null;
 
       function setEl(id, text, cls) {{
         const el = document.getElementById(id);
@@ -4082,7 +4092,7 @@ if app_mode == "📈 個股籌碼圖表":
         const plotRight = b.left + b.width * axX1;
         const maxTextRight = plotRight - 10;
 
-        if (crosshairEnabled && drawLines) {{
+        if (crosshairEnabled && drawLines && !overlayHiddenByClick) {{
           ctx.save();
           ctx.strokeStyle = "#00ffff";
           ctx.lineWidth = 1;
@@ -4106,7 +4116,7 @@ if app_mode == "📈 個股籌碼圖表":
 
         drawRulerOverlay(b);
 
-        if (lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice) && pMaxPlot > pMinPlot) {{
+        if (!overlayHiddenByClick && lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice) && pMaxPlot > pMinPlot) {{
           const kTop = b.top + b.height * ax1TopFrac;
           const kBot = b.top + b.height * ax1BotFrac;
           if (kBot > kTop) {{
@@ -4215,6 +4225,8 @@ if app_mode == "📈 個股籌碼圖表":
       }}
 
       function onHover(clientX, clientY) {{
+        lastPointerClientX = clientX;
+        lastPointerClientY = clientY;
         const b = getImgBounds();
         if (b.width <= 0 || b.height <= 0 || totalBars <= 0) return;
 
@@ -4232,8 +4244,14 @@ if app_mode == "📈 個股籌碼圖表":
         const hp = yToPrice(lineY, b);
         currentHoverPrice = (hp !== null && Number.isFinite(hp)) ? hp : Number(r.close);
 
-        renderInPlaceOverlay(r, crosshairEnabled, lineX, lineY, b);
+        const showCross = crosshairEnabled && !overlayHiddenByClick;
+        renderInPlaceOverlay(r, showCross, lineX, lineY, b);
         syncAnalysisPanel(r);
+        if (!overlayHiddenByClick) {{
+          positionVerticalHudBox(lineX, lineY);
+        }} else {{
+          positionVerticalHudBox(null, null);
+        }}
       }}
 
       function initDefault() {{
@@ -4278,14 +4296,15 @@ if app_mode == "📈 個股籌碼圖表":
         const wRect = wrap.getBoundingClientRect();
         const clickY = e.clientY - wRect.top;
         const clickPrice = yToPrice(clickY, b);
-        if (lockedAnchorPrice === null) {{
+        if (!overlayHiddenByClick) {{
+          overlayHiddenByClick = true;
+          lockedAnchorPrice = null;
+          lockedAnchorIdx = null;
+        }} else {{
+          overlayHiddenByClick = false;
           lockedAnchorPrice = (clickPrice !== null && Number.isFinite(clickPrice)) ? clickPrice : Number(rows[idx].close);
           lockedAnchorIdx = idx;
           crosshairEnabled = true;
-        }} else {{
-          lockedAnchorPrice = null;
-          lockedAnchorIdx = null;
-          crosshairEnabled = !crosshairEnabled;
         }}
         onHover(e.clientX, e.clientY);
       }});
