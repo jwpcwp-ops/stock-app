@@ -2369,7 +2369,6 @@ DEFAULTS = {
     "k_bars_count": 150,  # 開啟時預設顯示的K線天數
     "screened_results": [],
     "default_indicator_override": None,
-    "ruler_mode_active": False,
     "show_qt_guide": False,
     "chip_1w_threshold_val": 0.00,
     "auto_flip_active": False,
@@ -2690,7 +2689,7 @@ if app_mode == "📈 個股籌碼圖表":
         )
 
     with third_row_cols[2]:
-        row_bar_cols = st.columns([0.48, 0.48, 0.48, 0.46, 0.46, 0.78, 0.72, 0.50])
+        row_bar_cols = st.columns([0.52, 0.52, 0.52, 0.50, 0.50, 0.80, 0.56])
         for p_idx, p_val in enumerate([120, 250, 500]):
             with row_bar_cols[p_idx]:
                 is_cur = st.session_state.k_bars_count == p_val
@@ -2723,21 +2722,6 @@ if app_mode == "📈 個股籌碼圖表":
                 st.rerun()
 
         with row_bar_cols[5]:
-            ruler_on = bool(st.session_state.ruler_mode_active)
-            ruler_lbl = "📏 測距中" if ruler_on else "📏 尺規測距"
-            if st.button(ruler_lbl, key="btn_toggle_ruler", use_container_width=True):
-                st.session_state.ruler_mode_active = not ruler_on
-                st.rerun()
-            if ruler_on:
-                st.markdown(
-                    "<style>div.st-key-btn_toggle_ruler button {"
-                    " background-color:#FFFF00 !important; color:#000000"
-                    " !important; border:1px solid #FFFFFF !important;"
-                    " font-weight:bold !important; }}</style>",
-                    unsafe_allow_html=True,
-                )
-
-        with row_bar_cols[6]:
             qt_guide_on = bool(st.session_state.show_qt_guide)
             qt_btn_lbl = "💡 關閉說明" if qt_guide_on else "💡 Q/T 說明"
             if st.button(qt_btn_lbl, key="btn_toggle_qt_guide", use_container_width=True):
@@ -2752,7 +2736,7 @@ if app_mode == "📈 個股籌碼圖表":
                     unsafe_allow_html=True,
                 )
 
-        with row_bar_cols[7]:
+        with row_bar_cols[6]:
             st.markdown(
                 f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
                 f" text-align:right; line-height:22px; white-space:nowrap;'>K線 : {st.session_state.k_bars_count}</div>",#寫上K線天數語法
@@ -2774,7 +2758,6 @@ if app_mode == "📈 個股籌碼圖表":
         )
 
     k_days_choice = int(st.session_state.k_bars_count)
-    ruler_mode_active = bool(st.session_state.ruler_mode_active)
     ma_map = st.session_state.ma_active_map
 
     df, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
@@ -3620,7 +3603,6 @@ if app_mode == "📈 個股籌碼圖表":
       const stockCode = {json.dumps(stock_id)};
       const stockName = {json.dumps(stock_name)};
       const isFourPane = {str(is_four_pane).lower()};
-      const rulerBtnActive = {str(ruler_mode_active).lower()};
       const totalBars = rows.length;
       const xMinBar = {x_min_bar};
       const xMaxBar = {x_max_bar};
@@ -3638,7 +3620,7 @@ if app_mode == "📈 個股籌碼圖表":
 
       let crosshairEnabled = true;
       let overlayHiddenByClick = false;
-      let rulerArmed = rulerBtnActive;
+      let rulerArmed = false;
       let rulerStartIdx = null;
       let rulerEndIdx = null;
       let rulerPreviewIdx = null;
@@ -3725,7 +3707,7 @@ if app_mode == "📈 個股籌碼圖表":
         }} else {{
           const s = (r && r.snap) ? r.snap : {{}};
           titleEl.className = "terminal-title";
-          titleEl.textContent = rulerArmed ? "【尺規測距：點選起訖】" : "【當日漲跌與籌碼】";
+          titleEl.textContent = "【當日漲跌與籌碼】";
           rowsEl.innerHTML =
             `<div class="t-row"><span class="t-label">當日漲跌:</span><span class="${{s.bar_chg_cls || "t-val-white"}}">${{s.bar_chg_str || "--"}}</span></div>` +
             `<div class="t-row"><span class="t-label">當日振幅:</span><span class="t-val-cyan">${{s.bar_amp_str || "--"}}</span></div>` +
