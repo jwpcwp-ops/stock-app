@@ -3461,41 +3461,46 @@ if app_mode == "📈 個股籌碼圖表":
         position: absolute;
         top: 6px;
         left: 6px;
-        background: rgba(14, 16, 20, 0.90);
-        border: 0.6px solid rgba(255, 255, 255, 0.24);
-        border-radius: 5px;
-        padding: 6px 8px;
-        font-size: 11px;
-        line-height: 1.38;
+        background: rgba(12, 14, 18, 0.94);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 6px;
+        padding: 7px 9px;
+        font-size: 12px;
+        line-height: 1.45;
         font-variant-numeric: tabular-nums;
         pointer-events: none;
         user-select: none;
-        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
-        min-width: 122px;
-        z-index: 12;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.65);
+        min-width: 138px;
+        z-index: 15;
+        display: block;
       }}
       .v-hud-date {{
-        font-weight: 700;
+        font-weight: 800;
+        font-size: 12.5px;
         color: #FFFFFF;
-        border-bottom: 0.5px solid rgba(255, 255, 255, 0.16);
-        padding-bottom: 2px;
-        margin-bottom: 2px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.20);
+        padding-bottom: 3px;
+        margin-bottom: 3px;
         letter-spacing: 0.3px;
+        text-align: center;
       }}
       .v-hud-row {{
         display: flex;
         justify-content: space-between;
-        align-items: baseline;
-        gap: 6px;
+        align-items: center;
+        gap: 8px;
         white-space: nowrap;
       }}
       .v-hud-label {{
-        color: #D0D7DE;
-        font-weight: 600;
+        color: #E2E8F0;
+        font-weight: 700;
       }}
       .v-hud-val {{
-        font-weight: 700;
-        text-align: right;
+        font-size: 13px;
+        font-weight: 800;
+        text-align: center;
+        flex: 1 1 auto;
       }}
       .v-hud-measure-row {{
         margin-top: 2px;
@@ -3703,7 +3708,32 @@ if app_mode == "📈 個股籌碼圖表":
         }}
       }}
 
-      function updateVerticalHudBox(r, hoverPrice) {{
+      function positionVerticalHudBox(cursorX, cursorY) {{
+        const hudEl = document.getElementById("vHudBox");
+        if (!hudEl) return;
+        const wrapW = wrap.clientWidth || 800;
+        const wrapH = wrap.clientHeight || 520;
+        const boxW = hudEl.offsetWidth || 145;
+        const boxH = hudEl.offsetHeight || 275;
+
+        if (cursorX === null || cursorX === undefined || !Number.isFinite(cursorX)) {{
+          hudEl.style.left = "6px";
+          hudEl.style.top = "6px";
+          return;
+        }}
+
+        let nextLeft = cursorX + 16;
+        if (nextLeft + boxW > wrapW - 58) {{
+          nextLeft = Math.max(6, cursorX - boxW - 16);
+        }}
+        let nextTop = (cursorY && Number.isFinite(cursorY)) ? (cursorY - boxH * 0.35) : 6;
+        nextTop = Math.max(6, Math.min(wrapH - boxH - 22, nextTop));
+
+        hudEl.style.left = `${{Math.round(nextLeft)}}px`;
+        hudEl.style.top = `${{Math.round(nextTop)}}px`;
+      }}
+
+      function updateVerticalHudBox(r, hoverPrice, cursorX, cursorY) {{
         if (!r || !r.snap) return;
         const s = r.snap;
         setEl("vhDate", s.v_date_str || r.date || "", "v-hud-date");
@@ -3761,6 +3791,8 @@ if app_mode == "📈 個股籌碼圖表":
         }} else {{
           setEl("vhMeasure", "點圖定起點", "v-hud-val v-accent");
         }}
+
+        positionVerticalHudBox(cursorX, cursorY);
       }}
 
       function syncAnalysisPanel(r) {{
@@ -4263,7 +4295,13 @@ if app_mode == "📈 個股籌碼圖表":
       }});
 
       canvas.addEventListener("mouseleave", function() {{
-        initDefault();
+        const b = getImgBounds();
+        if (totalBars > 0 && b.width > 0) {{
+          const latest = rows[totalBars - 1];
+          renderInPlaceOverlay(latest, false, 0, 0, b);
+          syncAnalysisPanel(latest);
+          positionVerticalHudBox(null, null);
+        }}
       }});
 
       function triggerFeihuStep(dir) {{
