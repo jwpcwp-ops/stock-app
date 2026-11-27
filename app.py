@@ -4243,6 +4243,14 @@ if app_mode == "📈 個股籌碼圖表":
         const r = rows[idx];
         if (rulerStartIdx !== null && rulerEndIdx === null) rulerPreviewIdx = idx;
 
+        if (overlayHiddenByClick) {{
+          currentHoverPrice = null;
+          renderInPlaceOverlay(r, false, 0, 0, b);
+          syncAnalysisPanel(r);
+          setVerticalHudVisible(false);
+          return;
+        }}
+
         const plotLeft = b.left + b.width * axX0;
         const plotRight = b.left + b.width * axX1;
         const plotW = Math.max(10, plotRight - plotLeft);
@@ -4253,14 +4261,9 @@ if app_mode == "📈 個股籌碼圖表":
         const hp = yToPrice(lineY, b);
         currentHoverPrice = (hp !== null && Number.isFinite(hp)) ? hp : Number(r.close);
 
-        const showCross = crosshairEnabled && !overlayHiddenByClick;
-        renderInPlaceOverlay(r, showCross, lineX, lineY, b);
+        renderInPlaceOverlay(r, crosshairEnabled, lineX, lineY, b);
         syncAnalysisPanel(r);
-        if (!overlayHiddenByClick) {{
-          positionVerticalHudBox(lineX, lineY);
-        }} else {{
-          setVerticalHudVisible(false);
-        }}
+        positionVerticalHudBox(lineX, lineY);
       }}
 
       function initDefault() {{
@@ -4310,13 +4313,17 @@ if app_mode == "📈 個股籌碼圖表":
           overlayHiddenByClick = true;
           lockedAnchorPrice = null;
           lockedAnchorIdx = null;
+          currentHoverPrice = null;
+          renderInPlaceOverlay(rows[idx], false, 0, 0, b);
+          syncAnalysisPanel(rows[idx]);
+          setVerticalHudVisible(false);
         }} else {{
           overlayHiddenByClick = false;
           lockedAnchorPrice = (clickPrice !== null && Number.isFinite(clickPrice)) ? clickPrice : Number(rows[idx].close);
           lockedAnchorIdx = idx;
           crosshairEnabled = true;
+          onHover(e.clientX, e.clientY);
         }}
-        onHover(e.clientX, e.clientY);
       }});
 
       canvas.addEventListener("mousemove", function(e) {{
