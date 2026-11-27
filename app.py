@@ -3461,17 +3461,17 @@ if app_mode == "📈 個股籌碼圖表":
         position: absolute;
         top: 6px;
         left: 6px;
-        background: rgba(12, 14, 18, 0.95);
-        border: 1px solid rgba(255, 255, 255, 0.30);
-        border-radius: 6px;
-        padding: 8px 11px;
-        font-size: 13.5px;
-        line-height: 1.48;
+        background: rgba(12, 14, 18, 0.96);
+        border: 2px solid #00FFFF;
+        border-radius: 8px;
+        padding: 9px 12px;
+        font-size: 14px;
+        line-height: 1.44;
         font-variant-numeric: tabular-nums;
         pointer-events: none;
         user-select: none;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.72);
-        min-width: 162px;
+        box-shadow: 0 0 12px rgba(0, 255, 255, 0.45), 0 6px 18px rgba(0, 0, 0, 0.85);
+        min-width: 196px;
         z-index: 15;
         display: block;
       }}
@@ -3480,31 +3480,31 @@ if app_mode == "📈 個股籌碼圖表":
       }}
       .v-hud-date {{
         font-weight: 800;
-        font-size: 14.5px;
+        font-size: 15px;
         color: #FFFFFF;
         border-bottom: 1px solid rgba(255, 255, 255, 0.22);
-        padding-bottom: 3px;
-        margin-bottom: 4px;
+        padding-bottom: 4px;
+        margin-bottom: 5px;
         letter-spacing: 0.3px;
-        text-align: center;
+        text-align: left;
       }}
       .v-hud-row {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         white-space: nowrap;
       }}
       .v-hud-label {{
         color: #E2E8F0;
-        font-size: 13.5px;
+        font-size: 14px;
         font-weight: 700;
       }}
       .v-hud-val {{
         font-size: 15.5px;
         font-weight: 800;
-        text-align: center;
-        flex: 1 1 auto;
+        text-align: right;
+        flex: 0 0 auto;
       }}
       #vhMeasure {{
         font-size: 14px;
@@ -3526,19 +3526,19 @@ if app_mode == "📈 個股籌碼圖表":
         <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
         <div class="v-hud-box v-hud-hidden" id="vHudBox">
           <div class="v-hud-date" id="vhDate">{init_snap.get("v_date_str", "2026/11/27")}</div>
-          <div class="v-hud-row"><span class="v-hud-label">開盤：</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最高：</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最低：</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">收盤：</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">漲跌：</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">振幅：</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">大戶：</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">羊群：</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">波段：</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">均線：</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">季線：</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">逆序：</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
-          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">量測：</span><span class="v-hud-val v-accent" id="vhMeasure">點圖定起點</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">開盤 ：</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">最高 ：</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">最低 ：</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">收盤 ：</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">漲跌 ：</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">振幅 ：</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">大戶 ：</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">羊群 ：</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">波段 ：</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">均線 ：</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">季線 ：</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">逆序 ：</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
+          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">量測 ：</span><span class="v-hud-val v-accent" id="vhMeasure">點圖定起點</span></div>
         </div>
       </div>
 
@@ -3738,8 +3738,8 @@ if app_mode == "📈 個股籌碼圖表":
         setVerticalHudVisible(true);
         const wrapW = wrap.clientWidth || 800;
         const wrapH = wrap.clientHeight || 520;
-        const boxW = hudEl.offsetWidth || 162;
-        const boxH = hudEl.offsetHeight || 310;
+        const boxW = hudEl.offsetWidth || 196;
+        const boxH = hudEl.offsetHeight || 340;
 
         let nextLeft = cursorX + 16;
         if (nextLeft + boxW > wrapW - 58) {{
