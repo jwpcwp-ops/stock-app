@@ -3594,18 +3594,18 @@ if app_mode == "📈 個股籌碼圖表":
         <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair; touch-action:none;"></canvas>
         <div class="v-hud-box v-hud-hidden" id="vHudBox">
           <div class="v-hud-date" id="vhDate">{init_snap.get("v_date_str", "2026/11/27")}</div>
-          <div class="v-hud-row"><span class="v-hud-label">開</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">高</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">低</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">收</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">跌</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">振</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">大</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">羊</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">波</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">均</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">季</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">序</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">開盤</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">最高</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">最低</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">收盤</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">漲跌</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">振幅</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">大戶</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">羊群</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">波段</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">均線</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">季線</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">逆序</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
           <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">測價</span><span class="v-hud-val v-accent" id="vhMeasPrice">--</span></div>
           <div class="v-hud-row"><span class="v-hud-label">測差</span><span class="v-hud-val v-up" id="vhMeasDiff">--</span></div>
           <div class="v-hud-row"><span class="v-hud-label">測幅</span><span class="v-hud-val v-up" id="vhMeasPct">--</span></div>
