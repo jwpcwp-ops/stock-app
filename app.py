@@ -40,6 +40,7 @@ MA_COLOR_MAP = {
     "120": "#CC66FF",
     "200": "#FFFFFF",
     "分割": "#00FFFF",
+    "布林": "#38BDF8",
 }
 
 FEIHU_BAR_STEPS = [25, 50, 90, 150, 200, 250, 300, 500, 900]#擴大範圍天數
@@ -1485,6 +1486,13 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線", pan
             s_close.rolling(window=eff_win, min_periods=1).mean().ffill().bfill()
         )
 
+    boll_win = min(20, max(1, len(s_close)))
+    boll_mid = s_close.rolling(window=boll_win, min_periods=1).mean().ffill().bfill()
+    boll_std = s_close.rolling(window=boll_win, min_periods=1).std(ddof=0).fillna(0.0)
+    df_full["boll_mid"] = boll_mid
+    df_full["boll_up"] = boll_mid + 2.0 * boll_std
+    df_full["boll_dn"] = boll_mid - 2.0 * boll_std
+
     ema3 = s_close.ewm(span=3, adjust=False).mean()
     ema15 = s_close.ewm(span=15, adjust=False).mean()
     ema30 = s_close.ewm(span=30, adjust=False).mean()
@@ -2391,6 +2399,7 @@ DEFAULTS = {
         "120": False,
         "200": False,
         "分割": False,
+        "布林": False,
     },
 }
 for _k, _v in DEFAULTS.items():
@@ -2623,7 +2632,7 @@ if app_mode == "📈 個股籌碼圖表":
     third_row_cols = st.columns([1.00, 1.00, 1.20])
 
     with third_row_cols[0]:
-        ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
+        ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割", "布林"]
         ma_btn_cols = st.columns(len(ma_items), gap="small")
         for idx_m, m_key in enumerate(ma_items):
             with ma_btn_cols[idx_m]:
@@ -2813,6 +2822,7 @@ if app_mode == "📈 個股籌碼圖表":
         for k in ["5", "10", "20", "35", "60", "120", "200"]
     }
     show_fib = ma_map.get("分割", False)
+    show_boll = ma_map.get("布林", False)
 
     n_len = len(df)
     deduct_indices = {
@@ -2989,6 +2999,15 @@ if app_mode == "📈 個股籌碼圖表":
                 alpha=1.0,
                 zorder=4,
             )
+
+    if show_boll and not df.empty:
+        b_up_arr = df["boll_up"].ffill().bfill().values
+        b_mid_arr = df["boll_mid"].ffill().bfill().values
+        b_dn_arr = df["boll_dn"].ffill().bfill().values
+        ax1.plot(x, b_up_arr, linewidth=0.85, color="#FF66AA", linestyle="--", alpha=0.95, zorder=3)
+        ax1.plot(x, b_mid_arr, linewidth=0.85, color="#38BDF8", linestyle="-", alpha=0.95, zorder=3)
+        ax1.plot(x, b_dn_arr, linewidth=0.85, color="#4ADE80", linestyle="--", alpha=0.95, zorder=3)
+        ax1.fill_between(x, b_dn_arr, b_up_arr, color="#38BDF8", alpha=0.07, zorder=1)
 
     if show_fib and not df.empty:
         max_p = float(df["high"].max())
@@ -3380,6 +3399,13 @@ if app_mode == "📈 個股籌碼圖表":
                 ma_items_colored.append(
                     {"text": f"{ma_name}:{v_now:.1f}{arr}", "color": color}
                 )
+        if show_boll and "boll_mid" in df.columns:
+            bu_v = float(r["boll_up"])
+            bm_v = float(r["boll_mid"])
+            bd_v = float(r["boll_dn"])
+            ma_items_colored.append({"text": f"布林上:{bu_v:.1f}", "color": "#FF66AA"})
+            ma_items_colored.append({"text": f"中:{bm_v:.1f}", "color": "#38BDF8"})
+            ma_items_colored.append({"text": f"下:{bd_v:.1f}", "color": "#4ADE80"})
 
         snap = build_bar_analysis_snapshot(
             df,
