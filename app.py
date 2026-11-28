@@ -40,6 +40,7 @@ MA_COLOR_MAP = {
     "120": "#CC66FF",
     "200": "#FFFFFF",
     "分割": "#00FFFF",
+    "布林": "#38BDF8",
 }
 
 FEIHU_BAR_STEPS = [25, 50, 90, 150, 200, 250, 300, 500, 900]#擴大範圍天數
@@ -550,6 +551,7 @@ def find_stock_index_by_code(code_str):
     return -1
 
 def _jump_to_chart_with_code(picked_code, picked_name=""):
+    st.session_state.k_pan_offset = 0
     clean_c = _clean_code(picked_code)
     matched_idx = find_stock_index_by_code(clean_c)
     if matched_idx != -1:
@@ -1454,7 +1456,7 @@ def _compute_qt_series(df_full):
 
     return qt_curve, qt_ma, qt_ratio, is_spike, qt_labels, qt_colors
 
-def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
+def get_continuous_stock_df(stock_id, target_days=250, period_type="日線", pan_offset=0):
     warmup_bars = 260
     fetch_len = target_days + warmup_bars
     raw_records = fetch_raw_history(stock_id, period_type, fetch_len)
@@ -1483,6 +1485,13 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
         df_full[f"ma_{period}"] = (
             s_close.rolling(window=eff_win, min_periods=1).mean().ffill().bfill()
         )
+
+    boll_win = min(20, max(1, len(s_close)))
+    boll_mid = s_close.rolling(window=boll_win, min_periods=1).mean().ffill().bfill()
+    boll_std = s_close.rolling(window=boll_win, min_periods=1).std(ddof=0).fillna(0.0)
+    df_full["boll_mid"] = boll_mid
+    df_full["boll_up"] = boll_mid + 2.0 * boll_std
+    df_full["boll_dn"] = boll_mid - 2.0 * boll_std
 
     ema3 = s_close.ewm(span=3, adjust=False).mean()
     ema15 = s_close.ewm(span=15, adjust=False).mean()
@@ -1607,7 +1616,14 @@ def get_continuous_stock_df(stock_id, target_days=250, period_type="日線"):
     )
     df_full["long_trend"] = (ema15 / ema30 - 1) * 100 > 0
 
-    df_show = df_full.tail(target_days).reset_index(drop=True)
+    pan_shift = max(0, int(pan_offset or 0))
+    total_avail = len(df_full)
+    if pan_shift > 0 and total_avail > target_days:
+        end_idx = max(target_days, total_avail - pan_shift)
+        start_idx = max(0, end_idx - target_days)
+        df_show = df_full.iloc[start_idx:end_idx].reset_index(drop=True)
+    else:
+        df_show = df_full.tail(target_days).reset_index(drop=True)
 
     cur_vol = float(df_show["vol"].iloc[-1]) if not df_show.empty else 0.0
     val_20ma = (
@@ -2369,11 +2385,11 @@ DEFAULTS = {
     "k_bars_count": 150,  # 開啟時預設顯示的K線天數
     "screened_results": [],
     "default_indicator_override": None,
-    "ruler_mode_active": False,
     "show_qt_guide": False,
     "chip_1w_threshold_val": 0.00,
     "auto_flip_active": False,
     "auto_flip_interval": 10,
+    "k_pan_offset": 0,
     "ma_active_map": {
         "5": False,
         "10": False,
@@ -2383,6 +2399,7 @@ DEFAULTS = {
         "120": False,
         "200": False,
         "分割": False,
+        "布林": False,
     },
 }
 for _k, _v in DEFAULTS.items():
@@ -2403,6 +2420,7 @@ def step_stock_index(delta: int, total_count: int = None):
     cur_idx = int(st.session_state.get("selected_index", 0)) % n_stocks
     next_idx = (cur_idx + delta) % n_stocks
     st.session_state.selected_index = next_idx
+    st.session_state.k_pan_offset = 0
     st.session_state.stock_select_version = (
         int(st.session_state.get("stock_select_version", 0)) + 1
     )
@@ -2614,7 +2632,7 @@ if app_mode == "📈 個股籌碼圖表":
     third_row_cols = st.columns([1.00, 1.00, 1.20])
 
     with third_row_cols[0]:
-        ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割"]
+        ma_items = ["5", "10", "20", "35", "60", "120", "200", "分割", "布林"]
         ma_btn_cols = st.columns(len(ma_items), gap="small")
         for idx_m, m_key in enumerate(ma_items):
             with ma_btn_cols[idx_m]:
@@ -2690,7 +2708,9 @@ if app_mode == "📈 個股籌碼圖表":
         )
 
     with third_row_cols[2]:
-        row_bar_cols = st.columns([0.48, 0.48, 0.48, 0.46, 0.46, 0.78, 0.72, 0.50])
+        pan_cur = int(st.session_state.get("k_pan_offset", 0))
+        pan_step = max(5, int(st.session_state.k_bars_count) // 6)
+        row_bar_cols = st.columns([0.46, 0.46, 0.46, 0.44, 0.44, 0.44, 0.44, 0.56, 0.72, 0.58])
         for p_idx, p_val in enumerate([120, 250, 500]):
             with row_bar_cols[p_idx]:
                 is_cur = st.session_state.k_bars_count == p_val
@@ -2698,6 +2718,7 @@ if app_mode == "📈 個股籌碼圖表":
                     str(p_val), key=f"btn_preset_{p_val}", use_container_width=True
                 ):
                     st.session_state.k_bars_count = p_val
+                    st.session_state.k_pan_offset = 0
                     st.rerun()
                 if is_cur:
                     st.markdown(
@@ -2709,35 +2730,44 @@ if app_mode == "📈 個股籌碼圖表":
                     )
 
         with row_bar_cols[3]:
-            if st.button("↓縮", key="btn_zoom_in_bars", use_container_width=True):
+            if st.button("↓縮", key="btn_zoom_in_bars", use_container_width=True, help="縮小顯示K線根數"):
                 st.session_state.k_bars_count = step_feihu_bars(
                     st.session_state.k_bars_count, -1
                 )
                 st.rerun()
 
         with row_bar_cols[4]:
-            if st.button("↑擴", key="btn_zoom_out_bars", use_container_width=True):
+            if st.button("↑擴", key="btn_zoom_out_bars", use_container_width=True, help="放大顯示K線根數"):
                 st.session_state.k_bars_count = step_feihu_bars(
                     st.session_state.k_bars_count, +1
                 )
                 st.rerun()
 
         with row_bar_cols[5]:
-            ruler_on = bool(st.session_state.ruler_mode_active)
-            ruler_lbl = "📏 測距中" if ruler_on else "📏 尺規測距"
-            if st.button(ruler_lbl, key="btn_toggle_ruler", use_container_width=True):
-                st.session_state.ruler_mode_active = not ruler_on
+            if st.button("←平", key="btn_pan_left", use_container_width=True, help="向左平移查看較早K線（亦可於圖表按 Shift+左/右 或拖曳）"):
+                st.session_state.k_pan_offset = pan_cur + pan_step
                 st.rerun()
-            if ruler_on:
+
+        with row_bar_cols[6]:
+            if st.button("平→", key="btn_pan_right", use_container_width=True, help="向右平移靠近最新K線"):
+                st.session_state.k_pan_offset = max(0, pan_cur - pan_step)
+                st.rerun()
+
+        with row_bar_cols[7]:
+            is_latest = pan_cur <= 0
+            if st.button("最新", key="btn_pan_reset", use_container_width=True, help="回到最新K線"):
+                st.session_state.k_pan_offset = 0
+                st.rerun()
+            if not is_latest:
                 st.markdown(
-                    "<style>div.st-key-btn_toggle_ruler button {"
+                    "<style>div.st-key-btn_pan_reset button {"
                     " background-color:#FFFF00 !important; color:#000000"
                     " !important; border:1px solid #FFFFFF !important;"
                     " font-weight:bold !important; }}</style>",
                     unsafe_allow_html=True,
                 )
 
-        with row_bar_cols[6]:
+        with row_bar_cols[8]:
             qt_guide_on = bool(st.session_state.show_qt_guide)
             qt_btn_lbl = "💡 關閉說明" if qt_guide_on else "💡 Q/T 說明"
             if st.button(qt_btn_lbl, key="btn_toggle_qt_guide", use_container_width=True):
@@ -2752,10 +2782,11 @@ if app_mode == "📈 個股籌碼圖表":
                     unsafe_allow_html=True,
                 )
 
-        with row_bar_cols[7]:
+        with row_bar_cols[9]:
+            pan_badge = f" (-{pan_cur})" if pan_cur > 0 else ""
             st.markdown(
                 f"<div style='color:#00FFFF; font-size:10px; font-weight:bold;"
-                f" text-align:right; line-height:22px; white-space:nowrap;'>K線 : {st.session_state.k_bars_count}</div>",#寫上K線天數語法
+                f" text-align:right; line-height:22px; white-space:nowrap;'>K線:{st.session_state.k_bars_count}{pan_badge}</div>",
                 unsafe_allow_html=True,
             )
 
@@ -2774,12 +2805,15 @@ if app_mode == "📈 個股籌碼圖表":
         )
 
     k_days_choice = int(st.session_state.k_bars_count)
-    ruler_mode_active = bool(st.session_state.ruler_mode_active)
     ma_map = st.session_state.ma_active_map
 
+    pan_offset_choice = int(st.session_state.get("k_pan_offset", 0))
     df, big_holder, sheep_holder, cur_vol, cur_20ma, v_ratio = (
         get_continuous_stock_df(
-            stock_id, target_days=k_days_choice, period_type=actual_chart_period
+            stock_id,
+            target_days=k_days_choice,
+            period_type=actual_chart_period,
+            pan_offset=pan_offset_choice,
         )
     )
 
@@ -2788,6 +2822,7 @@ if app_mode == "📈 個股籌碼圖表":
         for k in ["5", "10", "20", "35", "60", "120", "200"]
     }
     show_fib = ma_map.get("分割", False)
+    show_boll = ma_map.get("布林", False)
 
     n_len = len(df)
     deduct_indices = {
@@ -2964,6 +2999,15 @@ if app_mode == "📈 個股籌碼圖表":
                 alpha=1.0,
                 zorder=4,
             )
+
+    if show_boll and not df.empty:
+        b_up_arr = df["boll_up"].ffill().bfill().values
+        b_mid_arr = df["boll_mid"].ffill().bfill().values
+        b_dn_arr = df["boll_dn"].ffill().bfill().values
+        ax1.plot(x, b_up_arr, linewidth=0.85, color="#FF66AA", linestyle="--", alpha=0.95, zorder=3)
+        ax1.plot(x, b_mid_arr, linewidth=0.85, color="#38BDF8", linestyle="-", alpha=0.95, zorder=3)
+        ax1.plot(x, b_dn_arr, linewidth=0.85, color="#4ADE80", linestyle="--", alpha=0.95, zorder=3)
+        ax1.fill_between(x, b_dn_arr, b_up_arr, color="#38BDF8", alpha=0.07, zorder=1)
 
     if show_fib and not df.empty:
         max_p = float(df["high"].max())
@@ -3355,6 +3399,13 @@ if app_mode == "📈 個股籌碼圖表":
                 ma_items_colored.append(
                     {"text": f"{ma_name}:{v_now:.1f}{arr}", "color": color}
                 )
+        if show_boll and "boll_mid" in df.columns:
+            bu_v = float(r["boll_up"])
+            bm_v = float(r["boll_mid"])
+            bd_v = float(r["boll_dn"])
+            ma_items_colored.append({"text": f"布林上:{bu_v:.1f}", "color": "#FF66AA"})
+            ma_items_colored.append({"text": f"中:{bm_v:.1f}", "color": "#38BDF8"})
+            ma_items_colored.append({"text": f"下:{bd_v:.1f}", "color": "#4ADE80"})
 
         snap = build_bar_analysis_snapshot(
             df,
@@ -3459,19 +3510,20 @@ if app_mode == "📈 個股籌碼圖表":
     <style>
       .v-hud-box {{
         position: absolute;
-        top: 6px;
+        top: 22px;
         left: 6px;
-        background: rgba(12, 14, 18, 0.96);
-        border: 2px solid #00FFFF;
-        border-radius: 8px;
-        padding: 9px 12px;
-        font-size: 14px;
-        line-height: 1.44;
+        background: rgba(10, 13, 18, 0.88);
+        border: 1px solid rgba(0, 255, 255, 0.78);
+        border-radius: 5px;
+        padding: 4px 6px;
+        font-size: 10px;
+        line-height: 1.18;
         font-variant-numeric: tabular-nums;
         pointer-events: none;
         user-select: none;
-        box-shadow: 0 0 12px rgba(0, 255, 255, 0.45), 0 6px 18px rgba(0, 0, 0, 0.85);
-        min-width: 196px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.82);
+        min-width: 94px;
+        max-width: 112px;
         z-index: 15;
         display: block;
       }}
@@ -3480,34 +3532,50 @@ if app_mode == "📈 個股籌碼圖表":
       }}
       .v-hud-date {{
         font-weight: 800;
-        font-size: 15px;
+        font-size: 10px;
         color: #FFFFFF;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.22);
-        padding-bottom: 4px;
-        margin-bottom: 5px;
-        letter-spacing: 0.3px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        padding-bottom: 2px;
+        margin-bottom: 2px;
+        letter-spacing: 0.1px;
         text-align: left;
       }}
       .v-hud-row {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 8px;
+        gap: 3px;
         white-space: nowrap;
       }}
       .v-hud-label {{
-        color: #E2E8F0;
-        font-size: 14px;
+        color: #CBD5E1;
+        font-size: 9.5px;
         font-weight: 700;
       }}
       .v-hud-val {{
-        font-size: 15.5px;
+        font-size: 10px;
         font-weight: 800;
         text-align: right;
         flex: 0 0 auto;
       }}
-      #vhMeasure {{
-        font-size: 14px;
+      @media (max-width: 768px) {{
+        .v-hud-box {{
+          padding: 3px 5px;
+          font-size: 9px;
+          line-height: 1.14;
+          min-width: 84px;
+          max-width: 100px;
+          border-radius: 4px;
+        }}
+        .v-hud-date {{
+          font-size: 9px;
+          margin-bottom: 1.5px;
+          padding-bottom: 1.5px;
+        }}
+        .v-hud-label,
+        .v-hud-val {{
+          font-size: 9px;
+        }}
       }}
       .v-hud-measure-row {{
         margin-top: 2px;
@@ -3523,22 +3591,24 @@ if app_mode == "📈 個股籌碼圖表":
     <div class="fx-root">
       <div id="fx-chart-wrap" tabindex="0">
         <img id="fx-base-img" src="data:image/png;base64,{img_b64}" style="width:100%; height:auto; display:block; margin:0 auto;" />
-        <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
+        <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair; touch-action:none;"></canvas>
         <div class="v-hud-box v-hud-hidden" id="vHudBox">
           <div class="v-hud-date" id="vhDate">{init_snap.get("v_date_str", "2026/11/27")}</div>
-          <div class="v-hud-row"><span class="v-hud-label">開盤 ：</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最高 ：</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最低 ：</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">收盤 ：</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">漲跌 ：</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">振幅 ：</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">大戶 ：</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">羊群 ：</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">波段 ：</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">均線 ：</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">季線 ：</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">逆序 ：</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
-          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">量測 ：</span><span class="v-hud-val v-accent" id="vhMeasure">點圖定起點</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">開</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">高</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">低</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">收</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">跌</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">振</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">大</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">羊</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">波</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">均</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">季</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">序</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
+          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">測價</span><span class="v-hud-val v-accent" id="vhMeasPrice">--</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">測差</span><span class="v-hud-val v-up" id="vhMeasDiff">--</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">測幅</span><span class="v-hud-val v-up" id="vhMeasPct">--</span></div>
         </div>
       </div>
 
@@ -3604,7 +3674,6 @@ if app_mode == "📈 個股籌碼圖表":
       const stockCode = {json.dumps(stock_id)};
       const stockName = {json.dumps(stock_name)};
       const isFourPane = {str(is_four_pane).lower()};
-      const rulerBtnActive = {str(ruler_mode_active).lower()};
       const totalBars = rows.length;
       const xMinBar = {x_min_bar};
       const xMaxBar = {x_max_bar};
@@ -3622,7 +3691,7 @@ if app_mode == "📈 個股籌碼圖表":
 
       let crosshairEnabled = true;
       let overlayHiddenByClick = false;
-      let rulerArmed = rulerBtnActive;
+      let rulerArmed = false;
       let rulerStartIdx = null;
       let rulerEndIdx = null;
       let rulerPreviewIdx = null;
@@ -3709,7 +3778,7 @@ if app_mode == "📈 個股籌碼圖表":
         }} else {{
           const s = (r && r.snap) ? r.snap : {{}};
           titleEl.className = "terminal-title";
-          titleEl.textContent = rulerArmed ? "【尺規測距：點選起訖】" : "【當日漲跌與籌碼】";
+          titleEl.textContent = "【當日漲跌與籌碼】";
           rowsEl.innerHTML =
             `<div class="t-row"><span class="t-label">當日漲跌:</span><span class="${{s.bar_chg_cls || "t-val-white"}}">${{s.bar_chg_str || "--"}}</span></div>` +
             `<div class="t-row"><span class="t-label">當日振幅:</span><span class="t-val-cyan">${{s.bar_amp_str || "--"}}</span></div>` +
@@ -3736,35 +3805,20 @@ if app_mode == "📈 個股籌碼圖表":
           return;
         }}
         setVerticalHudVisible(true);
-        const wrapW = wrap.clientWidth || 800;
-        const wrapH = wrap.clientHeight || 520;
-        const boxW = hudEl.offsetWidth || 196;
-        const boxH = hudEl.offsetHeight || 340;
-
         const b = getImgBounds();
-        const plotLeft = (b && b.width > 0) ? (b.left + b.width * axX0) : 10;
-        const plotRight = (b && b.width > 0) ? (b.left + b.width * axX1) : (wrapW - 58);
-        const headerSafeTop = (b && b.height > 0)
-          ? Math.round(b.top + b.height * (ax1TopFrac + 0.068))
-          : 52;
+        const plotLeft = b.left + b.width * axX0 + 4;
+        const plotRight = b.left + b.width * axX1 - 6;
+        const boxW = hudEl.offsetWidth || 96;
+        const topDockY = Math.round(b.top + b.height * (ax1TopFrac + 0.045));
 
-        let nextLeft = cursorX + 16;
-        if (nextLeft + boxW > plotRight - 10) {{
-          nextLeft = cursorX - boxW - 16;
-        }}
-        nextLeft = Math.max(plotLeft + 8, Math.min(plotRight - boxW - 10, nextLeft));
-
-        let nextTop = (cursorY && Number.isFinite(cursorY)) ? (cursorY - boxH * 0.35) : headerSafeTop;
-        nextTop = Math.max(headerSafeTop, Math.min(wrapH - boxH - 24, nextTop));
-
-        // 若游標落在左上角「均線數值列」區域（上方靠近均線列、左側靠近 plotLeft），自動往下避開均線數值
-        const maZoneBottom = headerSafeTop + 26;
-        if (nextTop < maZoneBottom && nextLeft < plotLeft + 260) {{
-          nextTop = Math.min(wrapH - boxH - 24, maZoneBottom + 8);
-        }}
+        // 智慧靠邊避讓：手指在左半邊時卡片停右上角，手指在右半邊時停左上角，絕不遮擋手指與K棒
+        const midX = (plotLeft + plotRight) * 0.5;
+        const nextLeft = (cursorX < midX)
+          ? Math.max(plotLeft, plotRight - boxW)
+          : plotLeft;
 
         hudEl.style.left = `${{Math.round(nextLeft)}}px`;
-        hudEl.style.top = `${{Math.round(nextTop)}}px`;
+        hudEl.style.top = `${{topDockY}}px`;
       }}
 
       function updateVerticalHudBox(r, hoverPrice, cursorX, cursorY) {{
@@ -3802,36 +3856,21 @@ if app_mode == "📈 個股籌碼圖表":
           ? hoverPrice
           : Number(r.close);
 
-        if (lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice) && Number.isFinite(targetPrice) && basePrice > 0) {{
-          const diff = targetPrice - basePrice;
-          const pct = (diff / basePrice) * 100;
-          const sgn = diff >= 0 ? "+" : "";
-          const psgn = pct >= 0 ? "+" : "";
-          setEl(
-            "vhMeasure",
-            `${{sgn}}${{diff.toFixed(2)}} (${{psgn}}${{pct.toFixed(2)}}%)`,
-            "v-hud-val " + (diff >= 0 ? "v-up" : "v-down")
-          );
-        }} else if (Number.isFinite(targetPrice) && Number(r.close) > 0) {{
-          const diff = targetPrice - Number(r.close);
-          const pct = (diff / Number(r.close)) * 100;
-          const sgn = diff >= 0 ? "+" : "";
-          const psgn = pct >= 0 ? "+" : "";
-          setEl(
-            "vhMeasure",
-            `${{sgn}}${{diff.toFixed(2)}} (${{psgn}}${{pct.toFixed(2)}}%)`,
-            "v-hud-val " + (diff >= 0 ? "v-up" : "v-down")
-          );
-        }} else {{
-          setEl("vhMeasure", "點圖定起點", "v-hud-val v-accent");
-        }}
+        const diffPts = targetPrice - basePrice;
+        const diffPct = basePrice > 0 ? (diffPts / basePrice) * 100.0 : 0.0;
+        const isMeasUp = diffPts >= 0;
+        const measCls = "v-hud-val " + (isMeasUp ? "v-up" : "v-down");
+        const sgn = isMeasUp ? "+" : "";
+        setEl("vhMeasPrice", targetPrice.toFixed(2), "v-hud-val v-accent");
+        setEl("vhMeasDiff", `${{sgn}}${{diffPts.toFixed(2)}}`, measCls);
+        setEl("vhMeasPct", `${{sgn}}${{diffPct.toFixed(2)}}%`, measCls);
 
         positionVerticalHudBox(cursorX, cursorY);
       }}
 
       function syncAnalysisPanel(r) {{
         if (!r || !r.snap) return;
-        updateVerticalHudBox(r, currentHoverPrice);
+        updateVerticalHudBox(r, currentHoverPrice, lastPointerClientX, lastPointerClientY);
         const s = r.snap;
         setEl("p-ma-status", s.ma_status, s.ma_cls);
         setEl("p-ma5", s.ma5);
@@ -4009,17 +4048,13 @@ if app_mode == "📈 個股籌碼圖表":
           cardX = Math.max(plotLeft + 8, lineX - cardW - 12);
         }}
 
-        const maSafeTop = b.top + b.height * (ax1TopFrac + 0.068);
-        const kTop = Math.max(b.top + b.height * ax1TopFrac + 24, maSafeTop);
+        const kTop = b.top + b.height * ax1TopFrac + 24;
         const kBot = b.top + b.height * ax1BotFrac - cardH - 6;
         let cardY = lineY ? (lineY - cardH / 2) : kTop;
         if (kBot > kTop) {{
           cardY = Math.max(kTop, Math.min(kBot, cardY));
         }} else {{
           cardY = kTop;
-        }}
-        if (cardY < maSafeTop + 18 && cardX < plotLeft + 260) {{
-          cardY = Math.min(kBot, maSafeTop + 22);
         }}
 
         ctx.fillStyle = "rgba(10, 14, 22, 0.90)";
@@ -4032,70 +4067,6 @@ if app_mode == "📈 個股籌碼圖表":
         drawSharpText(line2, cardX + 8, cardY + 27, chgCol, FONT_SM, "left");
         drawSharpText(line3, cardX + 8, cardY + 44, "#00ffff", FONT_SM, "left");
         drawSharpText(line4, cardX + 8, cardY + 61, "#ffff00", FONT_SM, "left");
-        ctx.restore();
-      }}
-
-      function drawRulerOverlay(b) {{
-        const targetB = (rulerEndIdx !== null) ? rulerEndIdx : rulerPreviewIdx;
-        if (rulerStartIdx === null || targetB === null) return;
-        const st = calcRangeStats(rulerStartIdx, targetB);
-        if (!st) return;
-
-        const plotLeft = b.left + b.width * axX0;
-        const plotRight = b.left + b.width * axX1;
-        const plotW = Math.max(10, plotRight - plotLeft);
-        const topY = b.top + b.height * ax1TopFrac;
-        const botY = b.top + b.height * (isFourPane ? 0.92 : 0.90);
-
-        const xA = barIdxToX(st.i1, plotLeft, plotW);
-        const xB = barIdxToX(st.i2, plotLeft, plotW);
-        const boxX = Math.min(xA, xB);
-        const boxW = Math.max(2, Math.abs(xB - xA));
-        const isUp = st.diffPts >= 0;
-
-        ctx.save();
-        ctx.fillStyle = isUp ? "rgba(255, 51, 51, 0.14)" : "rgba(0, 230, 77, 0.14)";
-        ctx.fillRect(boxX, topY, boxW, Math.max(10, botY - topY));
-
-        ctx.strokeStyle = "#FFFF00";
-        ctx.lineWidth = 1.2;
-        ctx.setLineDash([5, 3]);
-        [xA, xB].forEach((vx) => {{
-          ctx.beginPath();
-          ctx.moveTo(vx, topY);
-          ctx.lineTo(vx, botY);
-          ctx.stroke();
-        }});
-        ctx.setLineDash([]);
-
-        const sign = isUp ? "+" : "";
-        const pctSign = st.diffPct >= 0 ? "+" : "";
-        const ampSign = isUp ? "+" : "-";
-        const lines = [
-          `【尺規測距】${{st.startDate}} → ${{st.endDate}} (${{st.barCount}}K)`,
-          `區間漲跌: ${{sign}}${{st.diffPts.toFixed(2)}} (${{pctSign}}${{st.diffPct.toFixed(2)}}%)  收: ${{st.startClose.toFixed(2)}} → ${{st.endClose.toFixed(2)}}`,
-          `區間高低: ${{st.maxH.toFixed(2)}} / ${{st.minL.toFixed(2)}}  振幅: ${{ampSign}}${{st.ampPct.toFixed(2)}}%`,
-          `累積量: ${{st.sumVol.toLocaleString()}}  均量: ${{st.avgVol.toLocaleString()}}`
-        ];
-
-        const cardW = 355, cardH = 74;
-        let cardX = Math.max(xA, xB) + 10;
-        if (cardX + cardW > plotRight - 6) cardX = Math.min(xA, xB) - cardW - 10;
-        if (cardX < plotLeft + 6) cardX = plotLeft + 10;
-        const cardY = topY + 46;
-
-        ctx.fillStyle = "rgba(12, 16, 24, 0.92)";
-        ctx.strokeStyle = isUp ? "#FF5555" : "#00E64D";
-        ctx.lineWidth = 1.4;
-        ctx.fillRect(cardX, cardY, cardW, cardH);
-        ctx.strokeRect(cardX, cardY, cardW, cardH);
-
-        lines.forEach((ln, idxLine) => {{
-          let col = "#FFFFFF";
-          if (idxLine === 0) col = "#00FFFF";
-          else if (idxLine === 1 || idxLine === 2) col = isUp ? "#FF4444" : "#00E64D";
-          drawOutlinedText(ln, cardX + 8, cardY + 6 + idxLine * 16, col, "11.5px Arial, 'Microsoft JhengHei', sans-serif", 1.2);
-        }});
         ctx.restore();
       }}
 
@@ -4138,11 +4109,9 @@ if app_mode == "📈 個股籌碼圖表":
             drawHorizontalPriceBadge(hoverPrice, lineX, lineY, plotLeft, plotRight, b);
           }}
 
-          const curIdx = clientXToBarIdx(lineX + wrap.getBoundingClientRect().left, b);
-          drawVerticalBarCard(curIdx, lineX, lineY, hoverPrice, plotLeft, plotRight, b);
+          // 已由右上/左上智慧避讓精簡浮動查價卡 #vHudBox 顯示
         }}
 
-        drawRulerOverlay(b);
 
         if (!overlayHiddenByClick && lockedAnchorPrice !== null && Number.isFinite(lockedAnchorPrice) && pMaxPlot > pMinPlot) {{
           const kTop = b.top + b.height * ax1TopFrac;
@@ -4299,6 +4268,12 @@ if app_mode == "📈 個股籌碼圖表":
       window.addEventListener("resize", initDefault);
       setTimeout(initDefault, 80);
 
+      let leftMouseDownActive = false;
+      let leftMouseStartX = 0;
+      let leftMouseStartY = 0;
+      let leftMouseDragged = false;
+      let leftDragAccumSteps = 0;
+
       canvas.addEventListener("mousedown", function(e) {{
         if (e.button !== 0) return;
         wrap.focus();
@@ -4325,6 +4300,48 @@ if app_mode == "📈 個股籌碼圖表":
           return;
         }}
 
+        leftMouseDownActive = true;
+        leftMouseStartX = e.clientX;
+        leftMouseStartY = e.clientY;
+        leftMouseDragged = false;
+        leftDragAccumSteps = 0;
+      }});
+
+      window.addEventListener("mousemove", function(e) {{
+        if (!leftMouseDownActive) return;
+        const dx = e.clientX - leftMouseStartX;
+        const dy = e.clientY - leftMouseStartY;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {{
+          leftMouseDragged = true;
+        }}
+        if (!leftMouseDragged) return;
+
+        const b = getImgBounds();
+        const plotW = Math.max(100, b.width * (axX1 - axX0));
+        const pxPerBar = plotW / Math.max(10, totalBars);
+        const stepBars = Math.max(5, Math.round(totalBars / 8));
+        const steps = Math.trunc(dx / (pxPerBar * stepBars));
+        if (steps !== leftDragAccumSteps) {{
+          const diffSteps = steps - leftDragAccumSteps;
+          leftDragAccumSteps = steps;
+          if (diffSteps > 0) {{
+            for (let i = 0; i < diffSteps; i++) triggerPanStep(-1);
+          }} else if (diffSteps < 0) {{
+            for (let i = 0; i < Math.abs(diffSteps); i++) triggerPanStep(+1);
+          }}
+        }}
+      }});
+
+      window.addEventListener("mouseup", function(e) {{
+        if (!leftMouseDownActive || e.button !== 0) return;
+        const wasDragged = leftMouseDragged;
+        leftMouseDownActive = false;
+        leftMouseDragged = false;
+        leftDragAccumSteps = 0;
+        if (wasDragged) return;
+
+        const b = getImgBounds();
+        const idx = clientXToBarIdx(e.clientX, b);
         const wRect = wrap.getBoundingClientRect();
         const clickY = e.clientY - wRect.top;
         const clickPrice = yToPrice(clickY, b);
@@ -4359,6 +4376,81 @@ if app_mode == "📈 個股籌碼圖表":
         }}
       }});
 
+      let touchMovedFlag = false;
+      let touchStartX = 0;
+      let touchStartY = 0;
+
+      function getTouchPos(e) {{
+        const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+        return t ? {{ x: t.clientX, y: t.clientY }} : null;
+      }}
+
+      canvas.addEventListener("touchstart", function(e) {{
+        const pos = getTouchPos(e);
+        if (!pos) return;
+        e.preventDefault();
+        wrap.focus();
+        touchMovedFlag = false;
+        touchStartX = pos.x;
+        touchStartY = pos.y;
+
+        const b = getImgBounds();
+        const idx = clientXToBarIdx(pos.x, b);
+        const wRect = wrap.getBoundingClientRect();
+        const tapY = pos.y - wRect.top;
+        const tapPrice = yToPrice(tapY, b);
+
+        if (rulerArmed) {{
+          if (rulerStartIdx === null || rulerEndIdx !== null) {{
+            rulerStartIdx = idx;
+            rulerEndIdx = null;
+          }} else {{
+            rulerEndIdx = idx;
+          }}
+          rulerPreviewIdx = idx;
+        }} else if (overlayHiddenByClick) {{
+          overlayHiddenByClick = false;
+          lockedAnchorPrice = (tapPrice !== null && Number.isFinite(tapPrice)) ? tapPrice : Number(rows[idx].close);
+          lockedAnchorIdx = idx;
+        }}
+        crosshairEnabled = true;
+        onHover(pos.x, pos.y);
+      }}, {{ passive: false }});
+
+      canvas.addEventListener("touchmove", function(e) {{
+        const pos = getTouchPos(e);
+        if (!pos) return;
+        e.preventDefault();
+        if (Math.abs(pos.x - touchStartX) > 4 || Math.abs(pos.y - touchStartY) > 4) {{
+          touchMovedFlag = true;
+        }}
+        overlayHiddenByClick = false;
+        crosshairEnabled = true;
+        onHover(pos.x, pos.y);
+      }}, {{ passive: false }});
+
+      canvas.addEventListener("touchend", function(e) {{
+        const pos = getTouchPos(e);
+        if (!pos) return;
+        if (!touchMovedFlag && !rulerArmed) {{
+          // 純輕點（未左右拖曳）可切換顯示/隱藏查價卡
+          const b = getImgBounds();
+          const idx = clientXToBarIdx(pos.x, b);
+          if (!overlayHiddenByClick && lockedAnchorIdx !== null && lockedAnchorIdx === idx) {{
+            overlayHiddenByClick = true;
+            lockedAnchorPrice = null;
+            lockedAnchorIdx = null;
+            currentHoverPrice = null;
+            renderInPlaceOverlay(rows[idx], false, 0, 0, b);
+            syncAnalysisPanel(rows[idx]);
+            setVerticalHudVisible(false);
+            return;
+          }}
+          lockedAnchorIdx = idx;
+        }}
+        onHover(pos.x, pos.y);
+      }}, {{ passive: true }});
+
       function triggerFeihuStep(dir) {{
         const curBars = totalBars;
         let nextBars = curBars;
@@ -4384,6 +4476,57 @@ if app_mode == "📈 個股籌碼圖表":
         }}
       }}
 
+      let isPanDragging = false;
+      let panDragStartX = 0;
+      let panLastStepDelta = 0;
+
+      function triggerPanStep(dir) {{
+        const targetBtnText = dir < 0 ? "←平" : "平→";
+        try {{
+          const parentDoc = window.parent && window.parent.document;
+          if (parentDoc) {{
+            const btns = Array.from(parentDoc.querySelectorAll("button"));
+            const matchBtn = btns.find((b) => (b.innerText || "").trim() === targetBtnText);
+            if (matchBtn) matchBtn.click();
+          }}
+        }} catch (err) {{
+          console.log("平移觸發:", err);
+        }}
+      }}
+
+      canvas.addEventListener("mousedown", function(e) {{
+        if (e.button === 1 || (e.button === 0 && (e.altKey || e.ctrlKey || e.metaKey))) {{
+          e.preventDefault();
+          isPanDragging = true;
+          panDragStartX = e.clientX;
+          panLastStepDelta = 0;
+        }}
+      }}, true);
+
+      window.addEventListener("mousemove", function(e) {{
+        if (!isPanDragging) return;
+        const b = getImgBounds();
+        const plotW = Math.max(100, b.width * (axX1 - axX0));
+        const pxPerBar = plotW / Math.max(10, totalBars);
+        const dx = e.clientX - panDragStartX;
+        const stepBars = Math.max(5, Math.round(totalBars / 8));
+        const steps = Math.trunc(dx / (pxPerBar * stepBars));
+        if (steps !== panLastStepDelta) {{
+          const diffSteps = steps - panLastStepDelta;
+          panLastStepDelta = steps;
+          if (diffSteps > 0) {{
+            for (let i = 0; i < diffSteps; i++) triggerPanStep(-1);
+          }} else if (diffSteps < 0) {{
+            for (let i = 0; i < Math.abs(diffSteps); i++) triggerPanStep(+1);
+          }}
+        }}
+      }});
+
+      window.addEventListener("mouseup", function() {{
+        isPanDragging = false;
+        panLastStepDelta = 0;
+      }});
+
       wrap.addEventListener("keydown", function(e) {{
         if (e.key === "Escape") {{
           rulerStartIdx = null;
@@ -4399,6 +4542,12 @@ if app_mode == "📈 個股籌碼圖表":
         }} else if (e.key === "ArrowDown") {{
           e.preventDefault();
           triggerFeihuStep(-1);
+        }} else if (e.key === "ArrowLeft" && e.shiftKey) {{
+          e.preventDefault();
+          triggerPanStep(-1);
+        }} else if (e.key === "ArrowRight" && e.shiftKey) {{
+          e.preventDefault();
+          triggerPanStep(+1);
         }}
       }});
     }})();
