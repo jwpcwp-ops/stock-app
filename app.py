@@ -3809,7 +3809,8 @@ if app_mode == "📈 個股籌碼圖表":
         const plotLeft = b.left + b.width * axX0 + 4;
         const plotRight = b.left + b.width * axX1 - 6;
         const boxW = hudEl.offsetWidth || 96;
-        const topDockY = Math.round(b.top + b.height * (ax1TopFrac + 0.045));
+        const headerBaseY = b.top + b.height * (ax1TopFrac + 0.014);
+        const topDockY = Math.round(headerBaseY + 38);
 
         // 智慧靠邊避讓：手指在左半邊時卡片停右上角，手指在右半邊時停左上角，絕不遮擋手指與K棒
         const midX = (plotLeft + plotRight) * 0.5;
@@ -4133,12 +4134,16 @@ if app_mode == "📈 個股籌碼圖表":
             ctx.font = FONT_SM;
             const lw = ctx.measureText(ancLbl).width + 10;
             const lh = 16;
+            const hudApproxRight = plotLeft + 114;
+            const minAncY = (b.top + b.height * (ax1TopFrac + 0.014)) + 38 + 205;
+            const drawAncX = (ancY < minAncY) ? Math.max(plotLeft + 122, hudApproxRight + 8) : (plotLeft + 122);
+            const drawAncY = Math.max(kTop + 2, ancY - lh - 2);
             ctx.fillStyle = "#FFD54F";
-            ctx.fillRect(plotLeft + 132, Math.max(kTop + 2, ancY - lh - 2), lw, lh);
+            ctx.fillRect(drawAncX, drawAncY, lw, lh);
             ctx.fillStyle = "#000000";
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
-            ctx.fillText(ancLbl, plotLeft + 137, Math.max(kTop + 2, ancY - lh - 2) + lh / 2 + 0.5);
+            ctx.fillText(ancLbl, drawAncX + 5, drawAncY + lh / 2 + 0.5);
             ctx.restore();
           }}
         }}
