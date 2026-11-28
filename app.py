@@ -2227,6 +2227,55 @@ def _try_read_csv_with_data():
             continue
     return None
 
+def _eval_qt_bottom_accum_metrics(df_stock, min_streak=3, min_qt_ratio=1.0):
+    """
+    依附圖 Q/T長條副圖結構計算：
+    1. Q/T長條（qt）高過 5日均線（青色曲線 qt_ma）：qt > qt_ma（且倍數 >= min_qt_ratio）
+    2. Q/T長條 連續 > 昨日達 min_streak 日以上（預設 3 日，如圖最右側連續階梯墊高）
+    3. 5日均線（qt_ma）本身向上走揚（qt_ma[-1] >= qt_ma[-2]）
+    """
+    if df_stock is None or len(df_stock) < (min_streak + 1) or "qt" not in df_stock.columns:
+        return None
+    qt_s = pd.to_numeric(df_stock["qt"], errors="coerce").dropna()
+    qt_ma_s = (
+        pd.to_numeric(df_stock["qt_ma"], errors="coerce").dropna()
+        if "qt_ma" in df_stock.columns
+        else qt_s.rolling(window=QT_SMOOTH_WINDOW, min_periods=1).mean()
+    )
+    if len(qt_s) < (min_streak + 1) or len(qt_ma_s) < 1:
+        return None
+
+    qt_vals = qt_s.values
+    streak = 0
+    for i in range(len(qt_vals) - 1, 0, -1):
+        if qt_vals[i] > qt_vals[i - 1]:
+            streak += 1
+        else:
+            break
+
+    qt_now = float(qt_vals[-1])
+    qt_ma_now = float(qt_ma_s.iloc[-1])
+    qt_ma_prev = float(qt_ma_s.iloc[-2]) if len(qt_ma_s) >= 2 else qt_ma_now
+    qt_ratio_now = (
+        float(pd.to_numeric(df_stock["qt_ratio"], errors="coerce").iloc[-1])
+        if "qt_ratio" in df_stock.columns
+        else (qt_now / qt_ma_now if qt_ma_now > 0 else 0.0)
+    )
+    above_ma = bool((qt_now > qt_ma_now) and (qt_ratio_now >= float(min_qt_ratio)))
+    ma_rising = bool(qt_ma_now >= qt_ma_prev)
+    passed = bool((streak >= int(min_streak)) and above_ma and ma_rising)
+
+    return {
+        "passed": passed,
+        "qt_now": int(round(qt_now)),
+        "qt_ma_now": int(round(qt_ma_now)),
+        "qt_ratio": round(qt_ratio_now, 2),
+        "qt_streak": int(streak),
+        "above_ma": above_ma,
+        "ma_rising": ma_rising,
+    }
+
+
 def _filter_chip_candidates(is_golden, th_val):
     results_list = []
     df_valid_csv = _try_read_csv_with_data()
@@ -3594,18 +3643,18 @@ if app_mode == "📈 個股籌碼圖表":
         <canvas id="fx-cross-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair; touch-action:none;"></canvas>
         <div class="v-hud-box v-hud-hidden" id="vHudBox">
           <div class="v-hud-date" id="vhDate">{init_snap.get("v_date_str", "2026/11/27")}</div>
-          <div class="v-hud-row"><span class="v-hud-label">開盤</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最高</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">最低</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">收盤</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">漲跌</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">振幅</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">大戶</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">羊群</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">波段</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">均線</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">季線</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
-          <div class="v-hud-row"><span class="v-hud-label">逆序</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">開</span><span class="v-hud-val v-up" id="vhOpen">{init_snap.get("v_open_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">高</span><span class="v-hud-val v-up" id="vhHigh">{init_snap.get("v_high_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">低</span><span class="v-hud-val v-down" id="vhLow">{init_snap.get("v_low_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">收</span><span class="v-hud-val v-up" id="vhClose">{init_snap.get("v_close_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">跌</span><span class="v-hud-val v-up" id="vhChange">{init_snap.get("v_change_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">振</span><span class="v-hud-val v-accent" id="vhAmp">{init_snap.get("v_amp_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">大</span><span class="v-hud-val v-up" id="vhBig">{init_snap.get("v_big_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">羊</span><span class="v-hud-val v-down" id="vhSheep">{init_snap.get("v_sheep_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">波</span><span class="v-hud-val v-down" id="vhSwing">{init_snap.get("v_swing_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">均</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">季</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">序</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
           <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">測價</span><span class="v-hud-val v-accent" id="vhMeasPrice">--</span></div>
           <div class="v-hud-row"><span class="v-hud-label">測差</span><span class="v-hud-val v-up" id="vhMeasDiff">--</span></div>
           <div class="v-hud-row"><span class="v-hud-label">測幅</span><span class="v-hud-val v-up" id="vhMeasPct">--</span></div>
@@ -4612,6 +4661,8 @@ elif app_mode == "⚡ 9大策略選股":
     period_arg = "週線" if dw_choice_cur == "周" else "日線"
     col_v_name = f"最新{dw_choice_cur}量(張)"
     col_val_name = f"{dw_choice_cur}量比"
+    is_bottom_qt_strat = (selected_strat == "主力底部吃貨")
+    qt_ratio_min_cur = float(st.session_state.get("qt_bottom_ratio_min", 1.0))
 
     if not has_raw_candidates:
         filtered_df = pd.DataFrame(columns=["策略名稱", "代碼"])
@@ -4630,19 +4681,56 @@ elif app_mode == "⚡ 9大策略選股":
             for _, r_item in filtered_df.iterrows():
                 raw_c = str(r_item["代碼"]).strip()
                 if raw_c in ["", "無", "無符合股票"]:
-                    metrics_rows.append({col_v_name: None, col_val_name: None})
+                    base_m = {col_v_name: None, col_val_name: None}
+                    if is_bottom_qt_strat:
+                        base_m.update({
+                            "最新Q/T": None,
+                            "QT5日均線": None,
+                            "Q/T倍數": None,
+                            "Q/T連增日": None,
+                            "_qt_ok": False,
+                        })
+                    metrics_rows.append(base_m)
                     continue
                 c_code = raw_c.zfill(4) if raw_c.isdigit() else raw_c
                 try:
-                    _, _, _, c_v, _, v_rat = get_continuous_stock_df(
-                        c_code, target_days=20, period_type=period_arg
+                    df_c, _, _, c_v, _, v_rat = get_continuous_stock_df(
+                        c_code, target_days=30, period_type=period_arg
                     )
-                    metrics_rows.append({
+                    m_dict = {
                         col_v_name: int(round(float(c_v))),
                         col_val_name: round(float(v_rat), 2),
-                    })
+                    }
+                    if is_bottom_qt_strat:
+                        qt_info = _eval_qt_bottom_accum_metrics(df_c, min_streak=3, min_qt_ratio=qt_ratio_min_cur)
+                        if qt_info:
+                            m_dict.update({
+                                "最新Q/T": qt_info["qt_now"],
+                                "QT5日均線": qt_info["qt_ma_now"],
+                                "Q/T倍數": qt_info["qt_ratio"],
+                                "Q/T連增日": qt_info["qt_streak"],
+                                "_qt_ok": qt_info["passed"],
+                            })
+                        else:
+                            m_dict.update({
+                                "最新Q/T": None,
+                                "QT5日均線": None,
+                                "Q/T倍數": None,
+                                "Q/T連增日": 0,
+                                "_qt_ok": False,
+                            })
+                    metrics_rows.append(m_dict)
                 except Exception:
-                    metrics_rows.append({col_v_name: None, col_val_name: None})
+                    err_m = {col_v_name: None, col_val_name: None}
+                    if is_bottom_qt_strat:
+                        err_m.update({
+                            "最新Q/T": None,
+                            "QT5日均線": None,
+                            "Q/T倍數": None,
+                            "Q/T連增日": 0,
+                            "_qt_ok": False,
+                        })
+                    metrics_rows.append(err_m)
 
             if metrics_rows:
                 filtered_df = pd.concat(
@@ -4662,19 +4750,25 @@ elif app_mode == "⚡ 9大策略選股":
                         filtered_df[col_val_name].fillna(0.0)
                         > float(min_dw_val_cur)
                     )
-                filtered_df = filtered_df[keep_mask].reset_index(drop=True)
+                if is_bottom_qt_strat and "_qt_ok" in filtered_df.columns:
+                    keep_mask = keep_mask & filtered_df["_qt_ok"].fillna(False)
 
+                filtered_df = filtered_df[keep_mask].reset_index(drop=True)
+                if "_qt_ok" in filtered_df.columns:
+                    filtered_df = filtered_df.drop(columns=["_qt_ok"])
+
+        qt_suffix = "｜QT>均線且連3日↑" if is_bottom_qt_strat else ""
         status_msg = (
-            f"【{selected_strat}｜{dw_choice_cur}】{len(filtered_df)}檔"
+            f"【{selected_strat}｜{dw_choice_cur}{qt_suffix}】{len(filtered_df)}檔"
             if not filtered_df.empty
             else (
-                f"【{selected_strat}｜{dw_choice_cur}】0檔"
+                f"【{selected_strat}｜{dw_choice_cur}{qt_suffix}】0檔"
                 if has_raw_candidates
                 else f"【{selected_strat}】尚無符合"
             )
         )
 
-    f_cols = st.columns(8, gap="small")
+    f_cols = st.columns(10 if is_bottom_qt_strat else 8, gap="small")
 
     with f_cols[0]:
         st.markdown(
@@ -4720,10 +4814,29 @@ elif app_mode == "⚡ 9大策略選股":
             key="dw_val_up_sel",
             label_visibility="collapsed",
         )
-    with f_cols[7]:
-        if st.button("🔄 重整", key="btn_refresh_dw_vol"):
-            fetch_raw_history.clear()
-            st.rerun()
+    if is_bottom_qt_strat:
+        with f_cols[7]:
+            st.markdown(
+                '<div class="gold-tag-box gold-tag-active">QT倍數≥</div>',
+                unsafe_allow_html=True,
+            )
+        with f_cols[8]:
+            st.selectbox(
+                "QT倍數門檻",
+                [1.0, 1.2, 1.45, 1.5],
+                index=0,
+                key="qt_bottom_ratio_min",
+                label_visibility="collapsed",
+            )
+        with f_cols[9]:
+            if st.button("🔄 重整", key="btn_refresh_dw_vol"):
+                fetch_raw_history.clear()
+                st.rerun()
+    else:
+        with f_cols[7]:
+            if st.button("🔄 重整", key="btn_refresh_dw_vol"):
+                fetch_raw_history.clear()
+                st.rerun()
 
     if has_raw_candidates and not filtered_df.empty:
         event = st.dataframe(
