@@ -3580,6 +3580,9 @@ if app_mode == "📈 個股籌碼圖表":
           <div class="v-hud-row"><span class="v-hud-label">均</span><span class="v-hud-val v-down" id="vhMa">{init_snap.get("v_ma_str", "--")}</span></div>
           <div class="v-hud-row"><span class="v-hud-label">季</span><span class="v-hud-val v-down" id="vhQma">{init_snap.get("v_qma_str", "--")}</span></div>
           <div class="v-hud-row"><span class="v-hud-label">序</span><span class="v-hud-val v-cyan" id="vhRev">{init_snap.get("v_rev_str", "1")}</span></div>
+          <div class="v-hud-row v-hud-measure-row"><span class="v-hud-label">測價</span><span class="v-hud-val v-accent" id="vhMeasPrice">--</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">測差</span><span class="v-hud-val v-up" id="vhMeasDiff">--</span></div>
+          <div class="v-hud-row"><span class="v-hud-label">測幅</span><span class="v-hud-val v-up" id="vhMeasPct">--</span></div>
         </div>
       </div>
 
@@ -3827,12 +3830,21 @@ if app_mode == "📈 個股籌碼圖表":
           ? hoverPrice
           : Number(r.close);
 
+        const diffPts = targetPrice - basePrice;
+        const diffPct = basePrice > 0 ? (diffPts / basePrice) * 100.0 : 0.0;
+        const isMeasUp = diffPts >= 0;
+        const measCls = "v-hud-val " + (isMeasUp ? "v-up" : "v-down");
+        const sgn = isMeasUp ? "+" : "";
+        setEl("vhMeasPrice", targetPrice.toFixed(2), "v-hud-val v-accent");
+        setEl("vhMeasDiff", `${{sgn}}${{diffPts.toFixed(2)}}`, measCls);
+        setEl("vhMeasPct", `${{sgn}}${{diffPct.toFixed(2)}}%`, measCls);
+
         positionVerticalHudBox(cursorX, cursorY);
       }}
 
       function syncAnalysisPanel(r) {{
         if (!r || !r.snap) return;
-        updateVerticalHudBox(r, currentHoverPrice);
+        updateVerticalHudBox(r, currentHoverPrice, lastPointerClientX, lastPointerClientY);
         const s = r.snap;
         setEl("p-ma-status", s.ma_status, s.ma_cls);
         setEl("p-ma5", s.ma5);
